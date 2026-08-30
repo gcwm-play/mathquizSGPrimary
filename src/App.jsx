@@ -91,6 +91,7 @@ const TOPICS = [
   { id: "measurement", name: "📏 Length, Mass & Volume" },
   { id: "time", name: "⏰ Time & Duration" },
   { id: "geometry", name: "📐 Area & Perimeter" },
+  { id: "statistics", name: "📊 Bar Graphs" },
   { id: "word_problems", name: "🧩 Bar Model Word Problems" }
 ];
 
@@ -106,6 +107,43 @@ function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
+// Dedupes a list of candidate numeric distractors against each other and the correct value,
+// then tops up with a guaranteed-terminating outward walk if too many candidates collided.
+function pickDistractors(correctVal, rawCandidates, minVal = -Infinity) {
+  const set = new Set();
+  for (const c of rawCandidates) {
+    if (c !== correctVal && c >= minVal) set.add(c);
+  }
+  let step = 1;
+  while (set.size < 3) {
+    const up = correctVal + step;
+    if (up !== correctVal && up >= minVal && !set.has(up)) set.add(up);
+    if (set.size < 3) {
+      const down = correctVal - step;
+      if (down !== correctVal && down >= minVal && !set.has(down)) set.add(down);
+    }
+    step++;
+  }
+  return Array.from(set).slice(0, 3);
+}
+
+// Same idea, but for pre-formatted string distractors (e.g. "6/8", "1 h 45 min") built from a
+// numeric key. `toKey`/`fromKey` convert between the display string and a comparable number so
+// collisions can be detected and a fallback can be generated deterministically.
+function pickFormattedDistractors(correctStr, rawStrings, fallbackKey, fromKey, minKey = -Infinity) {
+  const set = new Set();
+  for (const s of rawStrings) {
+    if (s !== correctStr) set.add(s);
+  }
+  let step = 1;
+  while (set.size < 3) {
+    const candidate = fromKey(fallbackKey + step);
+    if (candidate !== correctStr && fallbackKey + step >= minKey && !set.has(candidate)) set.add(candidate);
+    step++;
+  }
+  return Array.from(set).slice(0, 3);
+}
+
 function generateDistractors(correctVal, count = 3, minVal = 0) {
   const distractors = new Set();
   const offsets = [1, -1, 10, -10, 100, -100, 2, -2, 5, -5];
@@ -118,9 +156,24 @@ function generateDistractors(correctVal, count = 3, minVal = 0) {
       distractors.add(candidate);
     }
   }
-  while (distractors.size < count) {
+  tries = 0;
+  while (distractors.size < count && tries < 30) {
+    tries++;
     const candidate = Math.max(minVal, correctVal + rand(-15, 15));
     if (candidate !== correctVal) distractors.add(candidate);
+  }
+  // Guaranteed-terminating fallback: walk outward from correctVal until enough distinct values are found.
+  // (Handles the case where correctVal sits far below minVal, which would otherwise clamp every
+  // candidate to the same value and spin forever.)
+  let step = 1;
+  while (distractors.size < count) {
+    const up = correctVal + step;
+    if (up !== correctVal && !distractors.has(up)) distractors.add(up);
+    if (distractors.size < count) {
+      const down = correctVal - step;
+      if (down !== correctVal && down >= minVal && !distractors.has(down)) distractors.add(down);
+    }
+    step++;
   }
   return Array.from(distractors);
 }
@@ -128,7 +181,7 @@ function generateDistractors(correctVal, count = 3, minVal = 0) {
 // Procedural Question Generator
 function generateQuestion(selectedTopic) {
   const topicPool = selectedTopic === "all"
-    ? ["place_value", "add_sub", "mul_div", "fractions", "money", "measurement", "time", "geometry", "word_problems"]
+    ? ["place_value", "add_sub", "mul_div", "fractions", "money", "measurement", "time", "geometry", "statistics", "word_problems"]
     : [selectedTopic];
 
   const chosenCategory = topicPool[Math.floor(Math.random() * topicPool.length)];
@@ -137,7 +190,7 @@ function generateQuestion(selectedTopic) {
   switch (chosenCategory) {
     // 1. NUMBERS TO 10,000 & PLACE VALUE
     case "place_value": {
-      const type = rand(1, 4);
+      const type = rand(1, 5);
       if (type === 1) {
         const num = rand(1200, 9899);
         const numStr = num.toString();
@@ -147,13 +200,13 @@ function generateQuestion(selectedTopic) {
         const multiplier = [1000, 100, 10, 1][posIndex];
         const correct = digit * multiplier;
 
-        const distractors = [
+        const distractors = pickDistractors(correct, [
           digit,
           digit * (multiplier === 1 ? 10 : multiplier / 10),
           digit * (multiplier === 1000 ? 100 : multiplier * 10)
-        ].filter(d => d !== correct);
+        ], 0);
 
-        const options = shuffle([correct.toString(), ...distractors.map(String).slice(0, 3)]);
+        const options = shuffle([correct.toString(), ...distractors.map(String)]);
 
         return {
           id: qId,
@@ -210,11 +263,11 @@ function generateQuestion(selectedTopic) {
         const roundTo = Math.random() > 0.5 ? 10 : 100;
         const num = rand(1000, 9900);
         const correct = Math.round(num / roundTo) * roundTo;
-        const distractors = shuffle([
+        const distractors = pickDistractors(correct, [
           correct + roundTo,
           correct - roundTo,
           roundTo === 10 ? Math.round(num / 100) * 100 : Math.round(num / 10) * 10
-        ]).filter(x => x !== correct && x > 0).slice(0, 3);
+        ], roundTo);
 
         const options = shuffle([correct.toString(), ...distractors.map(String)]);
 
@@ -238,7 +291,7 @@ function generateQuestion(selectedTopic) {
             model: `${num} is closer to ${correct}`
           }
         };
-      } else {
+      } else if (type === 4) {
         const digits = [];
         while (digits.length < 4) {
           const d = rand(1, 9);
@@ -275,6 +328,37 @@ function generateQuestion(selectedTopic) {
               `The resulting 4-digit number is ${correct}.`
             ],
             model: `Order: [${sorted.join("] [")}]`
+          }
+        };
+      } else {
+        const numSet = new Set();
+        while (numSet.size < 4) {
+          numSet.add(rand(1000, 9999));
+        }
+        const numArr = Array.from(numSet);
+        const findGreatest = Math.random() > 0.5;
+        const sorted = [...numArr].sort((a, b) => (findGreatest ? b - a : a - b));
+        const correct = sorted[0];
+        const options = shuffle(numArr.map(String));
+
+        return {
+          id: qId,
+          inputType: "single",
+          unit: "",
+          topic: "place_value",
+          categoryName: "Numbers to 10,000",
+          question: `Which number is the ${findGreatest ? "GREATEST" : "SMALLEST"}?\n\n${numArr.map((n) => n.toLocaleString()).join("     ")}`,
+          hint: "Compare the digits starting from the leftmost place value (thousands) first.",
+          correctAnswer: correct.toString(),
+          options,
+          explanation: {
+            concept: "Comparing and Ordering Numbers",
+            steps: [
+              `Line up the numbers by place value: ${numArr.join(", ")}.`,
+              `Compare digits starting from the thousands place; move right only when digits are tied.`,
+              `The ${findGreatest ? "greatest" : "smallest"} number is ${correct.toLocaleString()}.`
+            ],
+            model: `Ordered: ${sorted.map((n) => n.toLocaleString()).join(findGreatest ? " > " : " < ")}`
           }
         };
       }
@@ -437,7 +521,7 @@ function generateQuestion(selectedTopic) {
 
     // 4. FRACTIONS (WITH DEDICATED FRACTION INPUT UI)
     case "fractions": {
-      const type = rand(1, 3);
+      const type = rand(1, 4);
       if (type === 1) {
         // Missing numerator for equivalent fraction
         const num = rand(1, 4);
@@ -447,8 +531,8 @@ function generateQuestion(selectedTopic) {
         const targetNum = num * multiplier;
 
         const correct = targetNum;
-        const distractors = [correct + 1, Math.max(1, correct - 1), targetDen - num].filter(x => x !== correct);
-        const options = shuffle([correct.toString(), ...distractors.map(String).slice(0, 3)]);
+        const distractors = pickDistractors(correct, [correct + 1, Math.max(1, correct - 1), targetDen - num], 1);
+        const options = shuffle([correct.toString(), ...distractors.map(String)]);
 
         return {
           id: qId,
@@ -484,13 +568,15 @@ function generateQuestion(selectedTopic) {
         const den = simpDen * common;
         const correctStr = `${simpNum}/${simpDen}`;
 
-        const distractors = [
-          `${simpNum + 1}/${simpDen}`,
-          `${simpNum}/${simpDen + 1}`,
-          `${num / 2}/${den / 2}`
-        ].filter(d => d !== correctStr);
+        const distractors = pickFormattedDistractors(
+          correctStr,
+          [`${simpNum + 1}/${simpDen}`, `${simpNum}/${simpDen + 1}`, `${num / 2}/${den / 2}`],
+          simpNum,
+          (n) => `${Math.max(1, n)}/${simpDen}`,
+          1
+        );
 
-        const options = shuffle([correctStr, ...distractors.slice(0, 3)]);
+        const options = shuffle([correctStr, ...distractors]);
 
         return {
           id: qId,
@@ -515,6 +601,51 @@ function generateQuestion(selectedTopic) {
             model: `(${num} ÷ ${common}) / (${den} ÷ ${common}) = ${correctStr}`
           }
         };
+      } else if (type === 3) {
+        // Compare and order unlike fractions (common denominator 12)
+        const lcd = 12;
+        const denOptions = [2, 3, 4, 6, 12];
+        const usedValues = new Set();
+        const fracs = [];
+        while (fracs.length < 4) {
+          const den = denOptions[rand(0, denOptions.length - 1)];
+          const num = rand(1, den - 1);
+          const value = num * (lcd / den);
+          if (usedValues.has(value)) continue;
+          usedValues.add(value);
+          fracs.push({ num, den, value });
+        }
+
+        const findGreatest = Math.random() > 0.5;
+        const sorted = [...fracs].sort((a, b) => (findGreatest ? b.value - a.value : a.value - b.value));
+        const target = sorted[0];
+        const correctStr = `${target.num}/${target.den}`;
+        const fracStrs = fracs.map((f) => `${f.num}/${f.den}`);
+        const options = shuffle(fracStrs);
+        const breakdown = fracs.map((f) => `${f.num}/${f.den} = ${f.value}/${lcd}`).join(", ");
+
+        return {
+          id: qId,
+          inputType: "fraction_full",
+          expectedNum: target.num.toString(),
+          expectedDen: target.den.toString(),
+          unit: "",
+          topic: "fractions",
+          categoryName: "Fractions",
+          question: `Which fraction is the ${findGreatest ? "GREATEST" : "SMALLEST"}?\n\n${fracStrs.join("     ")}`,
+          hint: "Convert every fraction to twelfths (a common denominator) before comparing.",
+          correctAnswer: correctStr,
+          options,
+          explanation: {
+            concept: "Comparing and Ordering Unlike Fractions",
+            steps: [
+              `Convert every fraction to an equivalent fraction with denominator ${lcd}: ${breakdown}.`,
+              `Compare the numerators once the denominators are the same.`,
+              `The ${findGreatest ? "greatest" : "smallest"} fraction is ${correctStr}.`
+            ],
+            model: `${fracs.map((f) => `${f.num}/${f.den} = ${f.value}/${lcd}`).join("   ")}\n${findGreatest ? "Greatest" : "Smallest"}: ${correctStr}`
+          }
+        };
       } else {
         // Addition / Subtraction of related fractions
         const denSmall = [2, 3, 4, 5][rand(0, 3)];
@@ -532,13 +663,19 @@ function generateQuestion(selectedTopic) {
           const simpD = denBig / g;
           const ansStr = `${simpN}/${simpD}`;
 
-          const distractors = [
-            `${totalNum + 1}/${denBig}`,
-            `${num1 + num2}/${denSmall + denBig}`,
-            `${Math.max(1, totalNum - 1)}/${denBig}`
-          ].filter(x => x !== ansStr);
+          const distractors = pickFormattedDistractors(
+            ansStr,
+            [
+              `${totalNum + 1}/${denBig}`,
+              `${num1 + num2}/${denSmall + denBig}`,
+              `${Math.max(1, totalNum - 1)}/${denBig}`
+            ],
+            totalNum,
+            (n) => `${Math.max(1, n)}/${denBig}`,
+            1
+          );
 
-          const options = shuffle([ansStr, ...distractors.slice(0, 3)]);
+          const options = shuffle([ansStr, ...distractors]);
 
           return {
             id: qId,
@@ -570,11 +707,17 @@ function generateQuestion(selectedTopic) {
           const simpD = denBig / g;
           const ansStr = `${simpN}/${simpD}`;
 
-          const distractors = [
-            `${diffNum + 1}/${denBig}`,
-            `${Math.max(1, diffNum - 1)}/${denBig}`,
-            `${topNumerator - num1}/${denBig}`
-          ].filter(x => x !== ansStr);
+          const distractors = pickFormattedDistractors(
+            ansStr,
+            [
+              `${diffNum + 1}/${denBig}`,
+              `${Math.max(1, diffNum - 1)}/${denBig}`,
+              `${topNumerator - num1}/${denBig}`
+            ],
+            diffNum,
+            (n) => `${Math.max(1, n)}/${denBig}`,
+            1
+          );
 
           const options = shuffle([ansStr, ...distractors.slice(0, 3)]);
 
@@ -689,7 +832,7 @@ function generateQuestion(selectedTopic) {
 
     // 6. MEASUREMENT
     case "measurement": {
-      const unitType = ["length_km", "length_m", "mass_kg", "time_min"][rand(0, 3)];
+      const unitType = ["length_km", "length_m", "mass_kg", "volume_l", "time_min"][rand(0, 4)];
       if (unitType === "length_km") {
         const km = rand(2, 8);
         const m = rand(15, 850);
@@ -792,6 +935,40 @@ function generateQuestion(selectedTopic) {
             model: `[ ${kg} kg = ${kg * 1000} g ] + [ ${g} g ] = [ ${totalG} g ]`
           }
         };
+      } else if (unitType === "volume_l") {
+        const l = rand(2, 8);
+        const ml = rand(50, 850);
+        const totalMl = l * 1000 + ml;
+        const correctStr = `${totalMl} ml`;
+
+        const distractors = [
+          `${l * 100 + ml} ml`,
+          `${totalMl + 100} ml`,
+          `${totalMl - 50} ml`
+        ];
+        const options = shuffle([correctStr, ...distractors]);
+
+        return {
+          id: qId,
+          inputType: "single",
+          unit: "ml",
+          rawNumber: totalMl.toString(),
+          topic: "measurement",
+          categoryName: "Volume (l and ml)",
+          question: `A bottle contains ${l} l ${ml} ml of water. What is its volume in millilitres (ml)?`,
+          hint: "1 l = 1,000 ml.",
+          correctAnswer: correctStr,
+          options,
+          explanation: {
+            concept: "Converting l to ml",
+            steps: [
+              `1 l = 1,000 ml.`,
+              `${l} l = ${l * 1000} ml.`,
+              `Total = ${l * 1000} ml + ${ml} ml = ${totalMl} ml.`
+            ],
+            model: `[ ${l} l = ${l * 1000} ml ] + [ ${ml} ml ] = [ ${totalMl} ml ]`
+          }
+        };
       } else {
         const h = rand(1, 4);
         const m = [15, 20, 35, 40, 50][rand(0, 4)];
@@ -829,8 +1006,10 @@ function generateQuestion(selectedTopic) {
       }
     }
 
-    // 7. TIME (DURATION)
+    // 7. TIME (DURATION & 24-HOUR NOTATION)
     case "time": {
+      const timeType = rand(1, 2);
+      if (timeType === 1) {
       const startHour = rand(1, 6);
       const startMin = [0, 15, 30, 45][rand(0, 3)];
       const durHours = rand(1, 2);
@@ -846,14 +1025,22 @@ function generateQuestion(selectedTopic) {
       const endStr = formatTime(endHour, endMin);
 
       const correctStr = `${durHours} h ${durMins} min`;
+      const correctTotalMin = durHours * 60 + durMins;
+      const formatDuration = (t) => `${Math.floor(t / 60)} h ${t % 60} min`;
 
-      const distractors = [
-        `${durHours + 1} h ${durMins} min`,
-        `${durHours} h ${(durMins + 15) % 60} min`,
-        `${Math.max(1, durHours - 1)} h ${durMins} min`
-      ].filter(d => d !== correctStr);
+      const distractors = pickFormattedDistractors(
+        correctStr,
+        [
+          formatDuration(correctTotalMin + 60),
+          formatDuration(correctTotalMin + 15 <= 0 ? correctTotalMin + 15 : correctTotalMin - 15),
+          formatDuration(Math.max(15, correctTotalMin - 60))
+        ],
+        correctTotalMin,
+        (t) => formatDuration(Math.max(15, t)),
+        15
+      );
 
-      const options = shuffle([correctStr, ...distractors.slice(0, 3)]);
+      const options = shuffle([correctStr, ...distractors]);
 
       return {
         id: qId,
@@ -876,22 +1063,79 @@ function generateQuestion(selectedTopic) {
           model: `Timeline: [ ${startStr} ] --(+${durHours}h)--> [ ${formatTime(startHour + durHours, startMin)} ] --(+${durMins}min)--> [ ${endStr} ]`
         }
       };
+      } else {
+        // 24-hour clock notation
+        const hour12 = rand(1, 12);
+        const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+        const minute = minuteOptions[rand(0, minuteOptions.length - 1)];
+        const isPM = Math.random() > 0.5;
+        const hour24 = isPM ? (hour12 === 12 ? 12 : hour12 + 12) : (hour12 === 12 ? 0 : hour12);
+        const hh = hour24.toString().padStart(2, "0");
+        const mm = minute.toString().padStart(2, "0");
+        const answer24 = `${hh}${mm}`;
+        const time12Str = `${hour12}:${mm} ${isPM ? "p.m." : "a.m."}`;
+
+        const totalMinOfDay = hour24 * 60 + minute;
+        const formatHHMM = (t) => {
+          const wrapped = ((t % 1440) + 1440) % 1440;
+          return `${Math.floor(wrapped / 60).toString().padStart(2, "0")}${(wrapped % 60).toString().padStart(2, "0")}`;
+        };
+        const distractors = pickFormattedDistractors(
+          answer24,
+          [
+            formatHHMM(totalMinOfDay + 60),
+            formatHHMM(totalMinOfDay - 60),
+            `${hour12.toString().padStart(2, "0")}${mm}`
+          ],
+          totalMinOfDay,
+          (t) => formatHHMM(t)
+        );
+
+        const options = shuffle([answer24, ...distractors]);
+
+        return {
+          id: qId,
+          inputType: "time24",
+          unit: "h",
+          topic: "time",
+          categoryName: "Time & Duration",
+          question: `Write ${time12Str} using 24-hour format.`,
+          hint: "For p.m. times (except 12 noon), add 12 to the hour. Write the answer as 4 digits, e.g. 0905 or 1345.",
+          correctAnswer: answer24,
+          options,
+          explanation: {
+            concept: "24-Hour Clock Notation",
+            steps: [
+              isPM && hour12 !== 12
+                ? `Since the time is p.m. and not 12 noon, add 12 to the hour: ${hour12} + 12 = ${hour24}.`
+                : (!isPM && hour12 === 12
+                  ? `12 a.m. (midnight) is written as 00 in 24-hour format.`
+                  : `The hour stays the same because it is a.m. (or 12 noon).`),
+              `Keep the minutes the same: ${mm}.`,
+              `Combine to get the 4-digit 24-hour time: ${answer24}.`
+            ],
+            model: `${time12Str}  →  ${answer24}`
+          }
+        };
+      }
     }
 
     // 8. GEOMETRY (AREA & PERIMETER)
     case "geometry": {
-      const isPerimeter = Math.random() > 0.5;
-      if (isPerimeter) {
+      const shapeType = rand(1, 3);
+      if (shapeType === 1) {
         const isSquare = Math.random() > 0.5;
         if (isSquare) {
           const side = rand(4, 15);
           const perim = side * 4;
           const correctStr = `${perim} cm`;
-          const distractors = [
-            `${side * side} cm`,
-            `${perim + 4} cm`,
-            `${perim - 4} cm`
-          ];
+          const distractors = pickFormattedDistractors(
+            correctStr,
+            [`${side * side} cm`, `${perim + 4} cm`, `${perim - 4} cm`],
+            perim,
+            (n) => `${Math.max(1, n)} cm`,
+            1
+          );
           const options = shuffle([correctStr, ...distractors]);
 
           return {
@@ -919,11 +1163,13 @@ function generateQuestion(selectedTopic) {
           const breadth = rand(3, length - 2);
           const perim = 2 * (length + breadth);
           const correctStr = `${perim} m`;
-          const distractors = [
-            `${length * breadth} m`,
-            `${length + breadth} m`,
-            `${perim + 2} m`
-          ];
+          const distractors = pickFormattedDistractors(
+            correctStr,
+            [`${length * breadth} m`, `${length + breadth} m`, `${perim + 2} m`],
+            perim,
+            (n) => `${Math.max(1, n)} m`,
+            1
+          );
           const options = shuffle([correctStr, ...distractors]);
 
           return {
@@ -947,16 +1193,18 @@ function generateQuestion(selectedTopic) {
             }
           };
         }
-      } else {
+      } else if (shapeType === 2) {
         const length = rand(4, 12);
         const breadth = rand(3, 9);
         const area = length * breadth;
         const correctStr = `${area} cm²`;
-        const distractors = [
-          `${2 * (length + breadth)} cm²`,
-          `${area + 4} cm²`,
-          `${Math.max(1, area - 6)} cm²`
-        ];
+        const distractors = pickFormattedDistractors(
+          correctStr,
+          [`${2 * (length + breadth)} cm²`, `${area + 4} cm²`, `${Math.max(1, area - 6)} cm²`],
+          area,
+          (n) => `${Math.max(1, n)} cm²`,
+          1
+        );
         const options = shuffle([correctStr, ...distractors]);
 
         return {
@@ -979,10 +1227,214 @@ function generateQuestion(selectedTopic) {
             model: `Area = ${length} × ${breadth} = ${area} cm²`
           }
         };
+      } else {
+        // Rectilinear (L-shaped) figure: a big rectangle with a smaller rectangle cut from one corner
+        const bigL = rand(10, 20);
+        const bigB = rand(8, 16);
+        const cutL = rand(3, Math.floor(bigL / 2));
+        const cutB = rand(2, Math.floor(bigB / 2));
+        const askArea = Math.random() > 0.5;
+
+        if (askArea) {
+          const bigArea = bigL * bigB;
+          const cutArea = cutL * cutB;
+          const area = bigArea - cutArea;
+          const correctStr = `${area} cm²`;
+          const distractors = pickFormattedDistractors(
+            correctStr,
+            [`${bigArea} cm²`, `${area + cutArea * 2} cm²`, `${Math.max(1, area - 10)} cm²`],
+            area,
+            (n) => `${Math.max(1, n)} cm²`,
+            1
+          );
+          const options = shuffle([correctStr, ...distractors]);
+
+          return {
+            id: qId,
+            inputType: "single",
+            unit: "cm²",
+            rawNumber: area.toString(),
+            topic: "geometry",
+            categoryName: "Area & Perimeter",
+            question: `An L-shaped piece of card is formed by cutting a ${cutL} cm by ${cutB} cm rectangle from the corner of a ${bigL} cm by ${bigB} cm rectangle. Find the AREA of the remaining L-shaped figure.`,
+            hint: "Find the area of the big rectangle, then subtract the area of the cut-out corner.",
+            correctAnswer: correctStr,
+            options,
+            explanation: {
+              concept: "Area of a Rectilinear (L-Shaped) Figure",
+              steps: [
+                `Area of big rectangle = ${bigL} × ${bigB} = ${bigArea} cm².`,
+                `Area of cut-out corner = ${cutL} × ${cutB} = ${cutArea} cm².`,
+                `Area of L-shape = ${bigArea} - ${cutArea} = ${area} cm².`
+              ],
+              model: `[ Big rectangle: ${bigL} × ${bigB} = ${bigArea} ] - [ Cut-out: ${cutL} × ${cutB} = ${cutArea} ] = [ ${area} cm² ]`
+            }
+          };
+        } else {
+          const perim = 2 * (bigL + bigB);
+          const correctStr = `${perim} cm`;
+          const distractors = pickFormattedDistractors(
+            correctStr,
+            [`${2 * (bigL + bigB) - 2 * (cutL + cutB)} cm`, `${perim + 2 * cutL} cm`, `${Math.max(1, perim - 4)} cm`],
+            perim,
+            (n) => `${Math.max(1, n)} cm`,
+            1
+          );
+          const options = shuffle([correctStr, ...distractors]);
+
+          return {
+            id: qId,
+            inputType: "single",
+            unit: "cm",
+            rawNumber: perim.toString(),
+            topic: "geometry",
+            categoryName: "Area & Perimeter",
+            question: `An L-shaped piece of card is formed by cutting a ${cutL} cm by ${cutB} cm rectangle from the corner of a ${bigL} cm by ${bigB} cm rectangle. Find the PERIMETER of the remaining L-shaped figure.`,
+            hint: "The two new edges created by the cut add up to exactly the two edges that were removed, so the perimeter is unchanged!",
+            correctAnswer: correctStr,
+            options,
+            explanation: {
+              concept: "Perimeter of a Rectilinear (L-Shaped) Figure",
+              steps: [
+                `Perimeter of the original big rectangle = 2 × (${bigL} + ${bigB}) = ${perim} cm.`,
+                `Cutting a rectangular notch from a corner does not change the total perimeter — the missing edges are replaced by two new edges of the same total length.`,
+                `Perimeter of the L-shape = ${perim} cm.`
+              ],
+              model: `Perimeter of L-shape = Perimeter of bounding rectangle = 2 × (${bigL} + ${bigB}) = ${perim} cm`
+            }
+          };
+        }
       }
     }
 
-    // 9. BAR MODEL WORD PROBLEMS
+    // 9. STATISTICS (BAR GRAPHS)
+    case "statistics": {
+      const themes = [
+        { unit: "pupils", categories: ["Football", "Basketball", "Swimming", "Badminton"], noun: "pupils who like" },
+        { unit: "books", categories: ["Story", "Comic", "Science", "History"], noun: "books borrowed" },
+        { unit: "fruits", categories: ["Apples", "Oranges", "Pears", "Mangoes"], noun: "fruits sold" }
+      ];
+      const theme = themes[rand(0, themes.length - 1)];
+      const scale = [2, 5, 10][rand(0, 2)];
+      const chosenCategories = shuffle(theme.categories).slice(0, 4);
+      const values = chosenCategories.map(() => rand(1, 10) * scale);
+      const chartLines = chosenCategories
+        .map((cat, i) => `${cat.padEnd(10, " ")}: ${"■".repeat(values[i] / scale)}`)
+        .join("\n");
+      const chartHeader = `Scale: each ■ = ${scale} ${theme.unit}`;
+      const qType = rand(1, 4);
+
+      if (qType === 1) {
+        const idx = rand(0, chosenCategories.length - 1);
+        const correct = values[idx];
+        const distractors = generateDistractors(correct, 3, scale);
+        const options = shuffle([correct.toString(), ...distractors.map(String)]);
+
+        return {
+          id: qId,
+          inputType: "single",
+          unit: "",
+          topic: "statistics",
+          categoryName: "Bar Graphs",
+          question: `The bar graph shows the number of ${theme.noun}.\n\n${chartHeader}\n${chartLines}\n\nHow many ${theme.unit} does "${chosenCategories[idx]}" represent?`,
+          hint: `Count the number of ■ blocks for "${chosenCategories[idx]}" and multiply by the scale (${scale}).`,
+          correctAnswer: correct.toString(),
+          options,
+          explanation: {
+            concept: "Reading a Bar Graph with a Scale",
+            steps: [
+              `"${chosenCategories[idx]}" has ${correct / scale} blocks.`,
+              `Each block represents ${scale} ${theme.unit}.`,
+              `Value = ${correct / scale} × ${scale} = ${correct}.`
+            ],
+            model: `${chosenCategories[idx]}: ${correct / scale} blocks × ${scale} = ${correct}`
+          }
+        };
+      } else if (qType === 2) {
+        const total = values.reduce((a, b) => a + b, 0);
+        const distractors = generateDistractors(total, 3, scale);
+        const options = shuffle([total.toString(), ...distractors.map(String)]);
+
+        return {
+          id: qId,
+          inputType: "single",
+          unit: "",
+          topic: "statistics",
+          categoryName: "Bar Graphs",
+          question: `The bar graph shows the number of ${theme.noun}.\n\n${chartHeader}\n${chartLines}\n\nHow many ${theme.unit} are there in total?`,
+          hint: "Add up the values represented by every bar.",
+          correctAnswer: total.toString(),
+          options,
+          explanation: {
+            concept: "Finding the Total from a Bar Graph",
+            steps: [
+              ...chosenCategories.map((cat, i) => `${cat}: ${values[i]} ${theme.unit}`),
+              `Total = ${values.join(" + ")} = ${total}.`
+            ],
+            model: `Total = ${values.join(" + ")} = ${total}`
+          }
+        };
+      } else if (qType === 3) {
+        let idxA = rand(0, chosenCategories.length - 1);
+        let idxB = rand(0, chosenCategories.length - 1);
+        while (idxB === idxA) idxB = rand(0, chosenCategories.length - 1);
+        const [bigIdx, smallIdx] = values[idxA] >= values[idxB] ? [idxA, idxB] : [idxB, idxA];
+        const diff = values[bigIdx] - values[smallIdx];
+        const distractors = generateDistractors(diff, 3, scale);
+        const options = shuffle([diff.toString(), ...distractors.map(String)]);
+
+        return {
+          id: qId,
+          inputType: "single",
+          unit: "",
+          topic: "statistics",
+          categoryName: "Bar Graphs",
+          question: `The bar graph shows the number of ${theme.noun}.\n\n${chartHeader}\n${chartLines}\n\nHow many more ${theme.unit} does "${chosenCategories[bigIdx]}" have than "${chosenCategories[smallIdx]}"?`,
+          hint: "Subtract the smaller value from the bigger value.",
+          correctAnswer: diff.toString(),
+          options,
+          explanation: {
+            concept: "Comparing Two Bars in a Bar Graph",
+            steps: [
+              `${chosenCategories[bigIdx]} = ${values[bigIdx]} ${theme.unit}.`,
+              `${chosenCategories[smallIdx]} = ${values[smallIdx]} ${theme.unit}.`,
+              `Difference = ${values[bigIdx]} - ${values[smallIdx]} = ${diff}.`
+            ],
+            model: `[ ${chosenCategories[bigIdx]}: ${values[bigIdx]} ] - [ ${chosenCategories[smallIdx]}: ${values[smallIdx]} ] = [ ${diff} ]`
+          }
+        };
+      } else {
+        const findMost = Math.random() > 0.5;
+        const sortedIdx = chosenCategories
+          .map((_, i) => i)
+          .sort((a, b) => (findMost ? values[b] - values[a] : values[a] - values[b]));
+        const targetIdx = sortedIdx[0];
+        const correctStr = chosenCategories[targetIdx];
+        const options = shuffle([...chosenCategories]);
+
+        return {
+          id: qId,
+          inputType: "single_text",
+          unit: "",
+          topic: "statistics",
+          categoryName: "Bar Graphs",
+          question: `The bar graph shows the number of ${theme.noun}.\n\n${chartHeader}\n${chartLines}\n\nWhich category has the ${findMost ? "MOST" : "FEWEST"} ${theme.unit}?`,
+          hint: `Look for the ${findMost ? "tallest" : "shortest"} bar.`,
+          correctAnswer: correctStr,
+          options,
+          explanation: {
+            concept: "Identifying the Maximum/Minimum in a Bar Graph",
+            steps: [
+              ...chosenCategories.map((cat, i) => `${cat}: ${values[i]} ${theme.unit}`),
+              `The ${findMost ? "greatest" : "smallest"} value belongs to "${correctStr}".`
+            ],
+            model: `${findMost ? "Most" : "Fewest"}: ${correctStr} (${values[targetIdx]} ${theme.unit})`
+          }
+        };
+      }
+    }
+
+    // 10. BAR MODEL WORD PROBLEMS
     case "word_problems":
     default: {
       const modelType = rand(1, 3);
@@ -1049,10 +1501,10 @@ function generateQuestion(selectedTopic) {
           }
         };
       } else {
-        const total = rand(600, 1500);
         const partA = rand(150, 400);
         const partB = rand(200, 450);
-        const partC = total - partA - partB;
+        const partC = rand(100, 400);
+        const total = partA + partB + partC;
 
         const correctStr = partC.toString();
         const distractors = generateDistractors(partC, 3, 50);
@@ -1245,6 +1697,12 @@ export default function App() {
       const numClean = parseFloat(val);
       const expectedClean = parseFloat(currentQ.rawNumber || currentQ.correctAnswer.replace("$", ""));
       isAnsCorrect = Math.abs(numClean - expectedClean) < 0.001;
+    } else if (currentQ.inputType === "time24") {
+      const digitsOnly = singleInput.trim().replace(/\D/g, "");
+      if (!digitsOnly) return;
+      const padded = digitsOnly.padStart(4, "0");
+      userFormulatedAnswer = `${padded}h`;
+      isAnsCorrect = padded === currentQ.correctAnswer;
     } else {
       // General single input (with unit optional)
       const val = singleInput.trim().replace(/,/g, "");
@@ -1889,8 +2347,8 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* GENERAL SINGLE NUMBER / MONEY / MEASUREMENT INPUT */}
-                  {(currentQ.inputType === "single" || currentQ.inputType === "money" || !currentQ.inputType) && (
+                  {/* GENERAL SINGLE NUMBER / MONEY / MEASUREMENT / TEXT / 24-HOUR TIME INPUT */}
+                  {(currentQ.inputType === "single" || currentQ.inputType === "single_text" || currentQ.inputType === "money" || currentQ.inputType === "time24" || !currentQ.inputType) && (
                     <div className="flex flex-col items-center w-full max-w-xs">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
                         Type Your Answer:
@@ -1900,9 +2358,9 @@ export default function App() {
                           <span className="text-2xl font-bold text-slate-600">$</span>
                         )}
                         <input
-                          type={currentQ.inputType === "money" ? "text" : "number"}
+                          type={(currentQ.inputType === "money" || currentQ.inputType === "single_text" || currentQ.inputType === "time24") ? "text" : "number"}
                           step="any"
-                          placeholder="Type answer..."
+                          placeholder={currentQ.inputType === "time24" ? "e.g. 1345" : "Type answer..."}
                           disabled={isAnswered}
                           value={singleInput}
                           onChange={(e) => setSingleInput(e.target.value)}
