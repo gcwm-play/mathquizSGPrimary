@@ -347,7 +347,8 @@ function generateQuestion(selectedTopic) {
           unit: "",
           topic: "place_value",
           categoryName: "Numbers to 10,000",
-          question: `Which number is the ${findGreatest ? "GREATEST" : "SMALLEST"}?\n\n${numArr.map((n) => n.toLocaleString()).join("     ")}`,
+          question: `Which number is the ${findGreatest ? "GREATEST" : "SMALLEST"}?`,
+          compareChips: numArr.map((n) => n.toLocaleString()),
           hint: "Compare the digits starting from the leftmost place value (thousands) first.",
           correctAnswer: correct.toString(),
           options,
@@ -632,7 +633,8 @@ function generateQuestion(selectedTopic) {
           unit: "",
           topic: "fractions",
           categoryName: "Fractions",
-          question: `Which fraction is the ${findGreatest ? "GREATEST" : "SMALLEST"}?\n\n${fracStrs.join("     ")}`,
+          question: `Which fraction is the ${findGreatest ? "GREATEST" : "SMALLEST"}?`,
+          compareChips: fracStrs,
           hint: "Convert every fraction to twelfths (a common denominator) before comparing.",
           correctAnswer: correctStr,
           options,
@@ -1318,10 +1320,11 @@ function generateQuestion(selectedTopic) {
       const scale = [2, 5, 10][rand(0, 2)];
       const chosenCategories = shuffle(theme.categories).slice(0, 4);
       const values = chosenCategories.map(() => rand(1, 10) * scale);
-      const chartLines = chosenCategories
-        .map((cat, i) => `${cat.padEnd(10, " ")}: ${"■".repeat(values[i] / scale)}`)
-        .join("\n");
-      const chartHeader = `Scale: each ■ = ${scale} ${theme.unit}`;
+      const chartData = {
+        scale,
+        unit: theme.unit,
+        bars: chosenCategories.map((cat, i) => ({ label: cat, value: values[i], blocks: values[i] / scale }))
+      };
       const qType = rand(1, 4);
 
       if (qType === 1) {
@@ -1336,8 +1339,9 @@ function generateQuestion(selectedTopic) {
           unit: "",
           topic: "statistics",
           categoryName: "Bar Graphs",
-          question: `The bar graph shows the number of ${theme.noun}.\n\n${chartHeader}\n${chartLines}\n\nHow many ${theme.unit} does "${chosenCategories[idx]}" represent?`,
-          hint: `Count the number of ■ blocks for "${chosenCategories[idx]}" and multiply by the scale (${scale}).`,
+          question: `The bar graph shows the number of ${theme.noun}. How many ${theme.unit} does "${chosenCategories[idx]}" represent?`,
+          chartData,
+          hint: `Count the number of blocks for "${chosenCategories[idx]}" and multiply by the scale (${scale}).`,
           correctAnswer: correct.toString(),
           options,
           explanation: {
@@ -1361,7 +1365,8 @@ function generateQuestion(selectedTopic) {
           unit: "",
           topic: "statistics",
           categoryName: "Bar Graphs",
-          question: `The bar graph shows the number of ${theme.noun}.\n\n${chartHeader}\n${chartLines}\n\nHow many ${theme.unit} are there in total?`,
+          question: `The bar graph shows the number of ${theme.noun}. How many ${theme.unit} are there in total?`,
+          chartData,
           hint: "Add up the values represented by every bar.",
           correctAnswer: total.toString(),
           options,
@@ -1389,7 +1394,8 @@ function generateQuestion(selectedTopic) {
           unit: "",
           topic: "statistics",
           categoryName: "Bar Graphs",
-          question: `The bar graph shows the number of ${theme.noun}.\n\n${chartHeader}\n${chartLines}\n\nHow many more ${theme.unit} does "${chosenCategories[bigIdx]}" have than "${chosenCategories[smallIdx]}"?`,
+          question: `The bar graph shows the number of ${theme.noun}. How many more ${theme.unit} does "${chosenCategories[bigIdx]}" have than "${chosenCategories[smallIdx]}"?`,
+          chartData,
           hint: "Subtract the smaller value from the bigger value.",
           correctAnswer: diff.toString(),
           options,
@@ -1418,7 +1424,8 @@ function generateQuestion(selectedTopic) {
           unit: "",
           topic: "statistics",
           categoryName: "Bar Graphs",
-          question: `The bar graph shows the number of ${theme.noun}.\n\n${chartHeader}\n${chartLines}\n\nWhich category has the ${findMost ? "MOST" : "FEWEST"} ${theme.unit}?`,
+          question: `The bar graph shows the number of ${theme.noun}. Which category has the ${findMost ? "MOST" : "FEWEST"} ${theme.unit}?`,
+          chartData,
           hint: `Look for the ${findMost ? "tallest" : "shortest"} bar.`,
           correctAnswer: correctStr,
           options,
@@ -1534,6 +1541,36 @@ function generateQuestion(selectedTopic) {
   }
 }
 
+// --- ON-SCREEN NUMERIC KEYPAD (avoids popping up the device's native keyboard) ---
+function Keypad({ onDigit, onBackspace, onClear, showDecimal, disabled }) {
+  const rows = [
+    ["1", "2", "3"],
+    ["4", "5", "6"],
+    ["7", "8", "9"],
+    [showDecimal ? "." : "C", "0", "⌫"]
+  ];
+
+  return (
+    <div className="grid grid-cols-3 gap-2 w-full max-w-xs mt-3">
+      {rows.flat().map((key, idx) => (
+        <button
+          key={`${key}-${idx}`}
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            if (key === "⌫") onBackspace();
+            else if (key === "C") onClear();
+            else onDigit(key);
+          }}
+          className="py-3 rounded-xl bg-white border-2 border-indigo-200 text-indigo-950 font-mono font-bold text-lg shadow-sm hover:bg-indigo-50 active:scale-95 disabled:opacity-50 transition"
+        >
+          {key}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   // Mode Settings
   const [hasStarted, setHasStarted] = useState(false);
@@ -1561,6 +1598,7 @@ export default function App() {
   const [fracDenInput, setFracDenInput] = useState("");
   const [timeHourInput, setTimeHourInput] = useState("");
   const [timeMinInput, setTimeMinInput] = useState("");
+  const [activeField, setActiveField] = useState("single");
 
   // Review & Mistakes Log
   const [mistakeList, setMistakeList] = useState([]);
@@ -1617,6 +1655,12 @@ export default function App() {
     loadNextQuestion(selectedTopic);
   };
 
+  const defaultFieldFor = (inputType) => {
+    if (inputType === "fraction_full" || inputType === "fraction_partial") return "fracNum";
+    if (inputType === "compound_time") return "timeHour";
+    return "single";
+  };
+
   const loadNextQuestion = (topic = selectedTopic) => {
     const q = generateQuestion(topic);
     setCurrentQ(q);
@@ -1626,6 +1670,7 @@ export default function App() {
     setShowExplanationModal(false);
     setTimeLeft(35);
     resetInputs();
+    setActiveField(defaultFieldFor(q.inputType));
   };
 
   const recordMistake = (q, userAns) => {
@@ -1664,6 +1709,44 @@ export default function App() {
 
     const correct = option === currentQ.correctAnswer;
     evaluateResult(correct, option);
+  };
+
+  // On-screen Keypad Handlers (route digits to whichever field currently has focus)
+  const keypadFieldSetters = {
+    single: setSingleInput,
+    fracNum: setFracNumInput,
+    fracDen: setFracDenInput,
+    timeHour: setTimeHourInput,
+    timeMin: setTimeMinInput
+  };
+  const keypadFieldValues = {
+    single: singleInput,
+    fracNum: fracNumInput,
+    fracDen: fracDenInput,
+    timeHour: timeHourInput,
+    timeMin: timeMinInput
+  };
+  const keypadFieldMaxLength = { single: 8, fracNum: 3, fracDen: 3, timeHour: 2, timeMin: 2 };
+
+  const handleKeypadDigit = (d) => {
+    const setter = keypadFieldSetters[activeField];
+    if (!setter || isAnswered) return;
+    const current = keypadFieldValues[activeField] || "";
+    if (d === "." && current.includes(".")) return;
+    const maxLen = keypadFieldMaxLength[activeField] || 8;
+    if (current.replace(".", "").length >= maxLen) return;
+    setter(current + d);
+  };
+
+  const handleKeypadBackspace = () => {
+    const setter = keypadFieldSetters[activeField];
+    if (!setter || isAnswered) return;
+    setter((keypadFieldValues[activeField] || "").slice(0, -1));
+  };
+
+  const handleKeypadClear = () => {
+    const setter = keypadFieldSetters[activeField];
+    if (setter && !isAnswered) setter("");
   };
 
   // Key-In Answer Submit Handler
@@ -1760,6 +1843,7 @@ export default function App() {
     setShowMistakesModal(false);
     setTimeLeft(35);
     resetInputs();
+    setActiveField(defaultFieldFor(mistakeItem.inputType));
   };
 
   // Scratchpad drawing logic
@@ -2177,10 +2261,43 @@ export default function App() {
               </div>
 
               {/* Question Text */}
-              <div className="my-3 min-h-[85px] flex items-center">
+              <div className="my-3 min-h-[85px] flex flex-col justify-center gap-3">
                 <p className="text-lg md:text-2xl font-bold text-slate-800 leading-relaxed whitespace-pre-line">
                   {currentQ.question}
                 </p>
+
+                {currentQ.compareChips && (
+                  <div className="flex flex-wrap gap-2.5">
+                    {currentQ.compareChips.map((chip, idx) => (
+                      <span
+                        key={idx}
+                        className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 font-mono font-bold text-lg text-slate-800"
+                      >
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {currentQ.chartData && (
+                  <div className="p-4 bg-sky-50/80 border border-sky-100 rounded-2xl">
+                    <span className="text-xs font-bold uppercase tracking-wider text-sky-800 block mb-3">
+                      Scale: each ■ = {currentQ.chartData.scale} {currentQ.chartData.unit}
+                    </span>
+                    <div className="space-y-2">
+                      {currentQ.chartData.bars.map((bar) => (
+                        <div key={bar.label} className="flex items-center gap-2">
+                          <span className="w-24 shrink-0 text-sm font-semibold text-slate-700 truncate">{bar.label}</span>
+                          <div className="flex gap-0.5 flex-wrap">
+                            {Array.from({ length: bar.blocks }).map((_, i) => (
+                              <span key={i} className="w-4 h-4 rounded-sm bg-indigo-400" />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Tip / Hint */}
@@ -2254,24 +2371,31 @@ export default function App() {
                       <div className="flex flex-col items-center justify-center w-28 bg-white p-3 rounded-2xl border-2 border-indigo-200 shadow-sm">
                         {/* Numerator Input */}
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="none"
+                          readOnly
                           placeholder="Numerator"
                           disabled={isAnswered}
                           value={fracNumInput}
-                          onChange={(e) => setFracNumInput(e.target.value)}
-                          className="w-20 text-center font-mono font-bold text-xl text-indigo-950 bg-slate-50 border border-slate-300 rounded-lg py-1 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                          autoFocus
+                          onFocus={() => setActiveField("fracNum")}
+                          className={`w-20 text-center font-mono font-bold text-xl text-indigo-950 bg-slate-50 border rounded-lg py-1 cursor-pointer focus:bg-white focus:outline-none ${
+                            activeField === "fracNum" ? "border-indigo-500 ring-2 ring-indigo-300" : "border-slate-300"
+                          }`}
                         />
                         {/* Visual Fraction Bar */}
                         <div className="w-22 h-1 bg-slate-800 rounded-full my-2" />
                         {/* Denominator Input */}
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="none"
+                          readOnly
                           placeholder="Denominator"
                           disabled={isAnswered}
                           value={fracDenInput}
-                          onChange={(e) => setFracDenInput(e.target.value)}
-                          className="w-20 text-center font-mono font-bold text-xl text-indigo-950 bg-slate-50 border border-slate-300 rounded-lg py-1 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                          onFocus={() => setActiveField("fracDen")}
+                          className={`w-20 text-center font-mono font-bold text-xl text-indigo-950 bg-slate-50 border rounded-lg py-1 cursor-pointer focus:bg-white focus:outline-none ${
+                            activeField === "fracDen" ? "border-indigo-500 ring-2 ring-indigo-300" : "border-slate-300"
+                          }`}
                         />
                       </div>
                     </div>
@@ -2296,13 +2420,14 @@ export default function App() {
                         {/* Right target fraction with input numerator */}
                         <div className="flex flex-col items-center">
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="none"
+                            readOnly
                             placeholder="?"
                             disabled={isAnswered}
                             value={fracNumInput}
-                            onChange={(e) => setFracNumInput(e.target.value)}
-                            className="w-16 text-center font-mono font-bold text-xl text-indigo-950 bg-indigo-50 border-2 border-indigo-400 rounded-lg py-1 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                            autoFocus
+                            onFocus={() => setActiveField("fracNum")}
+                            className="w-16 text-center font-mono font-bold text-xl text-indigo-950 bg-indigo-50 border-2 border-indigo-400 rounded-lg py-1 cursor-pointer focus:outline-none"
                           />
                           <div className="w-16 h-1 bg-slate-800 rounded-full my-1.5" />
                           <span className="font-mono font-bold text-xl text-slate-800">
@@ -2320,26 +2445,29 @@ export default function App() {
                         Enter Duration:
                       </span>
                       <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border border-slate-300">
+                        <div className={`flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border ${activeField === "timeHour" ? "border-indigo-500 ring-2 ring-indigo-300" : "border-slate-300"}`}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="none"
+                            readOnly
                             placeholder="0"
                             disabled={isAnswered}
                             value={timeHourInput}
-                            onChange={(e) => setTimeHourInput(e.target.value)}
-                            className="w-14 text-center font-mono font-bold text-xl text-indigo-950 focus:outline-none"
-                            autoFocus
+                            onFocus={() => setActiveField("timeHour")}
+                            className="w-14 text-center font-mono font-bold text-xl text-indigo-950 cursor-pointer focus:outline-none"
                           />
                           <span className="text-sm font-bold text-slate-500">hours</span>
                         </div>
-                        <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border border-slate-300">
+                        <div className={`flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border ${activeField === "timeMin" ? "border-indigo-500 ring-2 ring-indigo-300" : "border-slate-300"}`}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="none"
+                            readOnly
                             placeholder="0"
                             disabled={isAnswered}
                             value={timeMinInput}
-                            onChange={(e) => setTimeMinInput(e.target.value)}
-                            className="w-14 text-center font-mono font-bold text-xl text-indigo-950 focus:outline-none"
+                            onFocus={() => setActiveField("timeMin")}
+                            className="w-14 text-center font-mono font-bold text-xl text-indigo-950 cursor-pointer focus:outline-none"
                           />
                           <span className="text-sm font-bold text-slate-500">min</span>
                         </div>
@@ -2357,21 +2485,44 @@ export default function App() {
                         {currentQ.unit === "$" && (
                           <span className="text-2xl font-bold text-slate-600">$</span>
                         )}
-                        <input
-                          type={(currentQ.inputType === "money" || currentQ.inputType === "single_text" || currentQ.inputType === "time24") ? "text" : "number"}
-                          step="any"
-                          placeholder={currentQ.inputType === "time24" ? "e.g. 1345" : "Type answer..."}
-                          disabled={isAnswered}
-                          value={singleInput}
-                          onChange={(e) => setSingleInput(e.target.value)}
-                          className="w-full text-center font-mono font-bold text-xl md:text-2xl text-indigo-950 bg-transparent focus:outline-none"
-                          autoFocus
-                        />
+                        {currentQ.inputType === "single_text" ? (
+                          <input
+                            type="text"
+                            placeholder="Type answer..."
+                            disabled={isAnswered}
+                            value={singleInput}
+                            onChange={(e) => setSingleInput(e.target.value)}
+                            className="w-full text-center font-mono font-bold text-xl md:text-2xl text-indigo-950 bg-transparent focus:outline-none"
+                            autoFocus
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            inputMode="none"
+                            readOnly
+                            placeholder={currentQ.inputType === "time24" ? "e.g. 1345" : "Type answer..."}
+                            disabled={isAnswered}
+                            value={singleInput}
+                            onFocus={() => setActiveField("single")}
+                            className="w-full text-center font-mono font-bold text-xl md:text-2xl text-indigo-950 bg-transparent cursor-pointer focus:outline-none"
+                          />
+                        )}
                         {currentQ.unit && currentQ.unit !== "$" && (
                           <span className="text-base font-bold text-slate-500">{currentQ.unit}</span>
                         )}
                       </div>
                     </div>
+                  )}
+
+                  {/* Shared on-screen keypad for every numeric key-in type */}
+                  {currentQ.inputType !== "single_text" && (
+                    <Keypad
+                      onDigit={handleKeypadDigit}
+                      onBackspace={handleKeypadBackspace}
+                      onClear={handleKeypadClear}
+                      showDecimal={currentQ.inputType === "money"}
+                      disabled={isAnswered}
+                    />
                   )}
 
                   {/* Submit Key-In Answer Button */}
@@ -2625,6 +2776,34 @@ export default function App() {
                   <h4 className="text-base md:text-lg font-bold text-slate-800 whitespace-pre-line">
                     {selectedReviewItem.question}
                   </h4>
+                  {selectedReviewItem.compareChips && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedReviewItem.compareChips.map((chip, idx) => (
+                        <span key={idx} className="px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 font-mono font-bold text-sm text-slate-800">
+                          {chip}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {selectedReviewItem.chartData && (
+                    <div className="p-3 bg-sky-50/80 border border-sky-100 rounded-xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 block mb-2">
+                        Scale: each ■ = {selectedReviewItem.chartData.scale} {selectedReviewItem.chartData.unit}
+                      </span>
+                      <div className="space-y-1.5">
+                        {selectedReviewItem.chartData.bars.map((bar) => (
+                          <div key={bar.label} className="flex items-center gap-2">
+                            <span className="w-20 shrink-0 text-xs font-semibold text-slate-700 truncate">{bar.label}</span>
+                            <div className="flex gap-0.5 flex-wrap">
+                              {Array.from({ length: bar.blocks }).map((_, i) => (
+                                <span key={i} className="w-3 h-3 rounded-sm bg-indigo-400" />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">
                       <span className="text-xs block font-semibold text-rose-500">Your Answer:</span>
