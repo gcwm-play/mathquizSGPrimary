@@ -1541,6 +1541,39 @@ function generateQuestion(selectedTopic) {
   }
 }
 
+// A key-in field that switches between the on-screen keypad (readOnly + inputMode="none",
+// blocking the native keyboard) and a real editable input for the experimental Handwriting
+// mode, where the OS's own handwriting recognition (Scribble, Gboard handwriting, etc.) needs
+// a genuinely focusable/editable field to attach to.
+function KeyInField({ value, onChangeValue, fieldKey, activeField, setActiveField, handwritingMode, disabled, placeholder, className, inputMode = "numeric" }) {
+  if (handwritingMode) {
+    return (
+      <input
+        type="text"
+        inputMode={inputMode}
+        placeholder={placeholder}
+        disabled={disabled}
+        value={value}
+        onChange={(e) => onChangeValue(e.target.value)}
+        onFocus={() => setActiveField(fieldKey)}
+        className={className}
+      />
+    );
+  }
+  return (
+    <input
+      type="text"
+      inputMode="none"
+      readOnly
+      placeholder={placeholder}
+      disabled={disabled}
+      value={value}
+      onFocus={() => setActiveField(fieldKey)}
+      className={`${className} cursor-pointer`}
+    />
+  );
+}
+
 // --- ON-SCREEN NUMERIC KEYPAD (avoids popping up the device's native keyboard) ---
 function Keypad({ onDigit, onBackspace, onClear, showDecimal, disabled }) {
   const rows = [
@@ -1591,6 +1624,7 @@ export default function App() {
   const [selectedOption, setSelectedOption] = useState(null);
   const [showExplanationModal, setShowExplanationModal] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [handwritingMode, setHandwritingMode] = useState(false);
 
   // Key-In Answer Inputs
   const [singleInput, setSingleInput] = useState("");
@@ -2142,6 +2176,19 @@ export default function App() {
               {soundEnabled ? "🔊" : "🔇"}
             </button>
 
+            {/* Handwriting Input Toggle (Experimental) */}
+            <button
+              onClick={() => setHandwritingMode(!handwritingMode)}
+              title="Toggle Handwriting Input (Experimental) — lets your device's built-in handwriting recognition (e.g. Apple Pencil Scribble, Gboard handwriting) fill in answers instead of the on-screen keypad"
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs font-semibold transition ${
+                handwritingMode
+                  ? "bg-purple-600 text-white border-purple-700"
+                  : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50"
+              }`}
+            >
+              ✍️ <span className="hidden sm:inline">Handwriting</span>
+            </button>
+
             {/* Working Pad */}
             <button
               onClick={() => setShowScratchpad(!showScratchpad)}
@@ -2362,6 +2409,16 @@ export default function App() {
             {quizMode === "keyin" && (
               <form onSubmit={handleKeyInSubmit} className="mt-6">
                 <div className="bg-slate-50 border-2 border-indigo-100 rounded-2xl p-5 flex flex-col items-center justify-center gap-4">
+                  {handwritingMode && currentQ.inputType !== "single_text" && (
+                    <div className="w-full p-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-800 flex items-start gap-2">
+                      <span className="text-base leading-none">✍️</span>
+                      <div>
+                        <span className="font-semibold">Experimental: </span>
+                        Write directly into the box below with your stylus, or switch your keyboard to its
+                        handwriting panel (e.g. Apple Pencil Scribble on iPad, or Gboard's handwriting mode on Android).
+                      </div>
+                    </div>
+                  )}
                   {/* FRACTION CASE 1: FULL FRACTION (NUMERATOR & DENOMINATOR INPUTS) */}
                   {currentQ.inputType === "fraction_full" && (
                     <div className="flex flex-col items-center">
@@ -2370,30 +2427,32 @@ export default function App() {
                       </span>
                       <div className="flex flex-col items-center justify-center w-28 bg-white p-3 rounded-2xl border-2 border-indigo-200 shadow-sm">
                         {/* Numerator Input */}
-                        <input
-                          type="text"
-                          inputMode="none"
-                          readOnly
+                        <KeyInField
+                          fieldKey="fracNum"
+                          activeField={activeField}
+                          setActiveField={setActiveField}
+                          handwritingMode={handwritingMode}
                           placeholder="Numerator"
                           disabled={isAnswered}
                           value={fracNumInput}
-                          onFocus={() => setActiveField("fracNum")}
-                          className={`w-20 text-center font-mono font-bold text-xl text-indigo-950 bg-slate-50 border rounded-lg py-1 cursor-pointer focus:bg-white focus:outline-none ${
+                          onChangeValue={setFracNumInput}
+                          className={`w-20 text-center font-mono font-bold text-xl text-indigo-950 bg-slate-50 border rounded-lg py-1 focus:bg-white focus:outline-none ${
                             activeField === "fracNum" ? "border-indigo-500 ring-2 ring-indigo-300" : "border-slate-300"
                           }`}
                         />
                         {/* Visual Fraction Bar */}
                         <div className="w-22 h-1 bg-slate-800 rounded-full my-2" />
                         {/* Denominator Input */}
-                        <input
-                          type="text"
-                          inputMode="none"
-                          readOnly
+                        <KeyInField
+                          fieldKey="fracDen"
+                          activeField={activeField}
+                          setActiveField={setActiveField}
+                          handwritingMode={handwritingMode}
                           placeholder="Denominator"
                           disabled={isAnswered}
                           value={fracDenInput}
-                          onFocus={() => setActiveField("fracDen")}
-                          className={`w-20 text-center font-mono font-bold text-xl text-indigo-950 bg-slate-50 border rounded-lg py-1 cursor-pointer focus:bg-white focus:outline-none ${
+                          onChangeValue={setFracDenInput}
+                          className={`w-20 text-center font-mono font-bold text-xl text-indigo-950 bg-slate-50 border rounded-lg py-1 focus:bg-white focus:outline-none ${
                             activeField === "fracDen" ? "border-indigo-500 ring-2 ring-indigo-300" : "border-slate-300"
                           }`}
                         />
@@ -2419,15 +2478,16 @@ export default function App() {
 
                         {/* Right target fraction with input numerator */}
                         <div className="flex flex-col items-center">
-                          <input
-                            type="text"
-                            inputMode="none"
-                            readOnly
+                          <KeyInField
+                            fieldKey="fracNum"
+                            activeField={activeField}
+                            setActiveField={setActiveField}
+                            handwritingMode={handwritingMode}
                             placeholder="?"
                             disabled={isAnswered}
                             value={fracNumInput}
-                            onFocus={() => setActiveField("fracNum")}
-                            className="w-16 text-center font-mono font-bold text-xl text-indigo-950 bg-indigo-50 border-2 border-indigo-400 rounded-lg py-1 cursor-pointer focus:outline-none"
+                            onChangeValue={setFracNumInput}
+                            className="w-16 text-center font-mono font-bold text-xl text-indigo-950 bg-indigo-50 border-2 border-indigo-400 rounded-lg py-1 focus:outline-none"
                           />
                           <div className="w-16 h-1 bg-slate-800 rounded-full my-1.5" />
                           <span className="font-mono font-bold text-xl text-slate-800">
@@ -2446,28 +2506,30 @@ export default function App() {
                       </span>
                       <div className="flex items-center gap-3">
                         <div className={`flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border ${activeField === "timeHour" ? "border-indigo-500 ring-2 ring-indigo-300" : "border-slate-300"}`}>
-                          <input
-                            type="text"
-                            inputMode="none"
-                            readOnly
+                          <KeyInField
+                            fieldKey="timeHour"
+                            activeField={activeField}
+                            setActiveField={setActiveField}
+                            handwritingMode={handwritingMode}
                             placeholder="0"
                             disabled={isAnswered}
                             value={timeHourInput}
-                            onFocus={() => setActiveField("timeHour")}
-                            className="w-14 text-center font-mono font-bold text-xl text-indigo-950 cursor-pointer focus:outline-none"
+                            onChangeValue={setTimeHourInput}
+                            className="w-14 text-center font-mono font-bold text-xl text-indigo-950 focus:outline-none"
                           />
                           <span className="text-sm font-bold text-slate-500">hours</span>
                         </div>
                         <div className={`flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border ${activeField === "timeMin" ? "border-indigo-500 ring-2 ring-indigo-300" : "border-slate-300"}`}>
-                          <input
-                            type="text"
-                            inputMode="none"
-                            readOnly
+                          <KeyInField
+                            fieldKey="timeMin"
+                            activeField={activeField}
+                            setActiveField={setActiveField}
+                            handwritingMode={handwritingMode}
                             placeholder="0"
                             disabled={isAnswered}
                             value={timeMinInput}
-                            onFocus={() => setActiveField("timeMin")}
-                            className="w-14 text-center font-mono font-bold text-xl text-indigo-950 cursor-pointer focus:outline-none"
+                            onChangeValue={setTimeMinInput}
+                            className="w-14 text-center font-mono font-bold text-xl text-indigo-950 focus:outline-none"
                           />
                           <span className="text-sm font-bold text-slate-500">min</span>
                         </div>
@@ -2496,15 +2558,17 @@ export default function App() {
                             autoFocus
                           />
                         ) : (
-                          <input
-                            type="text"
-                            inputMode="none"
-                            readOnly
+                          <KeyInField
+                            fieldKey="single"
+                            activeField={activeField}
+                            setActiveField={setActiveField}
+                            handwritingMode={handwritingMode}
                             placeholder={currentQ.inputType === "time24" ? "e.g. 1345" : "Type answer..."}
                             disabled={isAnswered}
                             value={singleInput}
-                            onFocus={() => setActiveField("single")}
-                            className="w-full text-center font-mono font-bold text-xl md:text-2xl text-indigo-950 bg-transparent cursor-pointer focus:outline-none"
+                            onChangeValue={setSingleInput}
+                            inputMode={currentQ.inputType === "money" ? "decimal" : "numeric"}
+                            className="w-full text-center font-mono font-bold text-xl md:text-2xl text-indigo-950 bg-transparent focus:outline-none"
                           />
                         )}
                         {currentQ.unit && currentQ.unit !== "$" && (
@@ -2514,8 +2578,8 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Shared on-screen keypad for every numeric key-in type */}
-                  {currentQ.inputType !== "single_text" && (
+                  {/* Shared on-screen keypad for every numeric key-in type (hidden while testing Handwriting mode) */}
+                  {currentQ.inputType !== "single_text" && !handwritingMode && (
                     <Keypad
                       onDigit={handleKeypadDigit}
                       onBackspace={handleKeypadBackspace}
