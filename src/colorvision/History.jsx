@@ -66,6 +66,24 @@ const PEOPLE = [
     more: "He started Facebook. He is red-green colour blind and has said blue is the colour he sees best!",
   },
   {
+    clue: "He's an actor who played Newt Scamander, the magical creature expert in Fantastic Beasts.",
+    name: "Eddie Redmayne",
+    emoji: "🪄",
+    more: "He has said he's “very colourblind”: blues and purples, or greys and browns, can trip him up, and he asks his wife to help pick his clothes. But he can always spot one special bright blue, and he even wrote a 30,000-word essay about it at university!",
+  },
+  {
+    clue: "He directs huge blockbuster films like Interstellar and The Dark Knight.",
+    name: "Christopher Nolan",
+    emoji: "🎬",
+    more: "He is red-green colour blind. He has said the world looks full of colour to him, and only colour tests show he doesn't see the range of greens other people see.",
+  },
+  {
+    clue: "He was the football manager who led Liverpool FC to win the Champions League and the Premier League.",
+    name: "Jürgen Klopp",
+    emoji: "⚽",
+    more: "When Liverpool brought out a bright lime-green kit in 2016, he joked: “I'm a little bit colourblind. I think it's green, and that's hope.”",
+  },
+  {
     clue: "He is one of the greatest golfers ever, and won 18 major championships.",
     name: "Jack Nicklaus",
     emoji: "⛳",
