@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { PALETTE, VISION_TYPES, visionById, simulate, shade, difference, trickiestPairs } from "./simulate.js";
 import { makeRound } from "./game.js";
+import { Owl } from "./Owl.jsx";
+import DotTest from "./DotTest.jsx";
 
 const BEST_KEY = "colorvision-best";
 const MUTE_KEY = "colorvision-muted";
@@ -128,20 +130,6 @@ function Door({ color, vision, open = false, shake = false, glow = false, onClic
         <div className={wrap}>{svg}</div>
       )}
       {label && <span className="text-sm font-semibold text-slate-700">{label}</span>}
-    </div>
-  );
-}
-
-function Owl({ children, mood = "happy" }) {
-  const face = mood === "party" ? "🦉🎉" : "🦉";
-  return (
-    <div className="flex items-end gap-3">
-      <div className="text-5xl cv-bob select-none" aria-hidden="true">
-        {face}
-      </div>
-      <div className="relative bg-white rounded-2xl rounded-bl-none shadow-md px-4 py-3 text-slate-800 flex-1">
-        {children}
-      </div>
     </div>
   );
 }
@@ -630,45 +618,51 @@ export default function ColorVisionApp() {
     <div className="cv-app min-h-screen bg-gradient-to-b from-sky-200 via-violet-100 to-amber-100">
       <Confetti burst={burst} />
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
-        <header className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">
-              <span className="text-red-500">C</span>
-              <span className="text-orange-500">o</span>
-              <span className="text-yellow-500">l</span>
-              <span className="text-green-500">o</span>
-              <span className="text-blue-500">u</span>
-              <span className="text-violet-500">r</span> Castle 🏰
-            </h1>
-            <p className="text-slate-700">See the world through someone else's eyes</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <nav className="flex bg-white rounded-2xl p-1 shadow">
-              {[
-                ["play", "🚪 Play"],
-                ["explore", "🌈 See the World"],
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  onClick={() => setTab(id)}
-                  className={`px-3 py-2 rounded-xl font-semibold ${tab === id ? "bg-violet-500 text-white" : "text-slate-600"}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
+        <header className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">
+                <span className="text-red-500">C</span>
+                <span className="text-orange-500">o</span>
+                <span className="text-yellow-500">l</span>
+                <span className="text-green-500">o</span>
+                <span className="text-blue-500">u</span>
+                <span className="text-violet-500">r</span> Castle 🏰
+              </h1>
+              <p className="text-slate-700">See the world through someone else's eyes</p>
+            </div>
             <button
               onClick={() => setMuted(!muted)}
-              className="w-10 h-10 rounded-2xl bg-white shadow text-lg"
+              className="w-10 h-10 shrink-0 rounded-2xl bg-white shadow text-lg"
               aria-label={muted ? "Turn sound on" : "Turn sound off"}
             >
               {muted ? "🔇" : "🔊"}
             </button>
           </div>
+          <nav className="grid grid-cols-3 gap-1 bg-white rounded-2xl p-1 shadow">
+            {[
+              ["play", "🚪", "Doors"],
+              ["dots", "🔴", "Dot Test"],
+              ["explore", "🌈", "See the World"],
+            ].map(([id, icon, label]) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`px-2 py-2 rounded-xl font-semibold leading-tight ${
+                  tab === id ? "bg-violet-500 text-white" : "text-slate-600"
+                }`}
+              >
+                <span className="mr-1">{icon}</span>
+                {label}
+              </button>
+            ))}
+          </nav>
         </header>
 
         {tab === "explore" ? (
           <Explore />
+        ) : tab === "dots" ? (
+          <DotTest />
         ) : phase === "menu" ? (
           <Menu vision={vision} setVision={setVision} best={best} onStart={startRun} />
         ) : (

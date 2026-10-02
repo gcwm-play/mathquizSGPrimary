@@ -200,3 +200,15 @@ export function trickiestPairs(visionId, count = 4) {
     .sort((x, y) => x.diff - y.diff)
     .slice(0, count);
 }
+
+export const hexToLinear = (hex) => hexToRgb(hex).map(toLinear);
+export const linearToHex = (lin) => rgbToHex(lin.map(toSrgb));
+
+// Unit direction in linear RGB along which colours look the same to a
+// dichromat (the matrix's null space), i.e. a "confusion line".
+export function confusionDirection(visionId) {
+  const [a, b] = visionById(visionId).matrix;
+  const v = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const n = Math.hypot(...v);
+  return v.map((x) => x / n);
+}
