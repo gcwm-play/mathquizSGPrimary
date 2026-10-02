@@ -1,0 +1,76 @@
+.cv-app {
+  font-family: "Fredoka", ui-rounded, "Segoe UI", system-ui, sans-serif;
+}
+
+.cv-leaf {
+  transform-box: fill-box;
+  transform-origin: left center;
+  transition: transform 0.7s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+.cv-leaf.cv-open {
+  transform: scaleX(0.14);
+}
+
+@keyframes cv-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px) rotate(-2deg); }
+  40% { transform: translateX(8px) rotate(2deg); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+
+.cv-shake {
+  animation: cv-shake 0.5s ease-in-out;
+}
+
+@keyframes cv-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.cv-bob {
+  animation: cv-bob 2.4s ease-in-out infinite;
+}
+
+@keyframes cv-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.cv-pop {
+  animation: cv-pop 0.35s ease-out;
+}
+
+@keyframes cv-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.cv-glow {
+  animation: cv-glow 1.2s ease-in-out infinite;
+}
+
+@keyframes cv-fall {
+  0% { transform: translateY(-20px) rotate(0); opacity: 1; }
+  100% { transform: translateY(105vh) rotate(720deg); opacity: 0.8; }
+}
+
+.cv-confetti {
+  position: fixed;
+  top: 0;
+  width: 10px;
+  height: 14px;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 50;
+  animation: cv-fall 1.8s ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-leaf, .cv-shake, .cv-bob, .cv-pop, .cv-glow, .cv-confetti {
+    animation: none !important;
+    transition: none !important;
+  }
+}
