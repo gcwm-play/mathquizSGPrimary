@@ -87,8 +87,77 @@
   image-rendering: crisp-edges;
 }
 
+/* World 1: factory and data centre */
+@keyframes ai-fall {
+  0% { transform: translateY(-30px) rotate(0); opacity: 0; }
+  10% { opacity: 1; }
+  45% { transform: translateY(70px) rotate(20deg); opacity: 1; }
+  55% { transform: translateY(80px) scale(0.3); opacity: 0; }
+  100% { transform: translateY(80px) scale(0.3); opacity: 0; }
+}
+
+.ai-fall {
+  top: 0;
+  animation: ai-fall 3s ease-in infinite both;
+}
+
+@keyframes ai-belt-move {
+  to { background-position: 40px 0; }
+}
+
+.ai-belt {
+  background: repeating-linear-gradient(90deg, #A5B4FC 0 20px, #6366F1 20px 40px);
+  animation: ai-belt-move 1s linear infinite;
+}
+
+@keyframes ai-flow {
+  to { stroke-dashoffset: -24; }
+}
+
+.ai-flow {
+  animation: ai-flow 0.8s linear infinite;
+}
+
+@keyframes ai-blink-kf {
+  50% { opacity: 0.2; }
+}
+
+.ai-blink {
+  animation: ai-blink-kf 1s steps(1) infinite;
+}
+
+@keyframes ai-rise-kf {
+  0% { transform: translateY(6px); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: translateY(-14px); opacity: 0; }
+}
+
+.ai-rise {
+  animation: ai-rise-kf 1.6s ease-out infinite;
+}
+
+@keyframes ai-spin-kf {
+  to { transform: rotate(360deg); }
+}
+
+.ai-spin {
+  animation: ai-spin-kf 0.7s linear infinite;
+}
+
+@keyframes ai-steam-kf {
+  0% { transform: translateY(0) scale(0.6); opacity: 0.9; }
+  100% { transform: translateY(-45px) scale(1.6); opacity: 0; }
+}
+
+.ai-steam {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ai-steam-kf 2s ease-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ai-walking .ai-leg, .ai-pop, .ai-crawl-in, .ai-bob, .ai-layer.ai-on, .ai-caret::after {
+  .ai-walking .ai-leg, .ai-pop, .ai-crawl-in, .ai-bob, .ai-layer.ai-on, .ai-caret::after,
+  .ai-belt, .ai-flow, .ai-blink, .ai-rise, .ai-spin, .ai-steam {
     animation: none !important;
   }
   .ai-march {

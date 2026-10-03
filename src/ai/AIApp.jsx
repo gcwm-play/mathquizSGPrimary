@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Bit } from "./ui.jsx";
+import World1 from "./world1/World1.jsx";
 import World3 from "./world3/World3.jsx";
 
 const WORLDS = [
-  { id: "factory", icon: "🏭", name: "The AI Factory", blurb: "How an AI is made, and what it costs our planet", ready: false },
+  { id: "factory", icon: "🏭", name: "The AI Factory", blurb: "How an AI is made, and what it costs our planet", ready: true },
   { id: "zoo", icon: "🦁", name: "The Model Zoo", blurb: "Why there are so many AIs", ready: false },
   { id: "brain", icon: "🔮", name: "Inside the Brain", blurb: "What happens when you type", ready: true },
 ];
@@ -43,14 +44,14 @@ export default function AIApp() {
         </header>
 
         {current.ready ? (
-          <World3 />
+          world === "factory" ? <World1 /> : <World3 />
         ) : (
           <div className="space-y-4 animate-fadeIn">
             <Bit>
               <p className="font-semibold">
                 {current.icon} {current.name} is still being built! 🚧
               </p>
-              <p className="text-sm text-slate-600">{current.blurb}. Come back soon! Until then, explore Inside the Brain.</p>
+              <p className="text-sm text-slate-600">{current.blurb}. Come back soon! Until then, explore the other worlds.</p>
             </Bit>
             <div className="text-center">
               <button onClick={() => setWorld("brain")} className="px-6 py-3 rounded-2xl bg-indigo-600 text-white font-bold shadow-lg">
