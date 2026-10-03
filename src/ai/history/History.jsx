@@ -132,10 +132,12 @@ const TRY = ["Hello!", "I feel tired today", "I like football", "My mum makes gr
 function Eliza() {
   const [chat, setChat] = useState([{ who: "eliza", text: "Hello, I am ELIZA. How are you feeling today?" }]);
   const [text, setText] = useState("");
-  const endRef = useRef(null);
+  const boxRef = useRef(null);
 
+  // Scroll only the chat box (not the whole page) to the newest message.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const box = boxRef.current;
+    if (box) box.scrollTop = box.scrollHeight;
   }, [chat]);
 
   const send = (msg) => {
@@ -153,7 +155,7 @@ function Eliza() {
           ELIZA follows a few simple rules, like turning “I feel sad” into “Why do you feel sad?”. Can you catch it out?
         </p>
       </Bit>
-      <div className="rounded-2xl bg-slate-900 p-3 h-64 overflow-y-auto space-y-2 font-mono text-sm">
+      <div ref={boxRef} className="rounded-2xl bg-slate-900 p-3 h-64 overflow-y-auto space-y-2 font-mono text-sm">
         {chat.map((c, i) => (
           <div key={i} className={`flex ${c.who === "you" ? "justify-end" : ""}`}>
             <span className={`px-3 py-1.5 rounded-xl max-w-[80%] ${c.who === "you" ? "bg-indigo-500 text-white" : "bg-emerald-900 text-emerald-200"}`}>
@@ -162,7 +164,6 @@ function Eliza() {
             </span>
           </div>
         ))}
-        <div ref={endRef} />
       </div>
       <form
         className="flex gap-2"
