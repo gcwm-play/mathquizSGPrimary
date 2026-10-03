@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { Bit } from "./ui.jsx";
 import World1 from "./world1/World1.jsx";
+import World2 from "./world2/World2.jsx";
 import World3 from "./world3/World3.jsx";
 
 const WORLDS = [
   { id: "factory", icon: "🏭", name: "The AI Factory", blurb: "How an AI is made, and what it costs our planet", ready: true },
-  { id: "zoo", icon: "🦁", name: "The Model Zoo", blurb: "Why there are so many AIs", ready: false },
+  { id: "zoo", icon: "🦁", name: "The Model Zoo", blurb: "Why there are so many AIs", ready: true },
   { id: "brain", icon: "🔮", name: "Inside the Brain", blurb: "What happens when you type", ready: true },
 ];
 
@@ -44,7 +45,7 @@ export default function AIApp() {
         </header>
 
         {current.ready ? (
-          world === "factory" ? <World1 /> : <World3 />
+          world === "factory" ? <World1 /> : world === "zoo" ? <World2 /> : <World3 />
         ) : (
           <div className="space-y-4 animate-fadeIn">
             <Bit>

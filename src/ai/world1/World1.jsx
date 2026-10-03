@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Section, Bit, DigDeeper } from "../ui.jsx";
 import Factory from "./Factory.jsx";
 import DataCentre from "./DataCentre.jsx";
+import Fakes from "./Fakes.jsx";
 
 // Estimated computer-time cost to train each model (Stanford AI Index 2024).
 const COSTS = [
@@ -128,6 +129,9 @@ export default function World1() {
       <Section title="🌍 Is AI bad for the planet?">
         <Planet />
       </Section>
+      <Section title="😵 The messy side: AI slop and fakes">
+        <Fakes />
+      </Section>
       <details className="bg-white/70 rounded-3xl p-5 text-slate-700">
         <summary className="font-bold cursor-pointer">📚 Sources for grown-ups</summary>
         <ul className="list-disc pl-5 mt-3 space-y-1 text-sm">
@@ -143,6 +147,10 @@ export default function World1() {
             ["Singapore MSE: average 4-room HDB electricity use (380.7 kWh/month, 2024)", "https://www.mse.gov.sg/latest-news/written-reply-to-parliamentary-question-on--monthly-average-electricity-and-water-consumption-rates-for-households/"],
             ["Singapore's data centre pause and Green Data Centre Roadmap", "https://www.nortonrosefulbright.com/en/knowledge/publications/3b294288/singapore-s-green-data-centre-roadmap-and-dc-cfa2-driving-sustainable-ai-ready-infrastructure"],
             ["Nobel Prize in Chemistry 2024 (AlphaFold)", "https://www.nobelprize.org/prizes/chemistry/2024/summary/"],
+            ["NBC News (2025), Merriam-Webster names “slop” its 2025 word of the year", "https://www.nbcnews.com/news/us-news/merriam-webster-word-of-the-year-2025-rcna247864"],
+            ["NPR (2023), Fake viral images of an explosion at the Pentagon were probably created by AI", "https://www.npr.org/2023/05/22/1177590231/fake-viral-images-of-an-explosion-at-the-pentagon-were-probably-created-by-ai"],
+            ["SCMP (2023), PM Lee warns of deepfake video of him promoting crypto investment", "https://www.scmp.com/news/asia/southeast-asia/article/3246629/singapore-pm-lee-issues-warning-after-deepfake-video-him-promoting-crypto-investment-emerges"],
+            ["Baker McKenzie (2024), Singapore ban on deepfakes of election candidates", "https://connectontech.bakermckenzie.com/singapore-ban-on-the-publication-boosting-sharing-and-reposting-of-deepfake-content-depicting-election-candidates-comes-into-effect/"],
           ].map(([text, url]) => (
             <li key={url}>
               <a className="text-indigo-700 underline" href={url}>
