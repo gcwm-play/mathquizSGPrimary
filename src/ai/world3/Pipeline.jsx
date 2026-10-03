@@ -2,7 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { TokenBug, Bit, DigDeeper, Button, bugColor } from "../ui.jsx";
 import { tokenize, embedding, attention, engineWords, nextWordCounts, withTemperature, sample } from "../engine.js";
 
-const STARTERS = ["the cat sat on the", "my robot likes to", "in singapore we eat", "once upon a time", "the dragon lives in"];
+const STARTERS = [
+  { text: "the cat sat on the", emoji: "🐱" },
+  { text: "my robot likes to", emoji: "🤖" },
+  { text: "in singapore we eat", emoji: "🍜" },
+  { text: "once upon a time", emoji: "🏰" },
+  { text: "the dragon lives in", emoji: "🐉" },
+  { text: "the dog wagged its", emoji: "🐶" },
+];
 
 const STEPS = [
   { icon: "✏️", label: "Type" },
@@ -13,7 +20,6 @@ const STEPS = [
   { icon: "🎲", label: "Guess" },
 ];
 
-const MAX_CHARS = 48;
 
 function StepBar({ step, setStep, maxReached }) {
   return (
@@ -259,7 +265,7 @@ export default function Pipeline() {
   };
 
   const changeText = (t) => {
-    setText(t.slice(0, MAX_CHARS));
+    setText(t);
     setMaxReached(0);
   };
 
@@ -272,19 +278,23 @@ export default function Pipeline() {
       {step === 0 && (
         <div className="space-y-3 ai-pop">
           <Bit>
-            <p className="font-semibold">Type the start of a sentence and I'll show you what happens inside an AI!</p>
+            <p className="font-semibold">Pick the start of a sentence and I'll show you what happens inside an AI!</p>
+            <p className="text-sm text-slate-600">
+              My mini AI has only read about 60 short sentences, so it only knows the words in those. Real AIs have read billions of pages,
+              so you can type anything to them!
+            </p>
           </Bit>
-          <input
-            value={text}
-            onChange={(e) => changeText(e.target.value)}
-            maxLength={MAX_CHARS}
-            className="w-full rounded-2xl border-2 border-indigo-200 px-4 py-3 text-lg focus:outline-none focus:border-indigo-500"
-            placeholder="Type something…"
-          />
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {STARTERS.map((s) => (
-              <button key={s} onClick={() => changeText(s)} className="px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold hover:bg-indigo-100">
-                {s}…
+              <button
+                key={s.text}
+                onClick={() => changeText(s.text)}
+                className={`rounded-2xl p-3 text-left border-4 transition-all hover:-translate-y-0.5 ${
+                  text === s.text ? "bg-indigo-50 border-indigo-400 shadow-lg scale-[1.03]" : "bg-white border-slate-100 shadow"
+                }`}
+              >
+                <div className="text-3xl">{s.emoji}</div>
+                <div className="font-bold text-slate-800 leading-snug">“{s.text}…”</div>
               </button>
             ))}
           </div>
