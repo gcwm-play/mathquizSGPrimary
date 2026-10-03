@@ -10,6 +10,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         colorvision: fileURLToPath(new URL("./colorvision.html", import.meta.url)),
+        ai: fileURLToPath(new URL("./ai.html", import.meta.url)),
       },
     },
   },

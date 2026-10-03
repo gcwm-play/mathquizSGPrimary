@@ -6,6 +6,10 @@ An endless-practice quiz app covering the Singapore Primary 3 Mathematics syllab
 
 A second app at `colorvision.html` (`/mathquizSGPrimary/colorvision.html` on Pages) that teaches students about colour blindness. Pick whose eyes to look through (Everyday Eyes, Weak Green, No Green, Weak Red, No Red, No Blue, Grey World — each also shows its medical name), then find the right door out of three. Correct picks move you on; a wrong pick ends the run and shows what you saw next to the real colours. The "Dot Test" tab has app-generated Ishihara-style dot plates (not the copyrighted originals) whose numbers vanish for specific eyes, with eye-swapping and a "who can see it?" comparison. The "Story" tab covers the history of colour blindness (a timeline from 1777 to today, past stigma, famous colour-blind people, famous mix-ups, and a myth-or-fact quiz). The "See the World" tab has a swipe-to-compare picture, "colour twins", and a full colour table for grown-ups. Source: `src/colorvision/`.
 
+## AI Explorer
+
+A third app at `ai.html` (`/mathquizSGPrimary/ai.html` on Pages) that teaches P4–P6 students how AI and LLMs work. "Inside the Brain" follows a sentence as token "bugs" through tokenizing, embeddings, attention and layers to next-word prediction (a real in-browser trigram model with a temperature slider), plus demos of diffusion pictures, video frames, note-by-note music, a vibe-coding agent loop, and hallucination. "The AI Factory" and "The Model Zoo" are coming soon. Source: `src/ai/`.
+
 ## Development
 
 ```bash
