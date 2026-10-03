@@ -139,7 +139,7 @@ function GuessStep({ startText }) {
   const rest = probs.slice(5).reduce((a, o) => a + o.p, 0);
 
   const pick = () => {
-    const w = sample(probs);
+    const w = temperature <= 0.25 ? probs[0].word : sample(probs);
     setPicked(w);
     setWords((ws) => [...ws, w]);
     setAdded((n) => n + 1);
@@ -399,8 +399,8 @@ export default function Pipeline() {
           <GuessStep key={text} startText={text} />
           <DigDeeper title="Dig deeper: is this a real AI?">
             <p>
-              Sort of! Our mini AI learned from about 60 short sentences by counting which word comes after which. It looks at the last
-              two words only.
+              Sort of! Our mini AI learned from about 60 short sentences by counting which word comes after which. It mostly looks at
+              the last two words, with a little help from the last word alone, so even unusual words get a tiny chance.
             </p>
             <p>
               A real chatbot learns from trillions of tokens with a giant neural network, and looks at your whole conversation, so it can
@@ -421,7 +421,7 @@ export default function Pipeline() {
           </Button>
         ) : (
           <Button variant="soft" onClick={() => go(0)}>
-            ✏️ Type something new
+            ✏️ Pick a new start
           </Button>
         )}
       </div>
