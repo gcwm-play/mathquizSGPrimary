@@ -683,6 +683,12 @@ export default function ColorVisionApp() {
             onMenu={() => setPhase("menu")}
           />
         )}
+
+        <footer className="text-center pt-2">
+          <span className="inline-block text-xs font-semibold bg-white/80 text-slate-600 rounded-full px-3 py-1 shadow-sm">
+            📅 Info as of October 2026
+          </span>
+        </footer>
       </div>
     </div>
   );
