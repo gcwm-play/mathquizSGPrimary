@@ -272,10 +272,25 @@ const nextNote = (prev) => {
 };
 
 let audioCtx = null;
-const playNote = (note) => {
+
+// Phones only allow sound to start during a tap, so this must be called
+// directly from a click handler, before any timers play notes.
+const unlockAudio = () => {
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return;
   audioCtx = audioCtx ?? new Ctx();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  // A silent blip fully unlocks audio on iPhones and iPads.
+  const buffer = audioCtx.createBuffer(1, 1, 22050);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(audioCtx.destination);
+  src.start(0);
+};
+
+const playNote = (note) => {
+  if (!audioCtx) return;
+  if (audioCtx.state === "suspended") audioCtx.resume();
   const now = audioCtx.currentTime;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -341,13 +356,17 @@ function Music() {
           variant="fun"
           disabled={playing}
           onClick={() => {
+            unlockAudio();
             setNotes([]);
             setPlaying(true);
           }}
         >
           🎶 Make a new tune
         </Button>
-        <Button variant="soft" disabled={playing || notes.length === 0} onClick={() => notes.forEach((n, i) => setTimeout(() => playNote(n), i * 300))}>
+        <Button variant="soft" disabled={playing || notes.length === 0} onClick={() => {
+            unlockAudio();
+            notes.forEach((n, i) => setTimeout(() => playNote(n), i * 300));
+          }}>
           🔊 Play it again
         </Button>
       </div>
