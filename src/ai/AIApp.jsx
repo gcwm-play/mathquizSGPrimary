@@ -26,7 +26,7 @@ const saveClosed = (closed) => {
 
 const initialWorld = () => {
   const id = window.location.hash.replace("#", "");
-  return worldById(id) ? id : "history";
+  return worldById(id) ? id : "brain";
 };
 
 function Intro({ onGo, onClose }) {
@@ -47,7 +47,7 @@ function Intro({ onGo, onClose }) {
           learn <b>how it all began</b>. Then test yourself!
         </p>
         <p className="text-sm text-white/80">
-          Made for Primary 4 to 6 · Suggested path: start at 📜 History and work your way to 🧠 Quiz · 📅 Info as of {AS_OF}
+          Made for Primary 4 to 6 · Suggested path: start at 🔮 Inside the Brain and work your way to 🧠 Quiz · 📅 Info as of {AS_OF}
         </p>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">

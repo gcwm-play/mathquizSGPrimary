@@ -4,19 +4,6 @@ export const AS_OF = "October 2026";
 
 export const WORLDS = [
   {
-    id: "history",
-    icon: "📜",
-    name: "History of AI",
-    short: "History",
-    blurb: "From 1950 to today",
-    outcomes: [
-      "describe key moments in AI history, from Alan Turing to ChatGPT",
-      "explain what an “AI winter” was",
-      "compare an early chatbot (ELIZA) with today's AIs",
-      "name some of Singapore's AI milestones",
-    ],
-  },
-  {
     id: "brain",
     icon: "🔮",
     name: "Inside the Brain",
@@ -53,6 +40,19 @@ export const WORLDS = [
       "tell the difference between open and closed AI",
       "name AIs from different countries, including Singapore",
       "describe how the AI race between the USA and China changed",
+    ],
+  },
+  {
+    id: "history",
+    icon: "📜",
+    name: "History of AI",
+    short: "History",
+    blurb: "From 1950 to today",
+    outcomes: [
+      "describe key moments in AI history, from Alan Turing to ChatGPT",
+      "explain what an “AI winter” was",
+      "compare an early chatbot (ELIZA) with today's AIs",
+      "name some of Singapore's AI milestones",
     ],
   },
   {

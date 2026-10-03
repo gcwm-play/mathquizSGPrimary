@@ -261,15 +261,18 @@ export default function History() {
       </Owl>
 
       <Section title="⏳ Time machine">
-        <ol className="relative border-l-4 border-violet-200 ml-3 space-y-5">
-          {TIMELINE.map((t) => (
-            <li key={t.year} className="ml-6">
-              <span className="absolute -left-[22px] flex items-center justify-center w-10 h-10 rounded-full bg-violet-500 text-xl shadow">
-                {t.emoji}
-              </span>
-              <div className="inline-block text-xs font-bold bg-amber-300 text-slate-900 rounded-full px-2 py-0.5">{t.year}</div>
-              <h3 className="font-bold text-slate-800 mt-1">{t.title}</h3>
-              <p className="text-slate-700">{t.text}</p>
+        <ol>
+          {TIMELINE.map((t, k) => (
+            <li key={t.year} className="flex gap-3">
+              <div className="flex flex-col items-center shrink-0">
+                <span className="flex items-center justify-center w-10 h-10 rounded-full bg-violet-500 text-xl shadow">{t.emoji}</span>
+                {k < TIMELINE.length - 1 && <span className="w-1 flex-1 bg-violet-200 rounded-full my-1" aria-hidden="true" />}
+              </div>
+              <div className="min-w-0 pb-5">
+                <div className="inline-block text-xs font-bold bg-amber-300 text-slate-900 rounded-full px-2 py-0.5">{t.year}</div>
+                <h3 className="font-bold text-slate-800 mt-1">{t.title}</h3>
+                <p className="text-slate-700">{t.text}</p>
+              </div>
             </li>
           ))}
         </ol>
