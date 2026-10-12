@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import GameCanvas, { zoomBy } from "./GameCanvas.jsx";
 import { BudgetPanel, StatsPanel, NewsPanel, HelpPanel, MenuPanel, Panel } from "./panels.jsx";
 import { TOOL_GROUPS, ALL_TOOLS, DIFFICULTY } from "./defs.js";
-import { newWorld, stepMonth, analyze, applyTool, describeTile, dateLabel, fmtMoney, fmtNum, isUnlocked, saveWorld, loadWorld, hasSave } from "./sim.js";
+import { newWorld, stepMonth, analyze, applyTool, describeTile, dateLabel, fmtMoney, fmtNum, isUnlocked, saveWorld, loadWorld, saveInfo } from "./sim.js";
 import { OVERLAYS } from "./render.js";
 
 const SPEEDS = [
@@ -49,7 +49,9 @@ function Title({ onStart }) {
   const [sandbox, setSandbox] = useState(false);
   const [name, setName] = useState("Lion City");
   const [help, setHelp] = useState(false);
-  const canContinue = hasSave();
+  const [confirmNew, setConfirmNew] = useState(false);
+  const saved = saveInfo();
+  const canContinue = !!saved;
   return (
     <div className="city-title absolute inset-0 overflow-y-auto">
       <div className="mx-auto flex min-h-full max-w-3xl flex-col items-center justify-center gap-3 p-4 text-white sm:flex-row sm:gap-8">
@@ -69,7 +71,10 @@ function Title({ onStart }) {
               }}
               className="w-full rounded-xl bg-emerald-600 py-2.5 text-lg font-bold text-white hover:bg-emerald-700"
             >
-              ▶ Continue city
+              ▶ Continue {saved.name}
+              <span className="block text-[12px] font-semibold text-white/85">
+                {saved.date} · {fmtNum(saved.pop)} residents
+              </span>
             </button>
           )}
           <label className="block text-sm font-semibold">
@@ -87,15 +92,26 @@ function Title({ onStart }) {
             <input type="checkbox" checked={sandbox} onChange={(e) => setSandbox(e.target.checked)} />
             Sandbox: unlimited money, all eras unlocked
           </label>
-          <button
-            onClick={() => {
-              if (canContinue && !window.confirm("Start a new city? Your saved city will be replaced when the new one autosaves.")) return;
-              onStart(newWorld({ difficulty, sandbox, name: name.trim() || "Lion City" }));
-            }}
-            className="w-full rounded-xl bg-rose-600 py-2.5 text-lg font-bold text-white hover:bg-rose-700"
-          >
-            🆕 New city
-          </button>
+          {confirmNew ? (
+            <div className="rounded-xl bg-rose-50 p-2 text-center text-sm">
+              <div className="font-semibold text-rose-700">This replaces your saved city, {saved.name}.</div>
+              <div className="mt-1.5 flex gap-1.5">
+                <button onClick={() => setConfirmNew(false)} className="flex-1 rounded-lg bg-slate-200 py-1.5 font-semibold">
+                  Keep it
+                </button>
+                <button onClick={() => onStart(newWorld({ difficulty, sandbox, name: name.trim() || "Lion City" }))} className="flex-1 rounded-lg bg-rose-600 py-1.5 font-bold text-white">
+                  Start new
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => (canContinue ? setConfirmNew(true) : onStart(newWorld({ difficulty, sandbox, name: name.trim() || "Lion City" })))}
+              className="w-full rounded-xl bg-rose-600 py-2.5 text-lg font-bold text-white hover:bg-rose-700"
+            >
+              🆕 New city
+            </button>
+          )}
           <button onClick={() => setHelp(true)} className="w-full rounded-xl bg-slate-100 py-2 font-semibold">
             ❓ How to play
           </button>
@@ -138,6 +154,7 @@ function Game({ initial, onQuit, onRestart }) {
 
   useEffect(() => {
     refresh();
+    saveWorld(worldRef.current);
   }, [refresh]);
 
   // Simulation clock (paused while a panel is open)
@@ -150,7 +167,7 @@ function Game({ initial, onQuit, onRestart }) {
       stepMonth(world);
       analysisRef.current = analyze(world);
       if (world.news[0] && world.news[0] !== before) toast(world.news[0].text);
-      if (world.month % 3 === 0) saveWorld(world);
+      saveWorld(world);
       dirtyRef.current = true;
       setVersion((v) => v + 1);
     }, SPEEDS[speed].ms);
@@ -172,7 +189,10 @@ function Game({ initial, onQuit, onRestart }) {
     (toolId, a, b) => {
       const r = applyTool(worldRef.current, toolId, a, b);
       if (!r.ok) toast(`🚫 ${r.msg}`);
-      else if (r.cost > 0) toast(`${ALL_TOOLS[toolId].icon} Built for ${fmtMoney(r.cost)}`);
+      else {
+        saveWorld(worldRef.current);
+        if (r.cost > 0) toast(`${ALL_TOOLS[toolId].icon} Built for ${fmtMoney(r.cost)}`);
+      }
       refresh();
     },
     [refresh, toast]

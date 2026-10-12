@@ -1107,6 +1107,18 @@ export function loadWorld() {
   }
 }
 
+// Name, date and population of the saved city, for the Continue button.
+export function saveInfo() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return { name: d.name, date: `${MONTHS[d.month]} ${d.year}`, pop: d.stats?.pop || 0 };
+  } catch {
+    return null;
+  }
+}
+
 export function hasSave() {
   try {
     return !!localStorage.getItem(SAVE_KEY);

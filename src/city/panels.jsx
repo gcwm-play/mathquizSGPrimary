@@ -320,7 +320,7 @@ export function MenuPanel({ world, onClose, onSave, onNew, onHelp, onQuit, saved
         <MenuBtn onClick={onQuit} icon="🏠" label="Title screen" />
       </div>
       <p className="mt-3 text-[12px] text-slate-500">
-        {world.name} · {world.sandbox ? "Sandbox mode (unlimited money, everything unlocked)" : `${world.difficulty[0].toUpperCase()}${world.difficulty.slice(1)} difficulty`}. The game autosaves every few months on this device.
+        {world.name} · {world.sandbox ? "Sandbox mode (unlimited money, everything unlocked)" : `${world.difficulty[0].toUpperCase()}${world.difficulty.slice(1)} difficulty`}. The game saves itself on this device every month and after every build, so you can close the page and pick up where you left off.
       </p>
     </Panel>
   );
