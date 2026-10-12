@@ -1,0 +1,82 @@
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: #075985;
+}
+
+.city-app {
+  font-family: "Fredoka", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.city-app input[type="text"],
+.city-app input:not([type]) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Keep HUD clear of the notch / home bar in landscape */
+.city-safe {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.city-title {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.18), transparent 40%),
+    linear-gradient(160deg, #b91c1c 0%, #e11d48 45%, #0369a1 100%);
+}
+
+.city-noscrollbar {
+  scrollbar-width: none;
+}
+.city-noscrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.city-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+@keyframes city-pop {
+  from {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.city-pop {
+  animation: city-pop 0.16s ease-out both;
+}
+
+.city-range {
+  accent-color: #e11d48;
+  height: 22px;
+}
+
+/* Portrait phones get a "turn sideways" screen */
+.city-rotate {
+  display: none;
+}
+@media (orientation: portrait) and (max-width: 820px) {
+  .city-rotate {
+    display: flex;
+  }
+}
+
+@keyframes city-rotate {
+  0%, 30% { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(-90deg); }
+}
+.city-rotate-icon {
+  animation: city-rotate 2s ease-in-out infinite alternate;
+}
