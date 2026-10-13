@@ -225,7 +225,9 @@ export const OVERLAYS = {
   landValue: { name: "Land value", icon: "💎", get: (A, l) => A.info.get(l.id)?.lv / 80 },
   pollution: { name: "Clean air", icon: "🏭", get: (A, l) => 1 - (A.info.get(l.id)?.p || 0) / 50 },
   food: { name: "Food cover", icon: "🍜", get: (A, l) => A.info.get(l.id)?.c.food },
-  school: { name: "School cover", icon: "🏫", get: (A, l) => A.info.get(l.id)?.c.school },
+  school: { name: "Primary schools", icon: "🏫", get: (A, l) => A.info.get(l.id)?.c.school },
+  school2: { name: "Secondary schools", icon: "🎒", get: (A, l) => A.info.get(l.id)?.c.school2 },
+  school3: { name: "Polytechnic / uni", icon: "🎓", get: (A, l) => A.info.get(l.id)?.c.school3 },
   health: { name: "Health cover", icon: "🩺", get: (A, l) => A.info.get(l.id)?.c.health },
   safety: { name: "Police cover", icon: "👮", get: (A, l) => A.info.get(l.id)?.c.safety },
   fire: { name: "Fire cover", icon: "🚒", get: (A, l) => A.info.get(l.id)?.c.fire },
@@ -449,6 +451,18 @@ export function draw(ctx, R, w, A, cam, view) {
     }
   }
 
+  // town borders (dashed), so you can tell which town a spot belongs to
+  const tb = townBorders(w);
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "rgba(255,255,255,0.75)";
+  ctx.lineWidth = 0.42;
+  ctx.stroke(tb);
+  ctx.setLineDash([0.7, 0.45]);
+  ctx.strokeStyle = "rgba(112,72,232,0.9)";
+  ctx.lineWidth = 0.2;
+  ctx.stroke(tb);
+  ctx.setLineDash([]);
+
   // previews on the ground
   if (preview) drawPreviewGround(ctx, w, preview, time);
   if (selected) {
@@ -465,6 +479,31 @@ export function draw(ctx, R, w, A, cam, view) {
     } else if (selected.r) ctx.arc(selected.x, selected.y, selected.r, 0, Math.PI * 2);
     ctx.stroke();
   }
+  // service coverage: the one you're placing or looking at, plus others of the same kind
+  const pS = preview?.kind === "struct" && preview.q ? STRUCTS[preview.type] : null;
+  const cov = selected?.cover || (pS?.cover && pS.r ? { x: preview.x, y: preview.y, r: pS.r, kind: pS.cover } : null);
+  if (cov) {
+    ctx.setLineDash([0.4, 0.3]);
+    for (const st of w.structs) {
+      const S = STRUCTS[st.type];
+      if (S.cover !== cov.kind || !S.r || (st.x === cov.x && st.y === cov.y)) continue;
+      ctx.beginPath();
+      ctx.arc(st.x, st.y, S.r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(120,130,150,0.08)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(60,70,90,0.45)";
+      ctx.lineWidth = 0.1;
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(cov.x, cov.y, cov.r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(42,120,214,0.12)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(42,120,214,0.9)";
+    ctx.lineWidth = 0.16;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
   ctx.restore();
 
   // boats
@@ -479,7 +518,7 @@ export function draw(ctx, R, w, A, cam, view) {
   const dyn = [];
   if (cam.zoom > 0.42) {
     for (const c of R.agents.cars) {
-      const p = agentPose(w, c, 0.2);
+      const p = agentPose(w, c, 0.13);
       if (p) dyn.push({ d: p.x + p.y, k: "car", o: c });
     }
   }
@@ -681,6 +720,42 @@ function badge(ctx, ch, x, y, size, bg) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(ch, x, y + size * 0.06);
+}
+
+// Town borders: the straight lines halfway between neighbouring town
+// centres (each spot belongs to its nearest town), drawn over land only.
+function townBorders(w) {
+  const key = `${w.region}:${w.edits.length}:${w.towns.length}`;
+  if (w._borders && w._bordersKey === key) return w._borders;
+  const path = new Path2D();
+  const T = w.towns;
+  for (let a = 0; a < T.length; a++) {
+    for (let b = a + 1; b < T.length; b++) {
+      const mx = (T[a].x + T[b].x) / 2;
+      const my = (T[a].y + T[b].y) / 2;
+      let dx = -(T[b].y - T[a].y);
+      let dy = T[b].x - T[a].x;
+      const L = Math.hypot(dx, dy);
+      dx /= L;
+      dy /= L;
+      let on = false;
+      for (let k = -MAP * 1.5; k <= MAP * 1.5; k += 0.25) {
+        const x = mx + dx * k;
+        const y = my + dy * k;
+        let ok = x > 0 && y > 0 && x < MAP && y < MAP && terrainAt(w, x, y) === "land";
+        if (ok) {
+          const da = (T[a].x - x) ** 2 + (T[a].y - y) ** 2;
+          for (let c = 0; c < T.length && ok; c++) if (c !== a && c !== b && (T[c].x - x) ** 2 + (T[c].y - y) ** 2 < da - 1e-6) ok = false;
+        }
+        if (ok && !on) path.moveTo(x, y);
+        else if (ok) path.lineTo(x, y);
+        on = ok;
+      }
+    }
+  }
+  w._borders = path;
+  w._bordersKey = key;
+  return path;
 }
 
 // ---------- previews ----------

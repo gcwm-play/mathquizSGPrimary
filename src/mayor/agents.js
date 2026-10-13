@@ -89,7 +89,7 @@ export function agentPose(w, c, lane) {
 }
 
 export function drawCar(ctx, w, c) {
-  const p = agentPose(w, c, 0.2);
+  const p = agentPose(w, c, 0.13);
   if (!p) return;
   inkStyle(ctx, 0.9);
   const L = c.bus ? 0.55 : 0.32;
@@ -109,7 +109,7 @@ export function drawTrain(ctx, w, c) {
   for (let k = 0; k < 2; k++) {
     const p = agentPose(w, { ...c, s: Math.max(0, Math.min(c.L, c.s - c.dir * k * 0.75)) }, 0);
     if (!p) continue;
-    const q = rectQuad(p.x, p.y, p.ang, 0.7, 0.26);
+    const q = rectQuad(p.x, p.y, p.ang, 0.6, 0.21);
     const pts = [[q[0], q[1]], [q[2], q[3]], [q[4], q[5]], [q[6], q[7]]];
     prism(ctx, pts, 7, "#ffffff", 14);
     prism(ctx, pts, 1.6, "#ff4d4d", 16);

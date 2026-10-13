@@ -36,6 +36,8 @@ A fifth app at `mayor.html` (`/mathquizSGPrimary/mayor.html` on Pages), and the 
 - Sentosa (South region): a resort island run for visitors rather than residents. Build links (cable car 1974, road bridge 1992, Sentosa Express 2007) and attractions (Siloso Beach, Underwater World, Resorts World), set the entry fee and marketing, and manage crowding and visitor happiness.
 - The Tuas Second Link to Johor (1998) can be built from the West region's western shore.
 - Seeing results: decision cards list each option's effects in numbers, the top bar shows monthly cash flow and the 6-month happiness trend, and six months after a build or decision the news reports what changed.
+- Map help: purple dashed town borders, coverage circles when placing or inspecting a service (with existing ones of the same kind), narrower roads so more lots fit between them, and services that fit along curved roads.
+- Schools come in three levels (primary, secondary, polytechnic / university); residents say which level is missing. Feedback thanks you when a need is fixed and says when a town is happy, and pledges show their progress town by town.
 - Adaptive objectives: after the starter goals, new objectives are generated from the region's current state (weakest needs, housing queue, ageing blocks, deficits, births, unemployment, MRT coverage, rivals), each with a deadline and a bonus grant.
 - Modes: Campaign, Sandbox (can't be voted out or go bust), and 100- or 200-year Legacy games. AI mayors with different styles run the other three regions; every 10 years a report card ranks you against them on happiness, housing, health, births, finances and reputation and summarises what each mayor did well, badly or innovatively. Legacy games end with a final verdict.
 

@@ -115,7 +115,7 @@ export function quality(w, b) {
 export const ageYears = (w, b) => Math.max(0, Math.floor((w.t - b.built) / 12));
 
 // ---------- analysis ----------
-const COVERS = ["food", "school", "health", "safety", "fire", "community", "green", "transport", "mrt"];
+const COVERS = ["food", "school", "school2", "school3", "health", "safety", "fire", "community", "green", "transport", "mrt"];
 
 export function analyze(w) {
   const fund = clamp(w.funding / 100, 0, 1.2);
@@ -231,7 +231,7 @@ export function analyze(w) {
   };
 
   // towns: residents' needs
-  const T = w.towns.map(() => ({ pop: 0, kpop: 0, jobs: 0, sum: Object.fromEntries(Object.keys(NEEDS).map((k) => [k, 0])), lots: 0, old: 0, cap: 0, vacant: 0, hdbCap: 0, hdbOcc: 0 }));
+  const T = w.towns.map(() => ({ pop: 0, kpop: 0, jobs: 0, sum: Object.fromEntries(Object.keys(NEEDS).map((k) => [k, 0])), lots: 0, old: 0, cap: 0, vacant: 0, hdbCap: 0, hdbOcc: 0, sch: [0, 0, 0] }));
   const healthHit = effect(w, "health");
   let pop = 0;
   let comJobs = 0;
@@ -244,7 +244,14 @@ export function analyze(w) {
     t.pop += n;
     t.sum.housing += n * q;
     t.sum.food += n * Math.min(1, c.food * 1.2) * 100;
-    t.sum.school += n * Math.min(1, c.school * 1.2) * 100;
+    // schools: primary matters most, then secondary, then a campus in reach
+    const s1 = Math.min(1, c.school * 1.2);
+    const s2 = Math.min(1, c.school2 * 1.25);
+    const s3 = Math.min(1, c.school3 * 1.3 + 0.1);
+    t.sum.school += n * (s1 * 0.55 + s2 * 0.32 + s3 * 0.13) * 100;
+    t.sch[0] += n * s1 * 100;
+    t.sch[1] += n * s2 * 100;
+    t.sch[2] += n * s3 * 100;
     t.sum.health += n * Math.min(1, c.health * 1.2 + 0.08) * 100 * (c.health > 0 ? 1 - (1 - healthHit) * 0.4 : healthHit);
     t.sum.safety += n * Math.min(1, (c.safety * 0.7 + c.fire * 0.3) * 1.25) * 100;
     t.sum.transport += n * Math.min(1, transport) * 100;
@@ -324,7 +331,8 @@ export function analyze(w) {
     let base = t.pop ? 60 * (1 - grace) + (ta / tw) * grace : 55;
     // island residents feel how the resort is doing
     if (town.purpose === "resort" && w.sentosa) base = base * 0.5 + w.sentosa.sat * 0.5;
-    return { ...t, needs, minor, unhoused, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
+    const schools = t.pop ? t.sch.map((v) => v / t.pop) : [50, 50, 50];
+    return { ...t, needs, minor, schools, unhoused, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
   });
   const vacant = T.reduce((a, t) => a + t.vacant, 0);
   return { info, want, towns, vacant, upkeepTown, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, coverAt, pollAt, services };
@@ -499,7 +507,7 @@ const hasNewStruct = (w, p, types, town) => w.structs.some((s) => types.includes
 export const PLEDGE_KINDS = {
   clinic: { icon: "🩺", text: (t) => `A polyclinic for ${t}`, need: "health", boost: 6, years: 4, check: (w, p) => hasNewStruct(w, p, ["clinic", "hospital"], p.town) },
   food: { icon: "🍜", text: (t) => `A hawker centre or market for ${t}`, need: "food", boost: 5, years: 3, check: (w, p) => hasNewStruct(w, p, ["hawker", "market", "causewayPoint"], p.town) },
-  school: { icon: "🏫", text: (t) => `A new school in ${t}`, need: "school", boost: 5, years: 4, check: (w, p) => hasNewStruct(w, p, ["school", "scienceCentre"], p.town) },
+  school: { icon: "🏫", text: (t) => `A new school in ${t}`, need: "school", boost: 5, years: 4, check: (w, p) => hasNewStruct(w, p, ["school", "secondary", "tertiary", "scienceCentre"], p.town) },
   cc: { icon: "🏓", text: (t) => `A community centre for ${t}`, need: "community", boost: 4, years: 3, check: (w, p) => hasNewStruct(w, p, ["cc", "sports", "tampinesHub", "esplanade"], p.town) },
   transport: { icon: "🚌", text: (t) => `Better transport for ${t}`, need: "transport", boost: 6, years: 4, check: (w, p) => hasNewStruct(w, p, w.year >= 1987 ? ["mrt", "bus"] : ["bus"], p.town) },
   homes: { icon: "🏢", text: (t, n) => `${fmtNum(n)} more residents housed in ${t}`, need: "housing", boost: 7, years: 5, check: (w, p) => (w.towns[p.town].pop || 0) >= p.base + p.n },
@@ -508,6 +516,19 @@ export const PLEDGE_KINDS = {
   taxfreeze: { icon: "🧾", text: () => "No property tax rise this term", need: "cost", boost: 3, years: 6, all: true, keepUntilDeadline: true, broken: (w, p) => w.taxes.property > p.base },
   nokampong: { icon: "🏚️", text: (t) => `No more kampong resettlement in ${t} this term`, need: null, boost: 4, years: 6, keepUntilDeadline: true, broken: (w, p) => (w.resettledThisTerm || []).includes(p.town) },
 };
+
+// How far along an open promise is, for the elections panel.
+export function pledgeProgress(w, p) {
+  if (p.kind === "park") {
+    const types = ["park", "sports", "gardensBay", "eastCoastPark", "sungeiBuloh", "birdPark", "mountFaber", "sentosaBeach"];
+    return { towns: w.towns.map((t, i) => ({ name: t.name, done: hasNewStruct(w, p, types, i) })) };
+  }
+  if (p.kind === "homes") return { text: `${fmtNum(Math.max(0, (w.towns[p.town].pop || 0) - p.base))} of ${fmtNum(p.n)} more residents so far` };
+  if (p.kind === "upgrade") return { text: `${w.lots.filter((l) => l.town === p.town && l.b && ((l.b.up && l.b.up >= p.made) || (l.b.renewed && l.b.built >= p.made))).length} of 3 blocks done` };
+  const K = PLEDGE_KINDS[p.kind];
+  if (K.check && p.town != null) return { text: K.check(w, p) ? "Done!" : `Not yet: build it inside ${w.towns[p.town].name}'s borders (dashed lines on the map)` };
+  return null;
+}
 
 export function pledgeOffers(w, A) {
   const offers = [];
@@ -893,16 +914,32 @@ export function stepMonth(w, rng = Math.random) {
   const lifeHit = effectAdd(w, "life");
   for (const [i, t] of A.towns.entries()) {
     const town = w.towns[i];
+    // a need that was poor and is now good earns thanks for a while
+    const prev = town.needs || {};
+    town.thanks = (town.thanks || []).filter((x) => x.until > w.t);
+    if (t.pop + t.kpop > 0) {
+      for (const [k, v] of Object.entries(t.needs)) {
+        if (t.minor?.includes(k) || prev[k] == null) continue;
+        if ((town.low?.[k] ?? prev[k]) < 50 && v >= 58 && !town.thanks.some((x) => x.need === k)) {
+          town.thanks.push({ need: k, from: Math.round(town.low?.[k] ?? prev[k]), to: Math.round(v), until: w.t + 8 });
+          if (rng() < 0.6) push(`🙏 ${town.name} residents are happier about ${NEEDS[k]?.name.toLowerCase() || k} now (${Math.round(town.low?.[k] ?? prev[k])}→${Math.round(v)}).`);
+        }
+      }
+      // remember the low point, so thanks can say how far it came
+      town.low = town.low || {};
+      for (const [k, v] of Object.entries(t.needs)) town.low[k] = v >= 58 ? v : Math.min(town.low[k] ?? v, v);
+    }
     town.pop = t.pop + t.kpop;
     town.kpop = t.kpop;
     town.needs = t.needs;
+    town.schools = t.schools;
     town.old = t.old;
     town.cap = t.cap;
     town.vacant = t.vacant;
     town.approval = clamp(town.approval * 0.8 + t.happy * 0.2, 0, 100);
     town.anger = Math.max(0, town.anger * 0.975 - 0.01);
     town.support = townSupport(w, i);
-    town.feedback = feedbackFor(t, i + w.t);
+    town.feedback = feedbackFor(t, i + w.t, town);
     town.tfr = townTfr(w.year, t.needs, town.approval, t.unhoused, (w.policy.fert || 0) + effectAdd(w, "fert"));
     town.life = townLife(w.year, t.needs, w.policy.health || 0, lifeHit);
     tfrSum += town.tfr * town.pop;
@@ -1051,20 +1088,28 @@ export function autoPlayDecision(w, rng = Math.random) {
   if (w.decision) autoDecide(w, (t) => pushNews(w, t), rng);
 }
 
-function feedbackFor(t, seed) {
+function feedbackFor(t, seed, town) {
   const out = [];
+  for (const x of town?.thanks || []) out.push({ need: x.need, v: x.to, kind: "thanks", text: `Thank you! ${NEEDS[x.need]?.name || x.need} is much better now (${x.from}→${x.to}).` });
   if (t.unhoused > 0.2) out.push({ need: "housing", v: Math.round(t.needs.housing), text: "We're still waiting for a flat! Build more homes." });
   const worst = Object.entries(t.needs)
-    .filter(([k]) => COMPLAINTS[k])
+    .filter(([k]) => COMPLAINTS[k] && !t.minor?.includes(k))
     .sort((a, b) => a[1] - b[1]);
+  let complaints = 0;
   for (const [k, v] of worst.slice(0, 3)) {
-    if (v >= 55 || out.length >= 3) break;
-    if (k === "housing" && out.length) continue;
-    const list = COMPLAINTS[k];
+    if (v >= 55 || complaints >= 3) break;
+    if (k === "housing" && t.unhoused > 0.2) continue;
+    let list = COMPLAINTS[k];
+    // which level of school is missing?
+    if (k === "school" && t.schools) {
+      const lvl = t.schools.indexOf(Math.min(...t.schools));
+      list = COMPLAINTS[`school${lvl + 1}`] || list;
+    }
     const extra = k === "housing" && t.kpop > t.pop * 0.5 ? 1 : 0;
     out.push({ need: k, v: Math.round(v), text: list[(seed + extra + k.length) % list.length] });
+    complaints++;
   }
-  if (!out.length && t.pop) out.push({ need: null, v: 80, text: PRAISE[seed % PRAISE.length] });
+  if (!complaints && !(t.unhoused > 0.2) && t.pop + t.kpop > 0) out.push({ need: null, v: 80, kind: "happy", text: "Everyone's fairly happy for now. Nothing urgent here!" });
   return out;
 }
 

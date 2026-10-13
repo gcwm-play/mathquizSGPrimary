@@ -569,7 +569,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
     } else if (p.kind === "struct") {
       ok = !!p.plan?.ok;
       label = ok ? `✓ Build ${fmtMoney(p.plan.cost)}` : p.plan?.msg || "Can't build here";
-      note = ok ? movedNote(w, p.plan.lots || []) || p.plan.msg : null;
+      note = ok ? [p.plan.town != null ? `📍 In ${w.towns[p.plan.town].name}` : null, movedNote(w, p.plan.lots || []) || p.plan.msg].filter(Boolean).join(" · ") : null;
     } else if (p.kind === "unroad") {
       label = "✓ Remove road";
       const s = w.segs.find((x) => x.id === p.seg);
@@ -612,7 +612,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         brush={brushMode}
         overlay={overlay}
         motion={settings.motion}
-        selected={inspect?.hit ? { q: inspect.hit.q, x: inspect.hit.x, y: inspect.hit.y, r: inspect.hit.r } : null}
+        selected={inspect?.hit ? { q: inspect.hit.q, x: inspect.hit.x, y: inspect.hit.y, r: inspect.hit.r, cover: inspect.hit.kind === "struct" && STRUCTS[inspect.hit.s.type].r && STRUCTS[inspect.hit.s.type].cover ? { x: inspect.hit.s.x, y: inspect.hit.s.y, r: STRUCTS[inspect.hit.s.type].r, kind: STRUCTS[inspect.hit.s.type].cover } : null } : null}
         onTap={onTap}
         onBrush={onBrush}
         onHandle={onHandle}

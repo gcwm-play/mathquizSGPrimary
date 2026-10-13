@@ -486,7 +486,7 @@ const STRUCT_H = { cableCar: 70, secondLink: 30, sentosaBridge: 30, keppelPort: 
 export const structHeight = (t) => STRUCT_H[t] || 30;
 
 // new landmarks reuse the closest existing drawing
-const ART_ALIAS = { secondLink: "checkpoint", sentosaBridge: "checkpoint", keppelPort: "tuasPort", sentosaBeach: "eastCoastPark", underwaterWorld: "scienceCentre", vivoCity: "causewayPoint", sentosaExpress: "rtsLink", resortsWorld: "marinaBaySands", fortSiloso: "navalBase", mountFaber: "park" };
+const ART_ALIAS = { secondary: "school", tertiary: "scienceCentre", secondLink: "checkpoint", sentosaBridge: "checkpoint", keppelPort: "tuasPort", sentosaBeach: "eastCoastPark", underwaterWorld: "scienceCentre", vivoCity: "causewayPoint", sentosaExpress: "rtsLink", resortsWorld: "marinaBaySands", fortSiloso: "navalBase", mountFaber: "park" };
 
 export function drawStruct(ctx, q, type, time) {
   type = ART_ALIAS[type] || type;
