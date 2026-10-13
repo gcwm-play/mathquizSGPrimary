@@ -3,7 +3,65 @@
 import { LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
 import { REGIONS } from "./regions.js";
 import { terrainAt, segPts, townOf, latestType, refillLots } from "./world.js";
-import { dist, clamp, polyLength, nearestOnPoly } from "./geom.js";
+import { dist, clamp, polyLength, nearestOnPoly, makeRng } from "./geom.js";
+import { residents, housingByTown, displace } from "./housing.js";
+import { townTfr, townLife, baseTfr, lifeIndex, tfrIndex, financeIndex } from "./society.js";
+import { stepEvents, EFFECT_ADD, autoDecide } from "./events.js";
+import { stepObjectives } from "./objectives.js";
+import { initRivals, stepRivals, decadeReport, finalReport } from "./rivals.js";
+
+export const MODES = {
+  campaign: { name: "Campaign", icon: "🗳️", desc: "Win elections to stay mayor. Play as long as you like." },
+  sandbox: { name: "Sandbox", icon: "🏖️", desc: "Relaxed: you can't be voted out or go bust. Keep building forever." },
+  legacy100: { name: "100-year legacy", icon: "🏛️", desc: "1965–2065. Be the best mayor you can, judged every decade against AI mayors.", years: 100 },
+  legacy200: { name: "200-year legacy", icon: "👑", desc: "1965–2165. The long game: two centuries of crises, booms and elections.", years: 200 },
+};
+export const modeOf = (w) => MODES[w.mode] || MODES.campaign;
+const canLose = (w) => w.mode !== "sandbox" && !w.sandbox;
+
+// Fill in anything an older save is missing.
+export function ensureWorld(w) {
+  if (w.v2) return w;
+  w.v2 = true;
+  w.mode = w.mode || "campaign";
+  if (modeOf(w).years && !w.endYear) w.endYear = 1965 + modeOf(w).years;
+  w.policy = w.policy || {};
+  w.boosts = w.boosts || [];
+  w.followups = w.followups || [];
+  w.dilemmaLog = w.dilemmaLog || [];
+  w.crisesPast = w.crisesPast || [];
+  w.log = w.log || [];
+  w.objectives = w.objectives || [];
+  w.fin = w.fin || [];
+  w.yearly = w.yearly || [];
+  w.reports = w.reports || [];
+  w.rep = w.rep ?? 55;
+  w.tfrLag = w.tfrLag ?? baseTfr(w.year - 20);
+  w.nextDilemma = w.nextDilemma ?? w.t + 8;
+  const rng = makeRng((w.seed || 1) + 7);
+  // past 2026 the future is unwritten: imagined crises at random times
+  w.nextFuture = w.nextFuture ?? (2027 - 1965) * 12 + Math.floor(rng() * 120);
+  for (const t of w.towns) {
+    t.maint = t.maint ?? 100;
+    t.scc = t.scc ?? 100;
+  }
+  // past crises the save has already lived through don't happen again
+  if (!w.crisesPast.length && w.year > 1966) {
+    for (const [id, y] of [["withdrawal", 1968], ["oil", 1973], ["recession85", 1985], ["afc", 1997], ["sars", 2003], ["gfc", 2008], ["covid", 2020]]) if (w.year > y) w.crisesPast.push({ id, year: y, score: 50, skipped: true });
+  }
+  if (!w.rivals) initRivals(w, rng);
+  if (!w.term) newTerm(w);
+  return w;
+}
+
+// The central government's block grant for a term, fixed for six years.
+function newTerm(w) {
+  const D = diffOf(w);
+  const base = (w.stats?.pop || 0) + w.waitlist * 0.6 + (w.kampongs || []).reduce((a, k) => a + k.houses.length * KAMPONG.housePop, 0) * (w.stats?.pop ? 0 : 1);
+  const block = Math.round((base * 0.002 * 1.25 + 120) * D.income);
+  const end = w.election.next;
+  w.term = { start: w.t, end, block, months: end - w.t, total: block * (end - w.t) };
+}
 
 export const dateLabel = (w) => `${MONTHS[w.month]} ${w.year}`;
 export const tToDate = (w, t) => {
@@ -34,7 +92,7 @@ export function quality(w, b) {
   const T = LOT_TYPES[b.type];
   if (!T.q) return 50;
   const since = b.up && b.up > b.built ? b.up : b.built;
-  const age = Math.max(0, (w.t - since) / 12);
+  const age = b.wear != null ? b.wear / 12 : Math.max(0, (w.t - since) / 12);
   return clamp(T.q + (b.up ? 8 : 0) - Math.max(0, age - 18) * 0.9, 8, 100);
 }
 export const ageYears = (w, b) => Math.max(0, Math.floor((w.t - b.built) / 12));
@@ -52,11 +110,15 @@ export function analyze(w) {
   const landmarks = [];
   const polluters = [];
   let upkeep = 0;
+  const upkeepTown = w.towns.map(() => 0);
   const rails = w.segs.filter((s) => ROAD_TYPES[s.type].rail);
   const stations = [];
   for (const s of w.structs) {
     const S = STRUCTS[s.type];
-    if (!S.fixed) upkeep += (S.upkeep || 0) * fund;
+    if (!S.fixed && S.upkeep) {
+      upkeep += S.upkeep * fund;
+      upkeepTown[townOf(w, s.x, s.y)] += S.upkeep * fund;
+    }
     if (s.type === "mrt") {
       const nearRail = rails.some((r) => nearestOnPoly(segPts(w, r), s.x, s.y).d < 2.6);
       if (!nearRail) continue;
@@ -71,7 +133,14 @@ export function analyze(w) {
     if (S.poll) polluters.push({ x: s.x, y: s.y, p: S.poll, r: 8 });
   }
   const mrtRunning = stations.length >= 2;
-  const roadLen = w.segs.reduce((a, s) => a + polyLength(segPts(w, s)) * (ROAD_TYPES[s.type].rail ? 3 : 1), 0);
+  let roadLen = 0;
+  for (const s of w.segs) {
+    const pts = segPts(w, s);
+    const len = polyLength(pts) * (ROAD_TYPES[s.type].rail ? 3 : 1);
+    roadLen += len;
+    const mi = Math.floor(pts.length / 4) * 2;
+    upkeepTown[townOf(w, pts[mi], pts[mi + 1])] += len * 0.12 * fund;
+  }
   upkeep += roadLen * 0.12 * fund;
 
   const lotsLive = w.lots.filter((l) => l.b && l.b.state !== "build");
@@ -144,7 +213,8 @@ export function analyze(w) {
   };
 
   // towns: residents' needs
-  const T = w.towns.map(() => ({ pop: 0, kpop: 0, jobs: 0, sum: Object.fromEntries(Object.keys(NEEDS).map((k) => [k, 0])), lots: 0, old: 0 }));
+  const T = w.towns.map(() => ({ pop: 0, kpop: 0, jobs: 0, sum: Object.fromEntries(Object.keys(NEEDS).map((k) => [k, 0])), lots: 0, old: 0, cap: 0, vacant: 0, hdbCap: 0, hdbOcc: 0 }));
+  const healthHit = effect(w, "health");
   let pop = 0;
   let comJobs = 0;
   let indJobs = 0;
@@ -157,7 +227,7 @@ export function analyze(w) {
     t.sum.housing += n * q;
     t.sum.food += n * Math.min(1, c.food * 1.2) * 100;
     t.sum.school += n * Math.min(1, c.school * 1.2) * 100;
-    t.sum.health += n * Math.min(1, c.health * 1.2) * 100 * (effect(w, "health") < 1 && c.health === 0 ? 0.4 : 1);
+    t.sum.health += n * Math.min(1, c.health * 1.2 + 0.08) * 100 * (c.health > 0 ? 1 - (1 - healthHit) * 0.4 : healthHit);
     t.sum.safety += n * Math.min(1, (c.safety * 0.7 + c.fire * 0.3) * 1.25) * 100;
     t.sum.transport += n * Math.min(1, transport) * 100;
     t.sum.green += n * Math.min(1, c.green * 1.3 + 0.15) * 100;
@@ -168,7 +238,13 @@ export function analyze(w) {
     const Ty = LOT_TYPES[l.b.type];
     const I = info.get(l.id);
     if (Ty.cap) {
-      const n = Ty.cap;
+      const n = residents(l.b);
+      T[l.town].cap += Ty.cap;
+      T[l.town].vacant += Ty.cap - n;
+      if (Ty.zone === "hdb") {
+        T[l.town].hdbCap += Ty.cap;
+        T[l.town].hdbOcc += n;
+      }
       pop += n;
       if (Ty.zone === "hdb") hdbPop += n;
       else if (Ty.zone === "pte") ptePop += n;
@@ -189,7 +265,7 @@ export function analyze(w) {
     const c = coverAt(k.x, k.y);
     addRes(k.town, n, c, pollAt(k.x, k.y), k.q, 0.2);
   }
-  const jobs = comJobs + indJobs + structJobs;
+  const jobs = (comJobs + indJobs + structJobs) * effect(w, "jobs");
   const workforce = pop * 0.5;
   // some people commute to jobs in other regions
   const unemployment = workforce > 0 ? Math.max(0, workforce - jobs - workforce * 0.3) / workforce : 0;
@@ -200,11 +276,18 @@ export function analyze(w) {
   // families still waiting for a home are voters too, and unhappy ones
   const unhoused = w.waitlist / Math.max(1, pop + w.waitlist);
   const uw = unhoused * Math.min(0.6, w.t / 120);
-  const towns = T.map((t) => {
+  const mood = effectAdd(w, "mood");
+  const towns = T.map((t, i) => {
+    const town = w.towns[i];
     const needs = {};
     for (const k of Object.keys(NEEDS)) needs[k] = t.pop ? t.sum[k] / t.pop : 50;
     needs.jobs = pop ? clamp(100 - unemployment * 260, 0, 100) : 50;
-    needs.cost = costNeed;
+    // estate upkeep paid for by S&CC charges
+    const maint = (town.maint ?? 100) / 100;
+    const scc = (town.scc ?? 100) / 100;
+    needs.cost = clamp(costNeed - (scc - 1) * 18, 0, 100);
+    if (t.hdbCap) needs.housing = clamp(needs.housing + (maint - 1) * 10, 0, 100);
+    for (const b of w.boosts || []) if (b.town === i && needs[b.need] != null) needs[b.need] = clamp(needs[b.need] + b.v, 0, 100);
     let tw = 0;
     let ta = 0;
     for (const [k, nd] of Object.entries(NEEDS)) {
@@ -213,59 +296,159 @@ export function analyze(w) {
     }
     needs.housing = needs.housing * (1 - unhoused * 0.7) + 10 * unhoused * 0.7;
     const base = t.pop ? 60 * (1 - grace) + (ta / tw) * grace : 55;
-    return { ...t, needs, unhoused, happy: base * (1 - uw) + 15 * uw };
+    return { ...t, needs, unhoused, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
   });
-  return { info, want, towns, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, coverAt, pollAt, services };
+  const vacant = T.reduce((a, t) => a + t.vacant, 0);
+  return { info, want, towns, vacant, upkeepTown, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, coverAt, pollAt, services };
 }
 
 export function effect(w, key) {
+  if (EFFECT_ADD.includes(key)) return effectAdd(w, key);
   let m = 1;
-  for (const e of w.effects) if (e.effect?.[key] != null && typeof e.effect[key] === "number" && key !== "mood" && !key.endsWith("Demand")) m *= e.effect[key];
+  for (const e of w.effects) if (typeof e.effect?.[key] === "number") m *= e.effect[key];
   return m;
 }
 const effectAdd = (w, key) => w.effects.reduce((a, e) => a + (e.effect?.[key] || 0), 0);
 
 // ---------- budget ----------
-export function monthlyBudget(w, A) {
+// ov: what-if overrides { property, funding, maint: [..], scc: [..] }
+export function monthlyBudget(w, A, ov = null) {
   const D = diffOf(w);
-  let resTax = 0;
-  let bizTax = 0;
+  const n = w.towns.length;
+  const taxP = ov?.property ?? w.taxes.property;
+  const fundK = ov?.funding != null ? ov.funding / Math.max(1, w.funding) : 1;
+  const z = () => w.towns.map(() => 0);
+  const T = { property: z(), business: z(), scc: z(), grant: z(), tourism: z(), trade: z(), schemes: z(), landSales: z(), hdbSales: z() };
+  const X = { services: z(), maintenance: z(), hdbBuild: z(), policies: z(), construction: z() };
+  const biz = effect(w, "business");
+  const hdbOcc = z();
+  const hdbCap = z();
   for (const l of w.lots) {
     if (!l.b || l.b.state === "build") continue;
-    const T = LOT_TYPES[l.b.type];
+    const Ty = LOT_TYPES[l.b.type];
     const lv = 0.5 + (A.info.get(l.id)?.lv || 30) / 100;
-    if (T.cap) resTax += T.cap * lv * (T.zone === "pte" ? 0.012 : 0.003);
-    if (T.jobs) bizTax += T.jobs * lv * 0.004;
+    if (Ty.cap) {
+      const occ = residents(l.b);
+      T.property[l.town] += occ * lv * (Ty.zone === "pte" ? 0.012 : 0.003) * (taxP / 10) * D.income;
+      if (Ty.zone === "hdb") {
+        hdbOcc[l.town] += occ;
+        hdbCap[l.town] += Ty.cap;
+      }
+    }
+    if (Ty.jobs) T.business[l.town] += Ty.jobs * lv * 0.004 * D.income * biz;
   }
-  const rev = {
-    property: resTax * (w.taxes.property / 10) * D.income,
-    business: bizTax * D.income * effect(w, "business"),
-    grant: (A.pop * 0.0035 + 120) * D.income,
-    tourism: A.tourism * 0.5 * Math.min(1, A.pop / 40000 + 0.3),
-    trade: A.trade * 0.4,
-    landSales: w.pending?.land || 0,
-    hdbSales: w.pending?.hdbSales || 0,
-  };
-  const exp = {
-    services: A.upkeep,
-    hdbBuild: w.pending?.hdbBuild || 0,
-  };
-  return { rev, exp };
+  const pops = A.towns.map((t) => t.pop + t.kpop);
+  const tp = pops.reduce((a, b) => a + b, 0);
+  const share = (i) => (tp ? pops[i] / tp : 1 / n);
+  const block = w.term?.block ?? (A.pop * 0.0035 + 120) * D.income;
+  const grant = block + A.pop * 0.0015 * D.income;
+  const tourism = A.tourism * 0.5 * Math.min(1, A.pop / 40000 + 0.3) * effect(w, "tourism");
+  const trade = A.trade * 0.4 * effect(w, "trade");
+  const land = effect(w, "land");
+  const upk = effect(w, "upkeep");
+  const policy = Math.max(0, w.policy?.monthly || 0);
+  const scheme = Math.max(0, -(w.policy?.monthly || 0));
+  const pend = w.pending?.towns;
+  for (let i = 0; i < n; i++) {
+    const maint = (ov?.maint?.[i] ?? w.towns[i].maint ?? 100) / 100;
+    const scc = (ov?.scc?.[i] ?? w.towns[i].scc ?? 100) / 100;
+    T.scc[i] = hdbOcc[i] * 0.006 * scc;
+    T.grant[i] = grant * share(i);
+    T.tourism[i] = tourism * share(i);
+    T.trade[i] = trade * share(i);
+    T.landSales[i] = (pend?.[i]?.land || 0) * land;
+    T.hdbSales[i] = (pend?.[i]?.hdbSales || 0) * land;
+    X.services[i] = (A.upkeepTown?.[i] || 0) * upk * fundK;
+    X.maintenance[i] = hdbCap[i] * 0.005 * maint * upk;
+    X.hdbBuild[i] = pend?.[i]?.hdbBuild || 0;
+    X.policies[i] = policy * share(i);
+    T.schemes[i] = scheme * share(i);
+    X.construction[i] = w.spend?.towns?.[i] || 0;
+  }
+  const sum = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v.reduce((a, b) => a + b, 0)]));
+  const rev = sum(T);
+  const exp = sum(X);
+  const towns = w.towns.map((_, i) => ({
+    rev: Object.fromEntries(Object.entries(T).map(([k, v]) => [k, v[i]])),
+    exp: Object.fromEntries(Object.entries(X).map(([k, v]) => [k, v[i]])),
+  }));
+  return { rev, exp, towns };
+}
+const LUMPY_REV = ["landSales", "hdbSales"];
+const LUMPY_EXP = ["hdbBuild", "construction"];
+const total = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+const recurRev = (o) => total(o) - LUMPY_REV.reduce((a, k) => a + (o[k] || 0), 0);
+const recurExp = (o) => total(o) - LUMPY_EXP.reduce((a, k) => a + (o[k] || 0), 0);
+const lumpyNet = (B) => LUMPY_REV.reduce((a, k) => a + (B.rev[k] || 0), 0) - LUMPY_EXP.reduce((a, k) => a + (B.exp[k] || 0), 0);
+
+// Project the budget forward using current settings (or what-if overrides).
+export function projectFinance(w, A, ov = null, months = 72) {
+  const B = monthlyBudget(w, A, ov);
+  const recent = w.fin.slice(-12);
+  const avgL = recent.length ? recent.reduce((a, f) => a + f.l, 0) / recent.length : 0;
+  // growth: homes being built and empty flats fill up, then the trend
+  const H = housingByTown(w);
+  const pipe = H.reduce((a, h) => a + h.building, 0);
+  const fillable = Math.min(pipe + A.vacant, w.waitlist + pipe * 0.5);
+  const pop = Math.max(1, A.pop);
+  const h = w.history;
+  const past = h.length > 24 ? h[h.length - 25].pop : h[0]?.pop || pop;
+  const trend = clamp(past > 0 ? Math.pow(pop / past, 1 / Math.min(24, h.length || 1)) - 1 : 0, -0.008, 0.012);
+  // crisis drag that will lift when it ends
+  const until = w.crisis ? w.crisis.until : -1;
+  const recov = (k) => 1 / Math.max(0.2, effect(w, k));
+  const recur = (side) => Object.fromEntries(Object.entries(B[side]).filter(([k]) => !LUMPY_REV.includes(k) && !LUMPY_EXP.includes(k)));
+  const rr = recur("rev");
+  const re = recur("exp");
+  const out = [];
+  const towns = w.towns.map(() => []);
+  let cash = w.cash;
+  for (let k = 1; k <= months; k++) {
+    const t = w.t + k;
+    const gf = 1 + (fillable / pop) * Math.min(1, k / 18) + (Math.pow(1 + trend, k) - 1) * 0.7;
+    const after = until > 0 && t >= until;
+    let r = 0;
+    for (const [key, v] of Object.entries(rr)) {
+      let x = v;
+      if (key === "property" || key === "scc" || key === "business" || key === "tourism") x *= gf;
+      if (key === "grant") x = (w.term?.block || 0) + (v - (w.term?.block || 0)) * gf;
+      if (after && key === "business") x *= recov("business");
+      if (after && key === "tourism") x *= recov("tourism");
+      if (after && key === "trade") x *= recov("trade");
+      r += x;
+    }
+    let e = 0;
+    for (const [key, v] of Object.entries(re)) e += key === "maintenance" ? v * (1 + (gf - 1) * 0.8) : key === "services" && after ? v / recov("upkeep") : v;
+    const lump = avgL * Math.max(0.3, 1 - k / 60);
+    cash += r - e + lump;
+    out.push({ t, r, e, c: cash });
+    w.towns.forEach((_, i) => {
+      const tr = total(B.towns[i].rev) - LUMPY_REV.reduce((a, q) => a + B.towns[i].rev[q], 0);
+      const te = total(B.towns[i].exp) - LUMPY_EXP.reduce((a, q) => a + B.towns[i].exp[q], 0);
+      const rec = after ? 1 + (recov("business") - 1) * (B.towns[i].rev.business / Math.max(1, tr)) : 1;
+      towns[i].push({ t, r: tr * gf * rec, e: te * (1 + (gf - 1) * 0.6) });
+    });
+  }
+  return { region: out, towns, budget: B };
 }
 
 export const REV_LABELS = {
   property: "🏠 Property tax",
+  scc: "🧹 S&CC charges",
   business: "🏢 Business tax",
   grant: "🏛️ Government grant",
   tourism: "📸 Tourism",
   trade: "⚓ Trade",
+  schemes: "🚦 Road pricing & resort levies",
   landSales: "📜 Land sales",
   hdbSales: "🔑 HDB flat sales",
 };
 export const EXP_LABELS = {
   services: "🛠️ Services & roads upkeep",
+  maintenance: "🧽 Estate maintenance",
   hdbBuild: "🏗️ HDB construction",
-  construction: "🚧 Building & compensation",
+  policies: "📋 Ongoing schemes",
+  construction: "🚧 Projects & compensation",
 };
 
 // ---------- pledges ----------
@@ -404,37 +587,67 @@ function holdElection(w, rng) {
   if (won) {
     w.trust = clamp(w.trust + 3, 0, 100);
     pushNews(w, `🗳️ ${w.year} election: you won ${rec.share}% of the vote! Next election in ${TERM_YEARS} years.`);
-  } else if (D.voteMin && !w.sandbox) {
+  } else if (D.voteMin && canLose(w)) {
     w.gameOver = { reason: "election", text: `You lost the ${w.year} election with ${rec.share}% of the vote. A new mayor takes over ${w.name}.` };
+    if (w.yearly.length) w.gameOver.final = finishReports(w);
   } else {
     w.trust = clamp(w.trust - 5, 0, 100);
-    pushNews(w, `🗳️ ${w.year} election: only ${rec.share}% voted for you. On Easy you stay on, but residents want change!`);
+    pushNews(w, `🗳️ ${w.year} election: only ${rec.share}% voted for you. ${w.mode === "sandbox" ? "In Sandbox" : "On Easy"} you stay on, but residents want change!`);
   }
+  w.log.push({ year: w.year, text: `${won ? "won" : "lost"} the ${w.year} election with ${rec.share}%`, tone: won ? "good" : "bad" });
+  w.rep = clamp((w.rep ?? 50) + (share - 50) * 0.15, 0, 100);
+  newTerm(w);
+  const termM = w.term.months;
+  pushNews(w, `🏛️ New term budget: the government's block grant is ${fmtMoney(w.term.block)} a month (${fmtMoney(w.term.block * termM)} over ${Math.round(termM / 12)} years), plus a grant per resident.`);
   w.election.justHeld = rec;
 }
 
 // ---------- monthly step ----------
+export const wearRate = (maint) => {
+  const m = maint / 100;
+  return m <= 1 ? 2 - m : Math.max(0.4, 1 - 0.8 * (m - 1));
+};
+
+function finishReports(w) {
+  const lastTo = w.reports.length ? w.reports[w.reports.length - 1].to + 1 : 1965;
+  if (w.year - lastTo >= 3) {
+    const r = decadeReport(w, lastTo, w.year + 1);
+    if (r) w.reports.push(r);
+  }
+  return finalReport(w);
+}
+
 export function stepMonth(w, rng = Math.random) {
   if (w.gameOver) return null;
+  ensureWorld(w);
+  if (w.decision) return null; // waiting for the mayor to decide
   const D = diffOf(w);
-  w.pending = { land: 0, hdbSales: 0, hdbBuild: 0 };
+  const nT = w.towns.length;
+  const pend = { land: 0, hdbSales: 0, hdbBuild: 0, towns: w.towns.map(() => ({ land: 0, hdbSales: 0, hdbBuild: 0 })) };
+  w.pending = pend;
+  const push = (text) => pushNews(w, text);
   let A = analyze(w);
   w.election.justHeld = null;
+  w.boosts = w.boosts.filter((b) => b.until > w.t);
 
-  // finish construction and upgrades
+  // finish construction and upgrades; buildings age with wear
   for (const l of w.lots) {
     const b = l.b;
     if (!b) continue;
+    const T = LOT_TYPES[b.type];
     if (b.state === "build" && w.t >= b.until) {
       b.state = "live";
       b.built = w.t;
-      const T = LOT_TYPES[b.type];
-      if (T.zone === "hdb") w.pending.hdbSales += T.cap * 0.55 * (0.9 - 0.4 * (w.hdbGrant / 100));
-      if (T.cap) w.waitlist = Math.max(0, w.waitlist - T.cap);
+      b.wear = 0;
+      if (T.cap) b.occ = 0; // flats are empty until families move in
       w.trees = w.trees.filter((t) => !(Math.abs(t[0] - l.x) < 1 && Math.abs(t[1] - l.y) < 1));
     } else if (b.state === "upgrade" && w.t >= b.until) {
       b.state = "live";
       b.up = w.t;
+      b.wear = 0;
+    } else if (b.state !== "build" && T.q) {
+      if (b.wear == null) b.wear = Math.max(0, w.t - (b.up && b.up > b.built ? b.up : b.built));
+      b.wear += T.zone === "hdb" ? wearRate(w.towns[l.town].maint ?? 100) : 1;
     }
   }
 
@@ -448,7 +661,11 @@ export function stepMonth(w, rng = Math.random) {
   }
   const comTarget = A.pop * 0.18 + A.tourism * 0.5;
   const indTarget = A.pop * 0.17 + A.trade * 0.8 + (REGIONS[w.region].indBoost || 0) * A.pop * 0.3;
-  const effWait = w.waitlist - pipe.res;
+  // families elsewhere in Singapore who would move here if there were homes
+  const attract = clamp(w.approval / 60, 0.3, 1.3);
+  const era = w.year < 1990 ? 1 : w.year < 2030 ? 0.7 : 0.45;
+  const latent = (A.pop * 0.03 + 800) * attract * era;
+  const effWait = w.waitlist + latent - pipe.res - A.vacant;
   w.demand = {
     hdb: clamp(effWait / Math.max(500, A.pop * 0.05), -1, 1),
     pte: clamp((effWait * 0.25) / Math.max(300, A.pop * 0.02) + (A.jobs > A.workforce ? 0.2 : 0), -1, 1),
@@ -456,10 +673,58 @@ export function stepMonth(w, rng = Math.random) {
     ind: clamp((indTarget - A.indJobs - pipe.ind) / Math.max(200, indTarget * 0.35), -1, 1) + effectAdd(w, "indDemand"),
   };
 
-  // waiting list grows with families and jobs
+  // the housing queue grows with new households (yesterday's babies) and jobs
   const spare = A.jobs + A.workforce * 0.3 - A.workforce;
   const happy = w.approval / 60;
-  w.waitlist = Math.max(0, Math.round(w.waitlist + (A.pop + w.waitlist) * 0.0011 + 18 + (spare > 0 ? spare * 0.05 * happy : spare * 0.02)));
+  const births = clamp(0.45 + 0.55 * (w.tfrLag / 2.1), 0.6, 1.7);
+  const inflow = ((A.pop + w.waitlist) * 0.0011 * births + 18 + (spare > 0 ? spare * 0.05 * happy : spare * 0.02)) * effect(w, "growth");
+  w.waitlist = Math.max(0, w.waitlist + inflow);
+  // some families give up waiting and move elsewhere
+  const giveUp = w.waitlist * 0.003 * (w.waitlist > A.pop * 0.1 ? 1.5 : 1);
+  w.waitlist -= giveUp;
+  w.leftRegion = (w.leftRegion || 0) + giveUp;
+
+  // unhappy towns lose residents
+  for (let i = 0; i < nT; i++) {
+    const ap = w.towns[i].approval;
+    if (ap >= 42 || !A.towns[i].pop) continue;
+    const rate = 0.0025 * ((42 - ap) / 20);
+    let gone = 0;
+    for (const l of w.lots) {
+      if (l.town !== i || !l.b || l.b.state === "build" || !LOT_TYPES[l.b.type].cap) continue;
+      const n = residents(l.b);
+      const k = Math.round(n * rate);
+      if (k > 0) {
+        l.b.occ = n - k;
+        gone += k;
+      }
+    }
+    w.leftRegion = (w.leftRegion || 0) + gone;
+    if (gone > 150 && rng() < 0.15) push(`🚚 ${gone.toLocaleString("en-SG")} residents moved out of ${w.towns[i].name} this month. They're unhappy with the town.`);
+  }
+
+  // families move into empty flats (newest and best first)
+  const vac = w.lots.filter((l) => l.b && l.b.state !== "build" && LOT_TYPES[l.b.type].cap && residents(l.b) < LOT_TYPES[l.b.type].cap);
+  if (vac.length && w.waitlist >= 1) {
+    const free = vac.reduce((a, l) => a + LOT_TYPES[l.b.type].cap - residents(l.b), 0);
+    const outsiders = free * 0.06 * attract * era;
+    let movers = Math.floor(Math.min(w.waitlist + outsiders, free, Math.max(250, free * 0.35)));
+    vac.sort((a, b) => quality(w, b.b) + w.towns[b.town].approval * 0.3 - (quality(w, a.b) + w.towns[a.town].approval * 0.3));
+    const hdbPrice = 0.55 * (0.9 - 0.4 * (w.hdbGrant / 100));
+    for (const l of vac) {
+      if (movers <= 0) break;
+      const T = LOT_TYPES[l.b.type];
+      const k = Math.min(T.cap - residents(l.b), movers, Math.ceil(T.cap * 0.45));
+      l.b.occ = residents(l.b) + k;
+      movers -= k;
+      w.waitlist -= k; // goes negative when outsiders move in; clamped below
+      if (T.zone === "hdb") {
+        pend.hdbSales += k * hdbPrice;
+        pend.towns[l.town].hdbSales += k * hdbPrice;
+      }
+    }
+  }
+  w.waitlist = Math.max(0, Math.round(w.waitlist));
 
   // new construction on zoned lots
   const empty = w.lots.filter((l) => l.zone && !l.b);
@@ -469,6 +734,7 @@ export function stepMonth(w, rng = Math.random) {
   }
   let starts = 0;
   const maxStarts = 5 + Math.floor(w.lots.length / 40);
+  const fast = (w.policy.fastUntil || 0) > w.t ? 0.8 : 1;
   for (const l of empty) {
     if (starts >= maxStarts) break;
     const dem = w.demand[l.zone];
@@ -483,17 +749,25 @@ export function stepMonth(w, rng = Math.random) {
     }
     if (!pick) continue;
     const T = LOT_TYPES[pick];
-    if (T.zone === "hdb") w.pending.hdbBuild += T.cost;
-    else w.pending.land += (T.cap || T.jobs || 0) * (A.info.get(l.id).lv / 100) * (l.zone === "pte" ? 1.4 : 0.6);
-    l.b = { type: pick, state: "build", until: w.t + T.build, built: w.t + T.build, v: Math.floor(rng() * 12) };
+    if (T.zone === "hdb") {
+      pend.hdbBuild += T.cost;
+      pend.towns[l.town].hdbBuild += T.cost;
+    } else {
+      const v = (T.cap || T.jobs || 0) * (A.info.get(l.id).lv / 100) * (l.zone === "pte" ? 1.4 : 0.6);
+      pend.land += v;
+      pend.towns[l.town].land += v;
+    }
+    const build = Math.round(T.build * fast);
+    l.b = { type: pick, state: "build", until: w.t + build, built: w.t + build, v: Math.floor(rng() * 12) };
     starts++;
   }
 
-  // kampong fires and random events
+  // kampong fires and small random events
   const R = REGIONS[w.region];
-  if (w.t > 3 && !w.effects.length) {
+  if (w.t > 3 && !w.effects.some((e) => e.id && RANDOM_EVENTS.some((r) => r.id === e.id))) {
     for (const ev of RANDOM_EVENTS) {
       if (ev.minYear && w.year < ev.minYear) continue;
+      if (ev.id === "recession" && w.crisis) continue;
       let chance = ev.chance;
       if (ev.kampongFire) {
         if (!w.kampongs.length) continue;
@@ -505,9 +779,10 @@ export function stepMonth(w, rng = Math.random) {
         const cov = A.coverAt(k.x, k.y).fire;
         const lost = Math.ceil(k.houses.length * (cov > 0 ? 0.25 : 0.6));
         k.houses.splice(0, lost);
-        w.waitlist += lost * KAMPONG.housePop;
+        const plan = displace(w, lost * KAMPONG.housePop, k.town);
         if (!k.houses.length) w.kampongs = w.kampongs.filter((x) => x.id !== k.id);
-        pushNews(w, ev.text.replace("{kampong}", k.name) + (cov > 0 ? " Firefighters saved most homes." : ""));
+        const rehoused = plan ? plan.same + plan.other : 0;
+        pushNews(w, ev.text.replace("{kampong}", k.name) + (cov > 0 ? " Firefighters saved most homes." : "") + (rehoused ? ` ${rehoused.toLocaleString("en-SG")} people moved straight into empty flats.` : ""));
         w.rev++;
         refillLots(w, k.x, k.y, k.r);
       } else {
@@ -521,19 +796,31 @@ export function stepMonth(w, rng = Math.random) {
 
   // re-analyse for the new month
   A = analyze(w);
+  let tfrSum = 0;
+  let lifeSum = 0;
+  const lifeHit = effectAdd(w, "life");
   for (const [i, t] of A.towns.entries()) {
     const town = w.towns[i];
     town.pop = t.pop + t.kpop;
     town.kpop = t.kpop;
     town.needs = t.needs;
     town.old = t.old;
+    town.cap = t.cap;
+    town.vacant = t.vacant;
     town.approval = clamp(town.approval * 0.8 + t.happy * 0.2, 0, 100);
     town.anger = Math.max(0, town.anger * 0.975 - 0.01);
     town.support = townSupport(w, i);
     town.feedback = feedbackFor(t, i + w.t);
+    town.tfr = townTfr(w.year, t.needs, town.approval, t.unhoused, (w.policy.fert || 0) + effectAdd(w, "fert"));
+    town.life = townLife(w.year, t.needs, w.policy.health || 0, lifeHit);
+    tfrSum += town.tfr * town.pop;
+    lifeSum += town.life * town.pop;
   }
   const tp = A.towns.reduce((a, t) => a + t.pop + t.kpop, 0);
   w.approval = tp ? A.towns.reduce((a, t, i) => a + w.towns[i].approval * (t.pop + t.kpop), 0) / tp : 55;
+  const tfr = tp ? tfrSum / tp : baseTfr(w.year);
+  const life = tp ? lifeSum / tp : 65;
+  w.tfrLag += (tfr - w.tfrLag) / 240;
   w.stats = {
     pop: A.pop,
     hdbPop: A.hdbPop,
@@ -543,19 +830,52 @@ export function stepMonth(w, rng = Math.random) {
     comJobs: A.comJobs,
     indJobs: A.indJobs,
     unemployment: A.unemployment,
+    vacant: A.vacant,
     building: w.lots.filter((l) => l.b?.state === "build").length,
     resettled: w.stats.resettled || 0,
+    tfr: Math.round(tfr * 100) / 100,
+    life: Math.round(life * 10) / 10,
+    lifeIdx: lifeIndex(w.year, life),
   };
 
   // money
   const B = monthlyBudget(w, A);
-  const net = Object.values(B.rev).reduce((a, b) => a + b, 0) - Object.values(B.exp).reduce((a, b) => a + b, 0);
-  if (!w.sandbox) w.cash += net;
+  const rTot = total(B.rev);
+  const eTot = total(B.exp);
+  const paid = B.exp.construction; // already taken out when spent
+  if (!w.sandbox) w.cash += rTot - eTot + paid;
   w.ledger = B;
   for (const side of ["rev", "exp"]) for (const [k, v] of Object.entries(B[side])) w.yearAcc[side][k] = (w.yearAcc[side][k] || 0) + v;
+  w.surplusRun = rTot - eTot >= 0 ? (w.surplusRun || 0) + 1 : 0;
+  const r0 = (x) => Math.round(x);
+  w.fin.push({
+    t: w.t,
+    r: r0(rTot),
+    e: r0(eTot),
+    c: r0(w.cash),
+    l: r0(lumpyNet(B)),
+    rr: r0(recurRev(B.rev)),
+    re: r0(recurExp(B.exp)),
+    trr: B.towns.map((x) => r0(recurRev(x.rev))),
+    tre: B.towns.map((x) => r0(recurExp(x.exp))),
+    tr: B.towns.map((x) => r0(total(x.rev))),
+    te: B.towns.map((x) => r0(total(x.exp))),
+    tl: B.towns.map((x) => r0(lumpyNet(x))),
+  });
+  if (w.fin.length > 480) w.fin.shift();
+  w.spend = { total: 0, towns: [] };
 
-  // pledges & elections
+  // reputation drifts towards how the region is really doing
+  const spendM = Math.max(1, eTot - paid);
+  const finIdx = financeIndex(w.cash / spendM);
+  const repTarget = w.approval * 0.35 + w.trust * 0.25 + w.stats.lifeIdx * 0.15 + finIdx * 0.1 + (1 - Math.min(1, w.waitlist / Math.max(1, A.pop * 0.3))) * 15;
+  w.rep = clamp(w.rep + (repTarget - w.rep) * 0.02, 0, 100);
+
+  // pledges, crises, dilemmas, objectives
   checkPledges(w);
+  stepEvents(w, A, rng, push);
+  stepObjectives(w, A, push);
+
   w.t++;
   w.month++;
   if (w.month > 11) {
@@ -563,6 +883,7 @@ export function stepMonth(w, rng = Math.random) {
     w.year++;
     w.lastYear = w.yearAcc;
     w.yearAcc = { rev: {}, exp: {} };
+    yearEnd(w, A, rng, finIdx);
   }
   w.effects = w.effects.filter((e) => e.until > w.t);
   if (w.t === w.election.next - 6) {
@@ -572,13 +893,60 @@ export function stepMonth(w, rng = Math.random) {
   if (w.t === w.election.next) holdElection(w, rng);
 
   for (const ev of [...GLOBAL_EVENTS, ...(R.events || [])]) if (ev.year === w.year && ev.month === w.month) pushNews(w, ev.text);
-  if (w.cash < -10000 && !w.sandbox && D.voteMin) w.gameOver = w.gameOver || { reason: "broke", text: "The region ran out of money. The central government has appointed a new mayor." };
+  if (w.cash < -10000 && canLose(w) && D.voteMin) {
+    w.gameOver = w.gameOver || { reason: "broke", text: "The region ran out of money. The central government has appointed a new mayor." };
+    if (w.yearly.length && !w.gameOver.final) w.gameOver.final = finishReports(w);
+  }
+  if (w.endYear && w.year >= w.endYear && !w.gameOver) {
+    w.gameOver = { reason: "legacy", text: `${w.endYear - 1965} years as mayor of ${w.name} are over. Time to see your legacy.`, final: finishReports(w) };
+  }
 
   w.rev = (w.rev || 0) + 1; // buildings started or finished: redraw
   w.history.push({ t: w.t, pop: A.pop, cash: Math.round(w.cash), approval: Math.round(w.approval) });
   if (w.history.length > 400) w.history.shift();
   checkGoals(w);
   return A;
+}
+
+// once a year: record how you're doing, move the AI mayors, decade reports
+function yearEnd(w, A, rng, finIdx) {
+  let hs = 0;
+  let n = 0;
+  for (const t of A.towns) {
+    const p = t.pop + t.kpop;
+    hs += t.needs.housing * p;
+    n += p;
+  }
+  const queue = w.waitlist / Math.max(1, A.pop + w.waitlist);
+  const housing = clamp((n ? hs / n : 40) * 0.75 + (1 - queue * 2.5) * 25, 0, 100);
+  w.yearly.push({
+    year: w.year - 1,
+    pop: Math.round(A.pop),
+    happy: Math.round(w.approval),
+    housing: Math.round(housing),
+    health: Math.round(lifeIndex(w.year - 1, w.stats.life)),
+    fert: Math.round(tfrIndex(w.year - 1, w.stats.tfr)),
+    finance: Math.round(finIdx),
+    rep: Math.round(w.rep),
+    life: w.stats.life,
+    tfr: w.stats.tfr,
+    cash: Math.round(w.cash),
+  });
+  if (w.yearly.length > 260) w.yearly.shift();
+  stepRivals(w, rng);
+  if (w.year % 10 === 5 && w.year > 1966) {
+    const r = decadeReport(w, w.year - 10, w.year);
+    if (r) {
+      w.reports.push(r);
+      w.reportReady = w.reports.length - 1;
+      pushNews(w, `📊 Your ${r.from}–${r.to} report card is in: ${r.headline}`);
+    }
+  }
+}
+
+// for bots and tests: answer any pending decision automatically
+export function autoPlayDecision(w, rng = Math.random) {
+  if (w.decision) autoDecide(w, (t) => pushNews(w, t), rng);
 }
 
 function feedbackFor(t, seed) {
@@ -614,15 +982,18 @@ export const GOALS = [
   { id: "pop80k", text: "Reach 80,000 residents", hint: "Bigger, modern estates and good transport.", test: (w) => w.stats.pop >= 80000 },
 ];
 
-export const nextGoal = (w) => GOALS.find((g) => !w.goalsDone[g.id]) || null;
+export const nextGoal = (w) => GOALS.find((g) => !w.goalsDone[g.id]) || (w.objectives || []).find((o) => o.status === "open") || null;
 
 export function checkGoals(w) {
+  let left = 0;
   for (const g of GOALS) {
     if (!w.goalsDone[g.id] && g.test(w)) {
       w.goalsDone[g.id] = true;
       if (w.t > 0) pushNews(w, `✅ Goal reached: ${g.text}`);
     }
+    if (!w.goalsDone[g.id]) left++;
   }
+  w.starterLeft = left;
 }
 
 // ---------- describe for the inspector ----------
@@ -641,17 +1012,22 @@ export function describe(w, A, hit) {
     const lines = [];
     if (l.b.state === "build") lines.push(`🏗️ Under construction, ready ${tToDate(w, l.b.until)}`);
     else if (l.b.state === "upgrade") lines.push(`🔧 Being upgraded, done ${tToDate(w, l.b.until)}`);
-    if (T.cap) lines.push(`👥 ${fmtNum(T.cap)} residents`);
+    if (T.cap && l.b.state === "build") lines.push(`👥 Room for ${fmtNum(T.cap)} residents`);
+    else if (T.cap) {
+      const n = residents(l.b);
+      lines.push(`👥 ${fmtNum(n)} of ${fmtNum(T.cap)} residents${n < T.cap ? ` · ${fmtNum(T.cap - n)} empty homes` : " · full"}`);
+    }
     if (T.jobs) lines.push(`💼 ${fmtNum(T.jobs)} jobs`);
     if (l.b.state !== "build") lines.push(`Built ${ageYears(w, l.b)} years ago (${T.era} design)`);
     if (T.q && l.b.state !== "build") lines.push(`Housing quality ${Math.round(quality(w, l.b))}/100${quality(w, l.b) < 45 ? " · ageing, consider 🏗️ Renew" : ""}`);
     if (l.b.conserved) lines.push("🏮 Conserved heritage");
     if (I) lines.push(`Land value ${Math.round(I.lv)} · Pollution ${Math.round(I.p)}`);
-    return { title: `${T.name} · ${town}`, icon: T.zone === "hdb" ? "🏢" : T.zone === "pte" ? "🏡" : T.zone === "com" ? "🏬" : "🏭", lines, renew: true };
+    return { townName: town, title: `${T.name} · ${town}`, icon: T.zone === "hdb" ? "🏢" : T.zone === "pte" ? "🏡" : T.zone === "com" ? "🏬" : "🏭", lines, renew: true };
   }
   if (hit.kind === "kampong") {
     const k = hit.k;
     return {
+      townName: w.towns[k.town].name,
       title: k.name,
       icon: "🛖",
       lines: [`👥 About ${fmtNum(k.houses.length * KAMPONG.housePop)} people in ${k.houses.length} attap houses`, k.improved ? "🚰 Has stand-pipes and electricity" : "No piped water or proper sanitation", "Fires spread fast here without a fire station.", "Use 🏗️ Renew to improve or resettle it."],

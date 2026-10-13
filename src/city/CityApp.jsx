@@ -48,8 +48,10 @@ export default function CityApp() {
   const [screen, setScreen] = useState("title");
   const [settings, setSettings] = useSettings();
   const worldRef = useRef(null);
+  const [run, setRun] = useState(0);
   const start = (w) => {
     worldRef.current = w;
+    setRun((r) => r + 1);
     setScreen("game");
   };
   return (
@@ -57,7 +59,7 @@ export default function CityApp() {
       {screen === "title" ? (
         <Title onStart={start} />
       ) : (
-        <Game key={worldRef.current.seed + ":" + worldRef.current.t} initial={worldRef.current} settings={settings} setSettings={setSettings} onQuit={() => setScreen("title")} onRestart={start} />
+        <Game key={run} initial={worldRef.current} settings={settings} setSettings={setSettings} onQuit={() => setScreen("title")} onRestart={start} />
       )}
     </div>
   );
@@ -453,11 +455,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         {!tray && cur && cur.mode !== "inspect" && (
           <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 px-2">
             {undoRef.current.length > 0 && !showConfirm && (
-              <button onClick={undo} className="city-btn city-sticker rounded-full bg-[var(--card)] px-3 py-2 text-[14px] font-bold">
+              <button onClick={undo} className="city-btn city-sticker shrink-0 rounded-full bg-[var(--card)] px-3 py-2 text-[14px] font-bold">
                 ↶ Undo
               </button>
             )}
-            <div className="city-sticker flex min-w-0 max-w-full items-center gap-2 rounded-full bg-[var(--card)] py-1 pl-3 pr-1">
+            <div className="city-sticker flex min-w-0 max-w-full shrink-0 items-center gap-2 overflow-hidden rounded-full bg-[var(--card)] py-1 pl-3 pr-1">
               <span className="text-xl">{cur.icon}</span>
               <span className="min-w-0 leading-tight">
                 <span className="block truncate text-[14px] font-bold">
@@ -472,13 +474,13 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             </div>
             {showConfirm && (
               <>
-                <button onClick={() => setPending(null)} className="city-btn city-sticker rounded-full bg-[var(--card)] px-4 py-2 text-[15px] font-bold">
+                <button onClick={() => setPending(null)} className="city-btn city-sticker shrink-0 rounded-full bg-[var(--card)] px-4 py-2 text-[15px] font-bold">
                   Cancel
                 </button>
                 <button
                   onClick={confirmPending}
                   disabled={!preview?.ok}
-                  className="city-btn city-sticker rounded-full bg-[var(--good)] px-4 py-2 text-[15px] font-bold text-white disabled:bg-[var(--muted)]"
+                  className="city-btn city-sticker max-w-full shrink-0 rounded-full bg-[var(--good)] px-4 py-2 text-[15px] font-bold text-white disabled:bg-[var(--muted)]"
                 >
                   {preview?.ok ? `✓ Build ${fmtMoney(preview.cost)}` : preview?.msg || "Nothing to build here"}
                 </button>
