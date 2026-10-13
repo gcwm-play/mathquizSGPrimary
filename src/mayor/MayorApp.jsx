@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MapView, { zoomAt, lookAt } from "./MapView.jsx";
 import { TownsPanel, ElectionPanel, RenewSheet, NewsPanel, GoalsPanel, HelpPanel, MenuPanel, Panel, yearsMonths } from "./panels.jsx";
-import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel } from "./panels2.jsx";
+import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel } from "./panels2.jsx";
 import { decide, CRISES } from "./events.js";
 import { REGIONS, REGION_ORDER } from "./regions.js";
 import { DIFFICULTY, ALL_TOOLS, STRUCTS, ROAD_TYPES, toolGroups } from "./defs.js";
@@ -210,8 +210,8 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const [, setV] = useState(0);
   const [tool, setTool] = useState("look");
   const [tray, setTray] = useState(null);
-  const [speed, setSpeed] = useState(2);
-  const [panel, setPanel] = useState(initial.decision ? { id: "decision" } : initial.t === 0 ? { id: "help" } : null);
+  const [speed, setSpeed] = useState(1);
+  const [panel, setPanel] = useState(initial.decision ? { id: "decision" } : initial.t === 0 ? { id: initial.planned ? "help" : "plan" } : null);
   const [overlay, setOverlay] = useState("none");
   const [inspect, setInspect] = useState(null);
   const [toastMsg, setToastMsg] = useState(null);
@@ -232,7 +232,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const toast = useCallback((m) => {
     setToastMsg(m);
     clearTimeout(toastT.current);
-    toastT.current = setTimeout(() => setToastMsg(null), 2800);
+    toastT.current = setTimeout(() => setToastMsg(null), 5500);
   }, []);
   const save = () => saveWorld(worldRef.current);
   const remember = (label) => {
@@ -540,6 +540,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const p = pendingRef.current;
   const goal = nextGoal(w);
   const ap = Math.round(w.approval);
+  const unread = w.news.filter((n) => n.t >= (w.newsSeen ?? 0)).length;
   const recentFin = (w.fin || []).slice(-6);
   // regular income minus running costs plus land/flat sales, averaged
   const netMo = recentFin.length ? recentFin.reduce((a, f) => a + f.r - f.e, 0) / recentFin.length : 0;
@@ -717,11 +718,12 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             <button onClick={() => (overlay !== "none" ? setOverlay("none") : setPanel({ id: "layers" }))} aria-label={overlay !== "none" ? "Back to normal map" : "Map layers"} title={overlay !== "none" ? "Back to normal map" : "Map layers"} className={`city-btn city-sticker flex h-11 w-11 items-center justify-center rounded-full text-xl ${overlay !== "none" ? "bg-[var(--brand)]" : "bg-[var(--card)]"}`}>
               🗺️
             </button>
-            <button onClick={() => setPanel({ id: "news" })} aria-label="News" className="city-btn city-sticker hidden h-11 w-11 items-center justify-center rounded-full bg-[var(--card)] text-xl sm:flex">
+            <button onClick={() => setPanel({ id: "news" })} aria-label={`News${unread ? `, ${unread} new` : ""}`} className="city-btn city-sticker relative flex h-11 w-11 items-center justify-center rounded-full bg-[var(--card)] text-xl">
+              {unread > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[11px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
               📰
             </button>
           </div>
-          <Demand demand={w.demand} />
+          <Demand demand={w.demand} onClick={() => setPanel({ id: "demand" })} />
           <div className="city-zoom pointer-events-auto flex-col gap-1.5">
             <button onClick={() => zoomBtn(1.25)} aria-label="Zoom in" className="city-btn city-sticker flex h-10 w-10 items-center justify-center rounded-full bg-[var(--card)] text-xl font-bold">
               ＋
@@ -734,9 +736,17 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       </div>
 
       {toastMsg && (
-        <div role="status" className="pointer-events-none absolute left-1/2 top-[3.75rem] z-30 w-max max-w-[min(26rem,70vw)] -translate-x-1/2 rounded-2xl bg-[var(--ink)] px-3 py-2 text-center text-[14px] font-semibold text-white shadow-lg">
+        <button
+          role="status"
+          onClick={() => {
+            setToastMsg(null);
+            setPanel({ id: "news" });
+          }}
+          className="absolute left-1/2 top-[3.75rem] z-30 w-max max-w-[min(26rem,80vw)] -translate-x-1/2 rounded-2xl bg-[var(--ink)] px-3 py-2 text-center text-[14px] font-semibold text-white shadow-lg"
+        >
           {toastMsg}
-        </div>
+          <span className="mt-0.5 block text-[11px] font-semibold text-white/70">Tap to read all news</span>
+        </button>
       )}
 
       <div className="city-hud-bottom pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2">
@@ -855,7 +865,50 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       {panel?.id === "sentosa" && <SentosaPanel world={w} analysis={A} onChange={afterChange} onClose={() => setPanel(null)} />}
       {panel?.id === "rivals" && <RivalsPanel world={w} onClose={() => setPanel(null)} onReport={(i) => setPanel({ id: "report", index: i })} />}
       {panel?.id === "report" && <ReportPanel world={w} index={panel.index} onClose={() => setPanel(null)} />}
-      {panel?.id === "news" && <NewsPanel world={w} onClose={() => setPanel(null)} />}
+      {panel?.id === "news" && (
+        <NewsPanel
+          world={w}
+          onClose={() => {
+            w.newsSeen = w.t + 1;
+            setPanel(null);
+          }}
+        />
+      )}
+      {panel?.id === "plan" && (
+        <PlanPanel
+          world={w}
+          toast={toast}
+          onDone={() => {
+            w.planned = true;
+            afterChange();
+            setPanel({ id: "help" });
+          }}
+          onChange={afterChange}
+        />
+      )}
+      {panel?.id === "demand" && (
+        <Panel title="📊 What people want built" onClose={() => setPanel(null)}>
+          <p className="text-[15px] leading-snug">The four bars show demand: how much people want more of each kind of building in your region. Above the middle line means zone more of it; below means there's already too much and new lots will sit empty.</p>
+          <ul className="mt-2 space-y-1.5 text-[15px]">
+            {[
+              ["H", "#2fd06f", "HDB flats", "Families on the housing queue, minus empty flats and blocks being built."],
+              ["P", "#f45fae", "Private homes", "Better-off families, especially when there are plenty of jobs."],
+              ["C", "#4b9bff", "Commercial", "Shops and offices: grows with population and tourism."],
+              ["I", "#ffb020", "Industry", "Factories: grows with population and trade. Keep it away from homes."],
+            ].map(([l, c, n, d]) => (
+              <li key={l} className="flex items-start gap-2">
+                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white" style={{ background: c }}>
+                  {l}
+                </span>
+                <span>
+                  <b>{n}</b> ({Math.round((w.demand?.[{ H: "hdb", P: "pte", C: "com", I: "ind" }[l]] || 0) * 100)}): {d}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[13px] text-[var(--muted)]">Each town's purpose (🏘️ Towns) also decides which of these grow there.</p>
+        </Panel>
+      )}
       {panel?.id === "goals" && <GoalsPanel world={w} analysis={A} onClose={() => setPanel(null)} />}
       {panel?.id === "help" && <HelpPanel onClose={() => setPanel(null)} />}
       {panel?.id === "renew" && (
@@ -996,7 +1049,7 @@ function Tray({ world, group, tool, onPick }) {
   );
 }
 
-function Demand({ demand }) {
+function Demand({ demand, onClick }) {
   const bars = [
     { k: "hdb", label: "H", color: "#2fd06f", name: "HDB flats" },
     { k: "pte", label: "P", color: "#f45fae", name: "private homes" },
@@ -1004,7 +1057,7 @@ function Demand({ demand }) {
     { k: "ind", label: "I", color: "#ffb020", name: "factories" },
   ];
   return (
-    <div className="city-sticker pointer-events-auto flex items-end gap-1 rounded-2xl bg-[var(--card)] px-2 py-1" role="img" aria-label={`Demand: ${bars.map((b) => `${b.name} ${Math.round((demand?.[b.k] || 0) * 100)}`).join(", ")}`}>
+    <button onClick={onClick} className="city-btn city-sticker pointer-events-auto flex items-end gap-1 rounded-2xl bg-[var(--card)] px-2 py-1" aria-label={`Demand: ${bars.map((b) => `${b.name} ${Math.round((demand?.[b.k] || 0) * 100)}`).join(", ")}. Tap for details`}>
       {bars.map((b) => {
         const v = Math.max(-1, Math.min(1, demand?.[b.k] || 0));
         return (
@@ -1017,6 +1070,6 @@ function Demand({ demand }) {
           </div>
         );
       })}
-    </div>
+    </button>
   );
 }

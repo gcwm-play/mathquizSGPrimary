@@ -275,7 +275,7 @@ export function newWorld({ region = "east", difficulty = "normal", name, seed = 
     }
   }
   for (const l of w.lots) {
-    if (!l.zone && rng() < 0.18) {
+    if (!l.zone && w.towns[l.town].purpose !== "resort" && rng() < 0.18) {
       l.zone = "ind";
       l.b = { type: "farm", state: "live", built: -120, v: Math.floor(rng() * 4) };
     }
@@ -318,7 +318,7 @@ export function snapPoint(w, x, y, layer) {
   let best = null;
   for (const n of w.nodes) {
     const d = dist(x, y, n.x, n.y);
-    if (d < 1.1 && (!best || d < best.d)) {
+    if (d < 1.8 && (!best || d < best.d)) {
       const segs = w.segs.filter((s) => (s.a === n.id || s.b === n.id) && layerOf(s.type) === layer);
       if (segs.length) best = { d, x: n.x, y: n.y, node: n.id };
     }
@@ -327,17 +327,36 @@ export function snapPoint(w, x, y, layer) {
   for (const s of w.segs) {
     if (layerOf(s.type) !== layer) continue;
     const hit = nearestOnPoly(segPts(w, s), x, y);
-    if (hit.d < 0.9 && (!best || hit.d < best.d)) best = { d: hit.d, x: hit.x, y: hit.y, seg: s.id, t: hit.t };
+    if (hit.d < 1.5 && (!best || hit.d < best.d)) best = { d: hit.d, x: hit.x, y: hit.y, seg: s.id, t: hit.t };
   }
   return best || { x, y };
+}
+
+// If a road end stops just short of another road, carry it on to join it.
+function extendToRoad(w, from, end, layer, reach = 3.2) {
+  const dx = end.x - from.x;
+  const dy = end.y - from.y;
+  const L = Math.hypot(dx, dy);
+  if (L < 0.01) return end;
+  const ux = dx / L;
+  const uy = dy / L;
+  for (let k = 0.25; k <= reach; k += 0.25) {
+    const sp = snapPoint(w, end.x + ux * k, end.y + uy * k, layer);
+    if ((sp.node != null || sp.seg != null) && sp.d < 0.6) return sp;
+  }
+  return end;
 }
 
 export function planRoad(w, type, A, B, Cc, opts = {}) {
   const rt = ROAD_TYPES[type];
   const layer = layerOf(type);
-  const sa = snapPoint(w, A.x, A.y, layer);
-  const sb = snapPoint(w, B.x, B.y, layer);
+  let sa = snapPoint(w, A.x, A.y, layer);
+  let sb = snapPoint(w, B.x, B.y, layer);
   const c = Cc || { x: (sa.x + sb.x) / 2, y: (sa.y + sb.y) / 2 };
+  if (!opts.init) {
+    if (sb.node == null && sb.seg == null) sb = extendToRoad(w, c, sb, layer);
+    if (sa.node == null && sa.seg == null) sa = extendToRoad(w, c, sa, layer);
+  }
   const pts = sampleBez(sa.x, sa.y, c.x, c.y, sb.x, sb.y, 0.3);
   const len = polyLength(pts);
   const base = { ok: false, type, sa, sb, c, pts, len, cost: 0 };
