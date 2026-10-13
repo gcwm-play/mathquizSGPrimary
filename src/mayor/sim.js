@@ -1,6 +1,6 @@
 // Monthly simulation for Lion City Mayor: construction, ageing, demand, town
 // happiness and feedback, money, elections and pledges.
-import { LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
+import { PURPOSES, purposeOf, MINOR, LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
 import { REGIONS } from "./regions.js";
 import { terrainAt, segPts, townOf, latestType, refillLots } from "./world.js";
 import { dist, clamp, polyLength, nearestOnPoly, makeRng } from "./geom.js";
@@ -21,7 +21,13 @@ const canLose = (w) => w.mode !== "sandbox" && !w.sandbox;
 
 // Fill in anything an older save is missing.
 export function ensureWorld(w) {
-  if (w.v2) return w;
+  if (w.v3) return w;
+  if (w.v2) {
+    w.v3 = true;
+    ensurePurposes(w);
+    return w;
+  }
+  w.v3 = true;
   w.v2 = true;
   w.mode = w.mode || "campaign";
   if (modeOf(w).years && !w.endYear) w.endYear = 1965 + modeOf(w).years;
@@ -41,10 +47,7 @@ export function ensureWorld(w) {
   const rng = makeRng((w.seed || 1) + 7);
   // past 2026 the future is unwritten: imagined crises at random times
   w.nextFuture = w.nextFuture ?? (2027 - 1965) * 12 + Math.floor(rng() * 120);
-  for (const t of w.towns) {
-    t.maint = t.maint ?? 100;
-    t.scc = t.scc ?? 100;
-  }
+  ensurePurposes(w);
   // past crises the save has already lived through don't happen again
   if (!w.crisesPast.length && w.year > 1966) {
     for (const [id, y] of [["withdrawal", 1968], ["oil", 1973], ["recession85", 1985], ["afc", 1997], ["sars", 2003], ["gfc", 2008], ["covid", 2020]]) if (w.year > y) w.crisesPast.push({ id, year: y, score: 50, skipped: true });
@@ -54,11 +57,25 @@ export function ensureWorld(w) {
   return w;
 }
 
+// Town purposes and the Sentosa office arrived later; fill them in for old saves.
+function ensurePurposes(w) {
+  const R = REGIONS[w.region];
+  for (const [i, t] of w.towns.entries()) {
+    t.maint = t.maint ?? 100;
+    t.scc = t.scc ?? 100;
+    if (!t.purpose) {
+      t.purpose = R.towns[i]?.resort ? "resort" : R.purposes?.[t.name] || "mixed";
+      w.purposeFreeUntil = w.t + 24; // free re-planning for a while
+    }
+  }
+  if (R.sentosa && !w.sentosa) w.sentosa = { fee: 6, marketing: 0, visitors: 0, sat: 60, rev: 0 };
+}
+
 // The central government's block grant for a term, fixed for six years.
 function newTerm(w) {
   const D = diffOf(w);
   const base = (w.stats?.pop || 0) + w.waitlist * 0.6 + (w.kampongs || []).reduce((a, k) => a + k.houses.length * KAMPONG.housePop, 0) * (w.stats?.pop ? 0 : 1);
-  const block = Math.round((base * 0.002 * 1.25 + 120) * D.income);
+  const block = Math.round((base * 0.0016 + 100) * D.income);
   const end = w.election.next;
   w.term = { start: w.t, end, block, months: end - w.t, total: block * (end - w.t) };
 }
@@ -149,6 +166,7 @@ export function analyze(w) {
     const T = LOT_TYPES[l.b.type];
     if (T.poll) polluters.push({ x: l.x, y: l.y, p: T.poll, r: 5 });
     if (l.b.conserved) tourism += 25;
+    if (l.b.type === "shophouse" && w.towns[l.town]?.purpose === "heritage") tourism += 6;
   }
 
   const coverAt = (x, y) => {
@@ -288,15 +306,25 @@ export function analyze(w) {
     needs.cost = clamp(costNeed - (scc - 1) * 18, 0, 100);
     if (t.hdbCap) needs.housing = clamp(needs.housing + (maint - 1) * 10, 0, 100);
     for (const b of w.boosts || []) if (b.town === i && needs[b.need] != null) needs[b.need] = clamp(needs[b.need] + b.v, 0, 100);
+    // what the town is planned for changes what residents expect
+    const P = purposeOf(town);
+    const minor = [];
     let tw = 0;
     let ta = 0;
     for (const [k, nd] of Object.entries(NEEDS)) {
-      tw += nd.weight;
-      ta += nd.weight * needs[k];
+      const pw = P.weight[k] ?? 1;
+      if (pw < MINOR) {
+        minor.push(k);
+        needs[k] = Math.max(needs[k], 65); // not expected here
+      }
+      tw += nd.weight * pw;
+      ta += nd.weight * pw * needs[k];
     }
     needs.housing = needs.housing * (1 - unhoused * 0.7) + 10 * unhoused * 0.7;
-    const base = t.pop ? 60 * (1 - grace) + (ta / tw) * grace : 55;
-    return { ...t, needs, unhoused, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
+    let base = t.pop ? 60 * (1 - grace) + (ta / tw) * grace : 55;
+    // island residents feel how the resort is doing
+    if (town.purpose === "resort" && w.sentosa) base = base * 0.5 + w.sentosa.sat * 0.5;
+    return { ...t, needs, minor, unhoused, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
   });
   const vacant = T.reduce((a, t) => a + t.vacant, 0);
   return { info, want, towns, vacant, upkeepTown, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, coverAt, pollAt, services };
@@ -318,8 +346,21 @@ export function monthlyBudget(w, A, ov = null) {
   const taxP = ov?.property ?? w.taxes.property;
   const fundK = ov?.funding != null ? ov.funding / Math.max(1, w.funding) : 1;
   const z = () => w.towns.map(() => 0);
-  const T = { property: z(), business: z(), scc: z(), grant: z(), tourism: z(), trade: z(), schemes: z(), landSales: z(), hdbSales: z() };
-  const X = { services: z(), maintenance: z(), hdbBuild: z(), policies: z(), construction: z() };
+  const T = { property: z(), business: z(), scc: z(), grant: z(), tourism: z(), sentosa: z(), trade: z(), schemes: z(), landSales: z(), hdbSales: z() };
+  const X = { services: z(), maintenance: z(), sentosa: z(), hdbBuild: z(), policies: z(), construction: z() };
+  const sl = w.sentosa?.last;
+  const resortTown = w.towns.findIndex((t) => t.purpose === "resort");
+  if (sl && resortTown >= 0) {
+    if (ov?.fee == null) {
+      T.sentosa[resortTown] = sl.tickets + sl.spending;
+      X.sentosa[resortTown] = sl.upkeep + w.sentosa.marketing;
+    } else {
+      // what-if: a different entry fee changes how many come
+      const vis = w.sentosa.visitors * Math.exp(-(ov.fee - w.sentosa.fee) / 14);
+      T.sentosa[resortTown] = vis * ov.fee * 0.00003 + vis * 0.00005;
+      X.sentosa[resortTown] = 15 + vis * 0.000035 + (ov.marketing ?? w.sentosa.marketing);
+    }
+  }
   const biz = effect(w, "business");
   const hdbOcc = z();
   const hdbCap = z();
@@ -341,7 +382,7 @@ export function monthlyBudget(w, A, ov = null) {
   const tp = pops.reduce((a, b) => a + b, 0);
   const share = (i) => (tp ? pops[i] / tp : 1 / n);
   const block = w.term?.block ?? (A.pop * 0.0035 + 120) * D.income;
-  const grant = block + A.pop * 0.0015 * D.income;
+  const grant = block + A.pop * 0.001 * D.income;
   const tourism = A.tourism * 0.5 * Math.min(1, A.pop / 40000 + 0.3) * effect(w, "tourism");
   const trade = A.trade * 0.4 * effect(w, "trade");
   const land = effect(w, "land");
@@ -438,6 +479,7 @@ export const REV_LABELS = {
   business: "🏢 Business tax",
   grant: "🏛️ Government grant",
   tourism: "📸 Tourism",
+  sentosa: "🏝️ Sentosa tickets & spending",
   trade: "⚓ Trade",
   schemes: "🚦 Road pricing & resort levies",
   landSales: "📜 Land sales",
@@ -446,6 +488,7 @@ export const REV_LABELS = {
 export const EXP_LABELS = {
   services: "🛠️ Services & roads upkeep",
   maintenance: "🧽 Estate maintenance",
+  sentosa: "🏝️ Sentosa upkeep & marketing",
   hdbBuild: "🏗️ HDB construction",
   policies: "📋 Ongoing schemes",
   construction: "🚧 Projects & compensation",
@@ -479,7 +522,10 @@ export function pledgeOffers(w, A) {
       offers.push({ kind, town: null, score: K.need ? 100 - A.towns.reduce((a, t) => a + t.needs[K.need], 0) / A.towns.length : 30 });
       continue;
     }
-    for (const { i, t } of towns) offers.push({ kind, town: i, score: 100 - (t.needs[K.need] ?? 50) + (kind === "homes" ? 10 : 0) });
+    for (const { i, t } of towns) {
+      if (t.minor?.includes(K.need) || (kind === "homes" && !purposeOf(w.towns[i]).growth.hdb)) continue;
+      offers.push({ kind, town: i, score: 100 - (t.needs[K.need] ?? 50) + (kind === "homes" ? 10 : 0) });
+    }
   }
   offers.sort((a, b) => b.score - a.score);
   const picked = [];
@@ -600,6 +646,50 @@ function holdElection(w, rng) {
   const termM = w.term.months;
   pushNews(w, `🏛️ New term budget: the government's block grant is ${fmtMoney(w.term.block)} a month (${fmtMoney(w.term.block * termM)} over ${Math.round(termM / 12)} years), plus a grant per resident.`);
   w.election.justHeld = rec;
+}
+
+// ---------- Sentosa: a resort island run on visitors ----------
+export function sentosaState(w, A) {
+  const S0 = w.sentosa;
+  if (!S0) return null;
+  let link = 0.12; // ferries
+  let appeal = 0.35;
+  let cap = 1;
+  const parts = [];
+  for (const st of w.structs) {
+    const S = STRUCTS[st.type];
+    if (S.sentosaLink) link += S.sentosaLink;
+    if (S.sentosaAppeal) appeal += S.sentosaAppeal;
+    if (S.sentosaCap) cap += S.sentosaCap;
+    if (S.sentosaLink || S.sentosaAppeal) parts.push(st.type);
+  }
+  let hotels = 0;
+  let homes = 0;
+  for (const l of w.lots) {
+    if (!l.b || l.b.state === "build" || w.towns[l.town].purpose !== "resort") continue;
+    if (l.zone === "com") hotels++;
+    else if (l.zone === "pte") homes++;
+  }
+  appeal += Math.min(0.9, hotels * 0.04) + Math.min(0.25, homes * 0.02);
+  cap += hotels * 0.15;
+  link = Math.min(1.25, link);
+  const era = 0.2 + 0.8 * clamp((w.year - 1965) / 45, 0, 1);
+  const fee = S0.fee;
+  const mk = S0.marketing;
+  const mkt = 1 + 0.45 * (1 - Math.exp(-mk / 40));
+  const feeF = Math.exp(-fee / 14);
+  const ti = A?.towns.findIndex((_, i) => w.towns[i].purpose === "resort") ?? -1;
+  const env = ti >= 0 && A ? A.towns[ti].needs.environment : 80;
+  const maint = ti >= 0 ? (w.towns[ti].maint ?? 100) / 100 : 1;
+  const demand = 450000 * era * link * appeal * mkt * feeF * effect(w, "tourism") * (0.55 + 0.45 * (S0.sat / 70));
+  const capacity = 120000 * cap * (0.6 + era * 0.6);
+  const crowd = demand / capacity;
+  const sat = clamp(52 + 10 * Math.min(2.5, appeal - 0.35) - Math.max(0, crowd - 1) * 35 - Math.max(0, fee - 10) * 1.6 + (env - 70) * 0.25 + (maint - 1) * 20 + (link < 0.3 ? -8 : 0), 5, 98);
+  const visitors = demand * (crowd > 1.4 ? 1.4 / crowd : 1);
+  const tickets = visitors * fee * 0.00003;
+  const spending = visitors * 0.00005;
+  const upkeep = 15 + visitors * 0.000035 * maint;
+  return { link, appeal, cap, capacity, crowd, sat, visitors, tickets, spending, upkeep, marketing: mk, hotels, homes, parts };
 }
 
 // ---------- monthly step ----------
@@ -740,7 +830,8 @@ export function stepMonth(w, rng = Math.random) {
     if (starts >= maxStarts) break;
     const dem = w.demand[l.zone];
     if (dem <= 0.03) continue;
-    if (rng() > (0.08 + dem * 0.3) * D.growth) continue;
+    const pg = purposeOf(w.towns[l.town]).growth[l.zone] ?? 1;
+    if (!pg || rng() > (0.08 + dem * 0.3) * D.growth * pg) continue;
     const want = A.want(l, l.zone);
     let pick = null;
     for (const id of ZONE_LINE[l.zone]) {
@@ -838,6 +929,16 @@ export function stepMonth(w, rng = Math.random) {
     life: Math.round(life * 10) / 10,
     lifeIdx: lifeIndex(w.year, life),
   };
+
+  // the resort island
+  if (w.sentosa) {
+    const st = sentosaState(w, A);
+    w.sentosa.sat = w.sentosa.sat * 0.8 + st.sat * 0.2;
+    w.sentosa.visitors = Math.round(st.visitors);
+    w.sentosa.last = { tickets: st.tickets, spending: st.spending, upkeep: st.upkeep, marketing: st.marketing, crowd: st.crowd };
+    w.rep = clamp((w.rep ?? 50) + (w.sentosa.sat - 55) * 0.002, 0, 100);
+    if (st.crowd > 1.3 && rng() < 0.05) push("🏝️ Sentosa is packed! Queues for the cable car stretch for hours. More attractions or hotels would spread the crowds.");
+  }
 
   // money
   const B = monthlyBudget(w, A);

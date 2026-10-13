@@ -390,6 +390,34 @@ export function draw(ctx, R, w, A, cam, view) {
     ctx.lineWidth = 0.75;
     ctx.stroke();
   }
+  // bridges to Johor and Sentosa, and the cable car line
+  for (const st of w.structs) {
+    if (!st.bridge) continue;
+    const [ax, ay, bx, by, kind] = st.bridge;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    if (kind === "cable") {
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 0.08;
+      ctx.stroke();
+      ctx.fillStyle = "#ff5a5f";
+      const k = (Date.now() / 9000) % 1;
+      ctx.fillRect(ax + (bx - ax) * k - 0.25, ay + (by - ay) * k - 0.25, 0.5, 0.5);
+      continue;
+    }
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = kind === "rail" ? 0.9 : 1.5;
+    ctx.stroke();
+    ctx.strokeStyle = kind === "rail" ? "#d6dbe8" : "#cfc6b4";
+    ctx.lineWidth = kind === "rail" ? 0.7 : 1.3;
+    ctx.stroke();
+    if (kind === "road") {
+      ctx.strokeStyle = "#5a6078";
+      ctx.lineWidth = 0.75;
+      ctx.stroke();
+    }
+  }
   if (cam.zoom > 0.5) {
     ctx.strokeStyle = "#fff3c4";
     ctx.lineWidth = 0.06;

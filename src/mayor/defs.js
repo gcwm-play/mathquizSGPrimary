@@ -5,9 +5,9 @@ export const TERM_YEARS = 6;
 export const FIRST_ELECTION = 1968;
 
 export const DIFFICULTY = {
-  easy: { label: "Easy", desc: "Generous budget, can't be voted out", cash: 60000, waitlist: 2500, growth: 1.5, income: 1.4, voteMin: 0, fire: 0.3 },
-  normal: { label: "Normal", desc: "Win each election to stay mayor", cash: 35000, waitlist: 3500, growth: 1.25, income: 1.2, voteMin: 50, fire: 0.7 },
-  hard: { label: "Hard", desc: "Tight money, demanding voters", cash: 16000, waitlist: 5000, growth: 1, income: 1, voteMin: 50, fire: 1, harsh: true },
+  easy: { label: "Easy", desc: "Generous budget, can't be voted out", cash: 30000, waitlist: 2500, growth: 1.5, income: 1.4, voteMin: 0, fire: 0.3 },
+  normal: { label: "Normal", desc: "Win each election to stay mayor", cash: 15000, waitlist: 3500, growth: 1.25, income: 1.2, voteMin: 50, fire: 0.7 },
+  hard: { label: "Hard", desc: "Tight money, demanding voters", cash: 6000, waitlist: 5000, growth: 1, income: 1, voteMin: 50, fire: 1, harsh: true },
 };
 export const diffOf = (w) => DIFFICULTY[w.difficulty] || DIFFICULTY.normal;
 
@@ -86,10 +86,25 @@ export const STRUCTS = {
   sungeiBuloh: { name: "Sungei Buloh Wetlands", icon: "🦀", cost: 2000, upkeep: 6, w: 5, d: 4, year: 1993, landmark: true, coastal: true, cover: "green", r: 12, tourism: 140, region: "north", tip: "Must touch the sea. Protects the mangroves." },
   rtsLink: { name: "RTS Link to JB", icon: "🚝", cost: 15000, upkeep: 30, w: 3.4, d: 2, year: 2026, landmark: true, coastal: true, cover: "mrt", r: 10, trade: 400, tourism: 200, region: "north", tip: "Must touch the Strait. Trains to Johor Bahru." },
 
+  secondLink: { name: "Tuas Second Link", icon: "🌉", cost: 12000, upkeep: 35, w: 4, d: 2.4, year: 1998, landmark: true, coastal: true, facesJohor: true, jobs: 400, trade: 450, tourism: 120, region: "west", tip: "Must be on the western shore facing Johor. A second crossing to Malaysia: trade and visitors." },
+  mountFaber: { name: "Mount Faber Park", icon: "⛰️", cost: 1200, upkeep: 4, w: 4, d: 3.4, year: 1965, landmark: true, cover: "green", r: 12, tourism: 60, region: "south", tip: "A hilltop park with harbour views." },
+  keppelPort: { name: "Keppel container port", icon: "⚓", cost: 9000, upkeep: 35, w: 7, d: 3, year: 1972, coastal: true, landmark: true, jobs: 1400, trade: 550, poll: 18, region: "south", notResort: true, tip: "Must touch the sea (not on Sentosa). Trade and jobs." },
+  cableCar: { name: "Singapore Cable Car", icon: "🚡", cost: 2500, upkeep: 10, w: 2, d: 2, year: 1974, landmark: true, coastal: true, tourism: 120, sentosaLink: 0.3, sentosaAppeal: 0.3, region: "south", tip: "Must touch the sea. Carries visitors over the harbour to Sentosa." },
+  sentosaBeach: { name: "Siloso Beach resort", icon: "🏖️", cost: 1800, upkeep: 8, w: 5, d: 1.8, year: 1975, landmark: true, coastal: true, onResort: true, cover: "green", r: 8, sentosaAppeal: 0.4, sentosaCap: 1, region: "south", tip: "On Sentosa, touching the sea. Beaches draw visitors." },
+  underwaterWorld: { name: "Underwater World", icon: "🐠", cost: 4000, upkeep: 18, w: 3.4, d: 2.6, year: 1991, landmark: true, onResort: true, sentosaAppeal: 0.5, sentosaCap: 1, region: "south", tip: "On Sentosa. An oceanarium with a moving walkway tunnel." },
+  sentosaBridge: { name: "Sentosa road bridge", icon: "🌉", cost: 3500, upkeep: 10, w: 2.4, d: 2, year: 1992, landmark: true, coastal: true, notResort: true, sentosaLink: 0.35, region: "south", tip: "On the mainland shore facing Sentosa. Cars and buses onto the island." },
+  vivoCity: { name: "VivoCity", icon: "🛍️", cost: 7000, upkeep: 20, w: 4.4, d: 3.2, year: 2006, landmark: true, notResort: true, jobs: 1200, cover: "food", r: 12, tourism: 180, region: "south", tip: "Singapore's biggest mall, at the gateway to Sentosa." },
+  sentosaExpress: { name: "Sentosa Express", icon: "🚝", cost: 6000, upkeep: 18, w: 3.4, d: 1.8, year: 2007, landmark: true, coastal: true, cover: "mrt", r: 10, sentosaLink: 0.4, region: "south", tip: "Must touch the sea. A monorail from VivoCity onto the island." },
+  resortsWorld: { name: "Resorts World Sentosa", icon: "🎢", cost: 20000, upkeep: 45, w: 5, d: 4, year: 2010, landmark: true, onResort: true, jobs: 1500, sentosaAppeal: 1.6, sentosaCap: 3, region: "south", tip: "On Sentosa. Casino, hotels and Universal Studios: a huge visitor magnet." },
+
   // fixed scenery at the start
+  fortSiloso: { name: "Fort Siloso", icon: "🏰", w: 3, d: 2.4, fixed: true, jobs: 150, sentosaAppeal: 0.2 },
   airbase: { name: "RAF Changi air base", icon: "🛩️", w: 7, d: 4, fixed: true, jobs: 600 },
   navalBase: { name: "Sembawang naval base", icon: "⚓", w: 6, d: 3.5, fixed: true, jobs: 800 },
 };
+
+// running a service costs real money: upkeep is per month in $K
+for (const S of Object.values(STRUCTS)) if (S.upkeep) S.upkeep = Math.round(S.upkeep * 1.6);
 
 export const ROAD_TYPES = {
   road: { name: "Road", half: 0.42, cost: 30, lots: true },
@@ -171,6 +186,20 @@ export function toolGroups(regionId) {
 export const ALL_TOOLS = {};
 for (const g of TOOL_GROUPS) for (const t of g.tools) ALL_TOOLS[t.id] = t;
 for (const [k, s] of Object.entries(STRUCTS)) if (s.landmark) ALL_TOOLS[`s:${k}`] = { id: `s:${k}`, mode: "place", struct: k, icon: s.icon, name: s.name, cost: s.cost, year: s.year, tip: s.tip };
+
+// What a town is planned for. growth: how readily each zone builds there
+// (0 = not allowed); weight: how much residents care about each need
+// (needs below 0.5 aren't expected there, so nobody asks for them).
+export const PURPOSES = {
+  mixed: { name: "Mixed town", icon: "🏙️", desc: "A bit of everything: homes, shops, some light industry.", growth: { hdb: 1, pte: 1, com: 1, ind: 0.8 }, weight: {} },
+  residential: { name: "Residential", icon: "🏘️", desc: "Mostly homes. Families want schools, parks, clean air.", growth: { hdb: 1.35, pte: 1.3, com: 0.8, ind: 0.15 }, weight: { environment: 1.4, green: 1.3, school: 1.2, jobs: 0.7 } },
+  commercial: { name: "Commercial / CBD", icon: "🏢", desc: "Offices, malls and condos. Shops feed people; nobody expects wet markets or many schools.", growth: { hdb: 0.35, pte: 1.15, com: 1.8, ind: 0.15 }, weight: { food: 0.3, school: 0.3, community: 0.4, green: 0.8, transport: 1.6, safety: 1.3, jobs: 1.2 } },
+  industrial: { name: "Industrial", icon: "🏭", desc: "Factories and ports. Workers want jobs and transport; fewer expect parks or clean air.", growth: { hdb: 0.45, pte: 0.15, com: 0.7, ind: 1.9 }, weight: { environment: 0.4, green: 0.35, school: 0.45, community: 0.6, jobs: 1.5, transport: 1.3 } },
+  heritage: { name: "Heritage & tourism", icon: "🏮", desc: "Old streets, food and visitors. Keep shophouses; tourists pay.", growth: { hdb: 0.6, pte: 0.8, com: 1.3, ind: 0.1 }, weight: { food: 1.3, community: 1.2, school: 0.6, green: 0.8 }, tourism: 1 },
+  resort: { name: "Resort island", icon: "🏝️", desc: "Run for visitors: hotels, beaches and attractions. No HDB flats or industry.", growth: { hdb: 0, pte: 0.5, com: 1.3, ind: 0 }, weight: { school: 0.1, food: 0.4, community: 0.2, jobs: 0.4, cost: 0.3 }, fixed: true },
+};
+export const purposeOf = (t) => PURPOSES[t?.purpose] || PURPOSES.mixed;
+export const MINOR = 0.5;
 
 export const NEEDS = {
   housing: { name: "Housing quality", icon: "🏠", weight: 1.3 },

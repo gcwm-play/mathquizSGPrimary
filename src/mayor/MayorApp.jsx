@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MapView, { zoomAt, lookAt } from "./MapView.jsx";
 import { TownsPanel, ElectionPanel, RenewSheet, NewsPanel, GoalsPanel, HelpPanel, MenuPanel, Panel, yearsMonths } from "./panels.jsx";
-import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank } from "./panels2.jsx";
+import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel } from "./panels2.jsx";
 import { decide, CRISES } from "./events.js";
 import { REGIONS, REGION_ORDER } from "./regions.js";
 import { DIFFICULTY, ALL_TOOLS, STRUCTS, ROAD_TYPES, toolGroups } from "./defs.js";
@@ -483,6 +483,10 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         s.n += res.n;
         s.cost += res.cost;
         s.skipped += res.skipped;
+        if (res.blocked && !s.blockedShown) {
+          s.blockedShown = true;
+          toast(`🚫 ${res.blocked}. Change its purpose in 🏘️ Towns.`);
+        }
       } else if (tool === "trees") s.n += plantTrees(world, pt.x, pt.y, r).n;
       else if (tool === "bulldoze") bulldozeSelect(world, pt.x, pt.y, r, pendingRef.current.sel);
       else if (tool === "reclaim") pendingRef.current.circles.push({ x: pt.x, y: pt.y, r, ok: reclaimOk(world, pt.x, pt.y, r) });
@@ -536,6 +540,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const p = pendingRef.current;
   const goal = nextGoal(w);
   const ap = Math.round(w.approval);
+  const recentFin = (w.fin || []).slice(-6);
+  // regular income minus running costs plus land/flat sales, averaged
+  const netMo = recentFin.length ? recentFin.reduce((a, f) => a + f.r - f.e, 0) / recentFin.length : 0;
+  const ago = w.history[w.history.length - 7];
+  const apDelta = ago ? ap - ago.approval : 0;
   const face = ap >= 65 ? "😄" : ap >= 50 ? "🙂" : ap >= 38 ? "😐" : "😟";
   const season = inSeason(w);
   const months = monthsToElection(w);
@@ -617,14 +626,16 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             </button>
             <div className="city-sticker city-noscrollbar flex min-w-0 items-stretch overflow-x-auto rounded-full bg-[var(--card)] text-[14px] font-bold tabular-nums">
               <span className="hidden items-center whitespace-nowrap px-3 md:flex">📅 {dateLabel(w)}</span>
-              <Seg onClick={() => setPanel({ id: "finance" })} label={`Finances ${fmtMoney(w.cash)}`} bad={w.cash < 0}>
+              <Seg onClick={() => setPanel({ id: "finance" })} label={`Finances ${fmtMoney(w.cash)}, ${netMo >= 0 ? "gaining" : "losing"} ${fmtMoney(Math.abs(netMo))} a month`} bad={w.cash < 0}>
                 💰 {fmtMoney(w.cash)}
+                {w.fin?.length > 2 && <span className={`ml-1 text-[11px] ${netMo >= 0 ? "text-[var(--good)]" : "text-[var(--bad)]"}`}>{netMo >= 0 ? "▲" : "▼"}{fmtMoney(Math.abs(netMo))}/mo</span>}
               </Seg>
               <Seg onClick={() => setPanel({ id: "towns" })} label={`Population ${fmtNum(w.stats.pop || 0)}`}>
                 👥 {fmtNum(w.stats.pop || 0)}
               </Seg>
-              <Seg onClick={() => setPanel({ id: "towns" })} label={`Happiness ${ap}%`} bad={ap < 40}>
+              <Seg onClick={() => setPanel({ id: "towns" })} label={`Happiness ${ap}%${apDelta ? `, ${apDelta > 0 ? "up" : "down"} ${Math.abs(apDelta)} in 6 months` : ""}`} bad={ap < 40}>
                 {face} {ap}%
+                {apDelta !== 0 && <span className={`ml-1 text-[11px] ${apDelta > 0 ? "text-[var(--good)]" : "text-[var(--bad)]"}`}>{apDelta > 0 ? "▲" : "▼"}{Math.abs(apDelta)}</span>}
               </Seg>
             </div>
           </div>
@@ -638,6 +649,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             <button onClick={() => setPanel({ id: "rivals" })} aria-label="Mayors' league" className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--card)] px-3 py-1.5 text-[13px] font-bold">
               📊 {w.yearly?.length ? `#${myRank(w)} of ${(w.rivals?.length || 0) + 1}` : "League"}
             </button>
+            {w.sentosa && (
+              <button onClick={() => setPanel({ id: "sentosa" })} className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--card)] px-3 py-1.5 text-[13px] font-bold">
+                🏝️ {w.year < 1972 ? "Blakang Mati" : `Sentosa ${fmtNum(w.sentosa.visitors)}/mo`}
+              </button>
+            )}
             {w.crisis && (
               <button onClick={() => setPanel({ id: "crisis" })} className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--bad)] px-3 py-1.5 text-[13px] font-bold text-white">
                 {CRISES[w.crisis.id].icon} {CRISES[w.crisis.id].name.split(" ").slice(0, 3).join(" ")} · {Math.max(0, w.crisis.until - w.t)}m
@@ -785,6 +801,8 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       {panel?.id === "towns" && (
         <TownsPanel
           world={w}
+          onChange={afterChange}
+          toast={toast}
           onClose={() => setPanel(null)}
           onShow={(t) => {
             lookAt(camRef, sizeRef, t.x, t.y);
@@ -834,6 +852,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         />
       )}
       {panel?.id === "crisis" && <CrisisPanel world={w} onClose={() => setPanel(null)} />}
+      {panel?.id === "sentosa" && <SentosaPanel world={w} analysis={A} onChange={afterChange} onClose={() => setPanel(null)} />}
       {panel?.id === "rivals" && <RivalsPanel world={w} onClose={() => setPanel(null)} onReport={(i) => setPanel({ id: "report", index: i })} />}
       {panel?.id === "report" && <ReportPanel world={w} index={panel.index} onClose={() => setPanel(null)} />}
       {panel?.id === "news" && <NewsPanel world={w} onClose={() => setPanel(null)} />}

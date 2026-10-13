@@ -3,7 +3,7 @@
 // Everything stored in the save is plain data (ids); behaviour lives here.
 import { clamp } from "./geom.js";
 import { LOT_TYPES } from "./defs.js";
-import { charge } from "./world.js";
+import { charge, noteImpact } from "./world.js";
 
 const MULT = ["business", "tourism", "trade", "land", "jobs", "health", "upkeep", "growth"];
 export const EFFECT_ADD = ["mood", "comDemand", "indDemand", "life", "fert"];
@@ -530,6 +530,22 @@ export const DILEMMAS = [
       { id: "no", label: "Keep the roads", pros: ["Drivers happy"], cons: ["Miss a chance"] },
     ],
   },
+  {
+    id: "sentosaCove", icon: "🛥️", title: "Luxury homes on Sentosa", from: 2003, to: 2300, region: "south",
+    text: () => "Developers want to build Sentosa Cove: waterfront villas and a marina, the only place foreigners can buy landed homes.",
+    options: [
+      { id: "yes", label: "Sell the land for Sentosa Cove", pros: ["Huge land sale", "Wealthy residents spend on the island"], cons: ["Beach space shrinks", "Seen as for the rich"], gain: 2500, effect: { tourism: 0.97, months: 120 }, mood: [-1, 12], log: "sold land on Sentosa for luxury villas" },
+      { id: "no", label: "Keep the island for everyone", pros: ["Beaches stay public", "Locals approve"], cons: ["No land sale"], trust: 2, rep: 1 },
+    ],
+  },
+  {
+    id: "sentosaFee", icon: "🎟️", title: "Free entry to Sentosa?", from: 1990, to: 2300, region: "south",
+    text: () => "Residents complain it costs money just to step onto Sentosa. Some say the island should be free for Singaporeans.",
+    options: [
+      { id: "free", label: "Free entry for residents", pros: ["Very popular", "More local visitors"], cons: ["Less ticket income"], mood: [3, 24], trust: 2, effect: { tourism: 0.95, months: 120 }, log: "made Sentosa entry free for residents" },
+      { id: "keep", label: "Keep charging", pros: ["Pays for upkeep"], cons: ["Seen as stingy"], angerAll: 0.2 },
+    ],
+  },
 ];
 export const DILEMMA = Object.fromEntries(DILEMMAS.map((d) => [d.id, d]));
 
@@ -598,6 +614,43 @@ export function applyOutcome(w, o, town, push, rng = Math.random) {
   return true;
 }
 
+// Plain-number summary of what an option does, for the decision card.
+const NEED_ICON = { food: "🍜", school: "🏫", health: "🩺", safety: "👮", transport: "🚌", green: "🌳", community: "🏓", environment: "🌬️", housing: "🏠", cost: "🧾", jobs: "💼" };
+const EFF_NAME = { business: "business tax", tourism: "tourism", trade: "trade", land: "land & flat sales", jobs: "jobs", health: "healthcare", upkeep: "running costs", growth: "new families", comDemand: "shop demand", indDemand: "factory demand" };
+const yrs = (m) => (m >= 24 ? `${Math.round(m / 12)} yrs` : `${m} mo`);
+const sign = (v) => (v > 0 ? `+${v}` : `${v}`);
+export function describeEffects(w, o, town) {
+  const out = [];
+  const where = town != null ? w.towns[town]?.name : "every town";
+  if (o.trust) out.push({ t: `Trust ${sign(o.trust)}`, good: o.trust > 0 });
+  if (o.rep) out.push({ t: `Reputation ${sign(o.rep)}`, good: o.rep > 0 });
+  if (o.mood) out.push({ t: `Mood ${sign(o.mood[0])} for ${yrs(o.mood[1])}`, good: o.mood[0] > 0 });
+  if (o.anger) out.push({ t: `Anger in ${where}`, good: false });
+  if (o.angerAll) out.push({ t: "Anger in every town", good: false });
+  if (o.needs) {
+    const { months, all, ...nd } = o.needs;
+    for (const [k, v] of Object.entries(nd)) out.push({ t: `${NEED_ICON[k] || ""} ${k} ${sign(v)} in ${all || town == null ? "every town" : where} for ${yrs(months || 12)}`, good: v > 0 });
+  }
+  if (o.effect) {
+    const { months, ...eff } = o.effect;
+    for (const [k, v] of Object.entries(eff)) {
+      if (k === "mood") out.push({ t: `Mood ${sign(v)} for ${yrs(months || 12)}`, good: v > 0 });
+      else if (EFF_NAME[k]) {
+        const pct = k.endsWith("Demand") ? Math.round(v * 100) : Math.round((v - 1) * 100);
+        const good = k === "upkeep" ? pct < 0 : pct > 0;
+        out.push({ t: `${EFF_NAME[k]} ${pct > 0 ? "+" : ""}${pct}% for ${yrs(months || 12)}`, good });
+      }
+    }
+  }
+  if (o.crisis) out.push({ t: `Crisis impact ${o.crisis < 1 ? "−" : "+"}${Math.abs(Math.round((o.crisis - 1) * 100))}%`, good: o.crisis < 1 });
+  if (o.crisisMonths) out.push({ t: `Crisis ${o.crisisMonths < 0 ? "ends" : "lasts"} ${Math.abs(o.crisisMonths)} months ${o.crisisMonths < 0 ? "sooner" : "longer"}`, good: o.crisisMonths < 0 });
+  if (o.fert) out.push({ t: `Births ${o.fert > 0 ? "+" : "−"}${Math.abs(Math.round(o.fert * 100))}%`, good: o.fert > 0 });
+  if (o.health) out.push({ t: `Life expectancy +${o.health} yrs`, good: true });
+  if (o.waitlist) out.push({ t: `Housing queue +${Math.round(o.waitlist * scaleOf(w)).toLocaleString("en-SG")}`, good: false });
+  if (o.later) out.push({ t: o.later.chance != null ? `🎲 ${Math.round(o.later.chance * 100)}% risk later` : "⏳ Consequences later", good: false });
+  return out;
+}
+
 // ---------------- decisions ----------------
 // The card the player sees for w.decision
 export function getDecision(w) {
@@ -632,7 +685,7 @@ export function getDecision(w) {
     text,
     tag,
     hint: d.kind === "crisis" ? CRISES[d.id].hint : null,
-    options: options.map((o) => ({ ...o, ...optionCost(w, o) })),
+    options: options.map((o) => ({ ...o, ...optionCost(w, o), effects: describeEffects(w, o, d.town) })),
   };
 }
 
@@ -648,6 +701,7 @@ export function decide(w, optId, push, rng = Math.random) {
   if (ok && o.log) w.log.push({ year: w.year, text: fill(o.log, w, d.town), tone: o.tone || "good" });
   if (ok && o.later) w.followups.push({ at: w.t + o.later.months, kind: d.kind, id: d.id, opt: optId, town: d.town });
   if (d.kind === "dilemma") w.dilemmaLog.push({ t: w.t, id: d.id, opt: optId });
+  if (ok) trackImpact(w, `your "${o.label}" decision`, d.town, o.needs ? Object.keys(o.needs).find((k) => k !== "months" && k !== "all") : null);
   push(`${card.icon} ${card.title}: you chose "${o.label}".`);
 }
 
@@ -658,8 +712,32 @@ function laterOf(f) {
   return def?.choices.find((o) => o.id === f.opt)?.later;
 }
 
+// ---------------- did it work? ----------------
+// Remember how things stood, then report the change six months later.
+export const trackImpact = noteImpact;
+const arrow = (a, b, unit = "") => `${a}${unit}→${b}${unit} (${b - a >= 0 ? "+" : ""}${b - a})`;
+function reportImpacts(w, push) {
+  if (!w.impacts?.length) return;
+  const due = w.impacts.filter((x) => x.at <= w.t);
+  w.impacts = w.impacts.filter((x) => x.at > w.t);
+  for (const x of due) {
+    const parts = [];
+    const tn = x.town != null ? w.towns[x.town] : null;
+    if (x.need && tn && x.base.need != null) parts.push(`${NEED_ICON[x.need] || ""} ${x.need} ${arrow(x.base.need, Math.round(tn.needs?.[x.need] ?? 0))}`);
+    parts.push(`${tn ? `${tn.name} ` : ""}happiness ${arrow(x.base.happy, Math.round(tn ? tn.approval : w.approval), "%")}`);
+    const fin = (w.fin || []).slice(-3);
+    if (x.base.net != null && fin.length) {
+      const net = Math.round(fin.reduce((a, f) => a + (f.rr ?? f.r) - (f.re ?? f.e), 0) / fin.length);
+      if (Math.abs(net - x.base.net) >= 5) parts.push(`monthly balance ${net - x.base.net >= 0 ? "+" : "−"}$${Math.abs(net - x.base.net)}K`);
+    }
+    if (Math.round(w.trust) !== x.base.trust) parts.push(`trust ${arrow(x.base.trust, Math.round(w.trust))}`);
+    push(`📈 6 months after ${x.label}: ${parts.join(" · ")}`);
+  }
+}
+
 // ---------------- monthly driver ----------------
 export function stepEvents(w, A, rng, push) {
+  reportImpacts(w, push);
   // follow-up consequences of earlier choices
   if (w.followups.length) {
     const due = w.followups.filter((f) => f.at <= w.t);
@@ -728,7 +806,7 @@ export function stepEvents(w, A, rng, push) {
   // random dilemmas
   if (!w.decision && w.t >= w.nextDilemma) {
     const recent = new Set(w.dilemmaLog.slice(-14).map((x) => x.id));
-    const pool = DILEMMAS.filter((d) => w.year >= d.from && w.year <= d.to && !recent.has(d.id) && (!d.cond || d.cond(w, A)));
+    const pool = DILEMMAS.filter((d) => w.year >= d.from && w.year <= d.to && !recent.has(d.id) && (!d.region || d.region === w.region) && (!d.cond || d.cond(w, A)));
     if (pool.length) {
       const d = pool[Math.floor(rng() * pool.length)];
       w.decision = { kind: "dilemma", id: d.id, town: pickTown(w, A, d.town, rng) };

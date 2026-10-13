@@ -482,11 +482,24 @@ export function drawAttap(ctx, x, y, ang, v) {
 }
 
 // ---------- services & landmarks ----------
-const STRUCT_H = { hospital: 60, airbase: 30, navalBase: 40, changiAirport: 60, tampinesHub: 40, scienceCentre: 40, jurongIsland: 70, tuasPort: 70, merlion: 40, esplanade: 40, marinaBaySands: 140, gardensBay: 90, checkpoint: 30, causewayPoint: 40, rtsLink: 40, birdPark: 40, sports: 30, school: 30, mrt: 30 };
+const STRUCT_H = { cableCar: 70, secondLink: 30, sentosaBridge: 30, keppelPort: 70, underwaterWorld: 40, vivoCity: 40, sentosaExpress: 40, resortsWorld: 140, fortSiloso: 40, hospital: 60, airbase: 30, navalBase: 40, changiAirport: 60, tampinesHub: 40, scienceCentre: 40, jurongIsland: 70, tuasPort: 70, merlion: 40, esplanade: 40, marinaBaySands: 140, gardensBay: 90, checkpoint: 30, causewayPoint: 40, rtsLink: 40, birdPark: 40, sports: 30, school: 30, mrt: 30 };
 export const structHeight = (t) => STRUCT_H[t] || 30;
 
+// new landmarks reuse the closest existing drawing
+const ART_ALIAS = { secondLink: "checkpoint", sentosaBridge: "checkpoint", keppelPort: "tuasPort", sentosaBeach: "eastCoastPark", underwaterWorld: "scienceCentre", vivoCity: "causewayPoint", sentosaExpress: "rtsLink", resortsWorld: "marinaBaySands", fortSiloso: "navalBase", mountFaber: "park" };
+
 export function drawStruct(ctx, q, type, time) {
+  type = ART_ALIAS[type] || type;
   switch (type) {
+    case "cableCar": {
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#d0d5de");
+      shadowUV(ctx, q, 0.15, 0.45, 0.85, 0.95, 16);
+      const pr = boxUV(ctx, q, 0.15, 0.45, 0.85, 0.95, 16, "#fff3e0");
+      windows(ctx, pr, { rows: 1, perUnit: 2, color: "#ff8787", hf: 0.6 });
+      boxUV(ctx, q, 0.42, 0.1, 0.58, 0.3, 60, "#adb5bd");
+      boxUV(ctx, q, 0.32, 0.1, 0.68, 0.3, 6, "#ff5a5f", 60);
+      break;
+    }
     case "market": {
       shadowUV(ctx, q, 0.08, 0.12, 0.92, 0.88, 14);
       const pr = boxUV(ctx, q, 0.08, 0.12, 0.92, 0.88, 8, "#e9f7ef");

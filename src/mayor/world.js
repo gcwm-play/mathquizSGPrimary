@@ -2,7 +2,7 @@
 // services, plus every editing operation. Derived caches live on keys that
 // start with "_" and are never saved.
 import { MAP, REGIONS, es2w, w2es } from "./regions.js";
-import { ROAD_TYPES, STRUCTS, LOT_TYPES, ZONE_LINE, DIFFICULTY, START_YEAR, FIRST_ELECTION, KAMPONG } from "./defs.js";
+import { ROAD_TYPES, STRUCTS, LOT_TYPES, ZONE_LINE, DIFFICULTY, START_YEAR, FIRST_ELECTION, KAMPONG, PURPOSES } from "./defs.js";
 import { residents, displace, relocationPlan } from "./housing.js";
 import { dist, clamp, bezPoint, bezSplit, sampleBez, polyLength, pointAt, nearestOnPoly, polyCrossings, inQuad, rectQuad, quadCenter, makeRng, makeNoise, distToPath } from "./geom.js";
 
@@ -206,7 +206,7 @@ export function newWorld({ region = "east", difficulty = "normal", name, seed = 
     trees: [],
     towns: R.towns.map((t) => {
       const [x, y] = es2w(t.e, t.s);
-      return { name: t.name, x, y, approval: 55, support: 55, anger: 0, needs: {}, pop: 0, feedback: [] };
+      return { name: t.name, x, y, approval: 55, support: 55, anger: 0, needs: {}, pop: 0, feedback: [], purpose: t.resort ? "resort" : R.purposes?.[t.name] || "mixed" };
     }),
     cash: D.cash,
     waitlist: D.waitlist,
@@ -229,6 +229,7 @@ export function newWorld({ region = "east", difficulty = "normal", name, seed = 
     yearAcc: { rev: {}, exp: {} },
     lastYear: null,
     focus: null,
+    sentosa: R.sentosa ? { fee: 6, marketing: 0, visitors: 0, sat: 60, rev: 0 } : null,
   };
   const rng = makeRng(seed);
 
@@ -250,10 +251,12 @@ export function newWorld({ region = "east", difficulty = "normal", name, seed = 
   touch(w);
 
   // Old roads (free), lots along them
+  // keep authored road ends a little inside the map
+  const inside = ([x, y]) => [clamp(x, 0.8, MAP - 0.8), clamp(y, 0.8, MAP - 0.8)];
   for (const [a, c, b] of R.roads) {
-    const A = es2w(...a);
+    const A = inside(es2w(...a));
     const Cc = es2w(...c);
-    const B = es2w(...b);
+    const B = inside(es2w(...b));
     const plan = planRoad(w, "road", { x: A[0], y: A[1] }, { x: B[0], y: B[1] }, { x: Cc[0], y: Cc[1] }, { init: true });
     if (plan.ok) commitRoad(w, plan, { free: true });
   }
@@ -678,12 +681,17 @@ export function lotsNear(w, x, y, r) {
 export function paintZone(w, zone, x, y, r) {
   let n = 0;
   let skipped = 0;
+  let blocked = null;
   for (const l of lotsNear(w, x, y, r)) {
     if (l.b) {
       if (l.zone !== zone) skipped++;
       continue;
     }
     const z = zone === "none" ? null : zone;
+    if (z && PURPOSES[w.towns[l.town].purpose]?.growth[z] === 0) {
+      blocked = w.towns[l.town];
+      continue;
+    }
     if (l.zone !== z) {
       l.zone = z;
       n++;
@@ -692,7 +700,21 @@ export function paintZone(w, zone, x, y, r) {
   const cost = zone === "none" ? 0 : n * 2;
   charge(w, cost, x, y);
   if (n) touch(w);
-  return { n, cost, skipped };
+  return { n, cost, skipped, blocked: blocked && `${blocked.name} is planned as a ${PURPOSES[blocked.purpose].name.toLowerCase()}: no ${zone === "hdb" ? "HDB flats" : zone === "ind" ? "industry" : zone === "pte" ? "private housing" : "shops"} here` };
+}
+
+// Re-plan what a town is for. Free in the first three years, then it costs.
+export const purposeCost = (w) => (w.t < 36 || (w.purposeFreeUntil || 0) > w.t ? 0 : Math.round(300 + (w.stats?.pop || 0) * 0.01));
+export function setPurpose(w, i, purpose) {
+  const t = w.towns[i];
+  if (!PURPOSES[purpose] || PURPOSES[t.purpose]?.fixed || PURPOSES[purpose].fixed) return { ok: false, msg: "Can't change this town" };
+  const cost = purposeCost(w);
+  if (cost > w.cash && !w.sandbox) return { ok: false, msg: "Not enough money" };
+  charge(w, cost, t.x, t.y);
+  t.purpose = purpose;
+  if (cost) t.anger += 0.3;
+  touch(w);
+  return { ok: true, cost };
 }
 
 export function plantTrees(w, x, y, r, rng = Math.random) {
@@ -817,6 +839,13 @@ export function planStruct(w, type, x, y) {
     }
     if (!wet) return { ...base, msg: "Must touch the water" };
   }
+  if (S.onResort || S.notResort) {
+    const resort = w.towns[townOf(w, cx, cy)].purpose === "resort";
+    if (S.onResort && !resort) return { ...base, msg: "Build it on the resort island" };
+    if (S.notResort && resort) return { ...base, msg: "Build it on the mainland" };
+  }
+  if (S.facesJohor && !bridgeEnd(w, cx, cy, "johor")) return { ...base, msg: "Must be on the western shore facing Johor" };
+  if (S.sentosaLink && !S.onResort && !bridgeEnd(w, cx, cy, "sentosa")) return { ...base, msg: "Must be on the shore facing Sentosa" };
   if (S.needIsland) {
     const [, s] = w2es(cx, cy);
     if (s < 13) return { ...base, msg: "Build it on the southern islands (reclaim to join them)" };
@@ -827,11 +856,60 @@ export function planStruct(w, type, x, y) {
   return { ...base, ok: true, cost, lots: hit.map((l) => l.id), msg: built.length ? plural(built.length) : null };
 }
 
+// Remember how things stood so the game can report the change 6 months on.
+export function noteImpact(w, label, town, need) {
+  w.impacts = w.impacts || [];
+  const fin = (w.fin || []).slice(-3);
+  w.impacts.push({
+    at: w.t + 6,
+    label,
+    town: town ?? null,
+    need: need || null,
+    base: {
+      happy: Math.round(town != null ? w.towns[town].approval : w.approval),
+      need: need && town != null ? Math.round(w.towns[town].needs?.[need] ?? 0) : null,
+      trust: Math.round(w.trust),
+      net: fin.length ? Math.round(fin.reduce((a, f) => a + (f.rr ?? f.r) - (f.re ?? f.e), 0) / fin.length) : null,
+    },
+  });
+  if (w.impacts.length > 30) w.impacts.shift();
+}
+
+// Where a bridge from (x, y) lands: Johor to the west, or Sentosa to the south.
+export function bridgeEnd(w, x, y, to) {
+  const [de, ds] = to === "johor" ? [-1, 0] : [0, 1];
+  const dx = (de + ds) * Math.SQRT1_2;
+  const dy = (ds - de) * Math.SQRT1_2;
+  let crossed = false;
+  for (let k = 0.5; k < 14; k += 0.25) {
+    const px = x + dx * k;
+    const py = y + dy * k;
+    const t = terrainAt(w, px, py);
+    if (t === "off") return null;
+    if (t === "sea" || t === "fresh") crossed = true;
+    else if (crossed) {
+      // land the bridge a little way onto the far shore
+      if (to === "johor" && t === "foreign") return [px + dx * 1.2, py + dy * 1.2];
+      if (to === "sentosa" && t === "land" && w.towns[townOf(w, px, py)].purpose === "resort") return [px + dx * 1.2, py + dy * 1.2];
+      if (t === "land") return null;
+    }
+  }
+  return null;
+}
+
 export function commitStruct(w, plan) {
   const hit = plan.lots.map((id) => w.lots.find((x) => x.id === id)).filter(Boolean);
   if (hit.length) clearLots(w, hit);
   const q = plan.q;
-  w.structs.push({ id: w.nextId++, type: plan.type, x: +plan.x.toFixed(3), y: +plan.y.toFixed(3), ang: +plan.ang.toFixed(3), q, built: w.t, state: "live" });
+  const S = STRUCTS[plan.type];
+  const st = { id: w.nextId++, type: plan.type, x: +plan.x.toFixed(3), y: +plan.y.toFixed(3), ang: +plan.ang.toFixed(3), q, built: w.t, state: "live" };
+  const to = S.facesJohor ? "johor" : S.sentosaLink && !S.onResort ? "sentosa" : null;
+  const end = to && bridgeEnd(w, plan.x, plan.y, to);
+  if (end) st.bridge = [st.x, st.y, +end[0].toFixed(2), +end[1].toFixed(2), plan.type === "cableCar" ? "cable" : plan.type === "sentosaExpress" ? "rail" : "road"];
+  w.structs.push(st);
+  const ti = townOf(w, plan.x, plan.y);
+  const NEED_OF = { food: "food", school: "school", health: "health", safety: "safety", fire: "safety", community: "community", green: "green", transport: "transport", mrt: "transport" };
+  noteImpact(w, `you built the ${S.name} in ${w.towns[ti].name}`, ti, NEED_OF[S.cover]);
   removeTreesNear(w, (x, y) => inQuad(q, x, y));
   charge(w, plan.cost, plan.x, plan.y);
   touch(w);
@@ -999,6 +1077,8 @@ export function applyRenew(w, target, optId) {
     }
   }
   touch(w);
+  const tt = target.kind === "kampong" ? target.k.town : target.l.town;
+  noteImpact(w, `you chose "${opt.name}" in ${w.towns[tt].name}`, tt, "housing");
   return { ok: true, cost: opt.cost };
 }
 
