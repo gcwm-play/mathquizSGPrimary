@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Panel } from "../city/panels.jsx";
 import { NEEDS, TERM_YEARS, diffOf } from "./defs.js";
-import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS, modeOf } from "./sim.js";
+import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS, modeOf, pledgeProgress } from "./sim.js";
 import { housingByTown } from "./housing.js";
 import { ImpactBox, ObjectiveRow, PurposePicker } from "./panels2.jsx";
 import { setPurpose, purposeCost } from "./world.js";
@@ -98,8 +98,13 @@ export function TownsPanel({ world: w, onClose, onShow, onChange, toast }) {
               </div>
               <ul className="mt-2 space-y-1">
                 {(t.feedback || []).map((f, k) => (
-                  <li key={k} className="rounded-xl bg-[var(--soft)] px-2.5 py-1.5 text-[14px] leading-snug">
-                    <span className="mr-1">{f.need ? NEEDS[f.need]?.icon : "💬"}</span>“{f.text}”
+                  <li key={k} className="rounded-xl px-2.5 py-1.5 text-[14px] leading-snug" style={{ background: f.kind ? "rgba(47,191,113,0.14)" : "var(--soft)" }}>
+                    <span className="mr-1">{f.kind === "thanks" ? "🙏" : f.kind === "happy" ? "😊" : f.need ? NEEDS[f.need]?.icon : "💬"}</span>“{f.text}”
+                    {!f.kind && f.need && (
+                      <span className="ml-1 whitespace-nowrap text-[12px] font-semibold text-[var(--bad)]">
+                        {NEEDS[f.need]?.name} {f.v}/100
+                      </span>
+                    )}
                   </li>
                 ))}
                 {!t.feedback?.length && <li className="text-[13px] text-[var(--muted)]">No one lives here yet.</li>}
@@ -206,6 +211,21 @@ export function ElectionPanel({ world: w, onClose, onChange, toast }) {
             {open.map((p) => (
               <li key={p.id} className="rounded-xl bg-[var(--warn-bg)] px-2.5 py-1.5">
                 {p.icon} {p.text} <span className="text-[12px] text-[var(--muted)]">· by {tToDate(w, p.deadline)}</span>
+                {(() => {
+                  const pr = pledgeProgress(w, p);
+                  if (!pr) return null;
+                  if (pr.towns)
+                    return (
+                      <div className="mt-0.5 flex flex-wrap gap-x-2 text-[12px]">
+                        {pr.towns.map((x) => (
+                          <span key={x.name} className={x.done ? "text-[var(--good)]" : "text-[var(--bad)]"}>
+                            {x.done ? "✅" : "⬜"} {x.name}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  return <div className="mt-0.5 text-[12px] text-[var(--muted)]">{pr.text}</div>;
+                })()}
               </li>
             ))}
           </ul>
@@ -418,6 +438,8 @@ export function HelpPanel({ onClose }) {
     ["🚚 Where do people go?", "New flats fill gradually. When you clear homes, residents take empty flats first, then join the queue, and some leave. 🏗️ Renew shows the estimate before you commit."],
     ["💰 Finances", "Each term the government gives a fixed block grant. Tap 💰 for charts of money in and out, with projections, and set tax, S&CC and estate maintenance per town."],
     ["⚠️ Crises & decisions", "Real crises (oil shock, SARS, COVID…) arrive on their real dates, and random dilemmas pop up. Your choices and what you've built decide how hard they hit."],
+    ["🗺️ Town borders & coverage", "Purple dashed lines mark where one town ends and the next begins; a service counts for the town it's built in. When placing or tapping a service, a blue circle shows the homes it reaches."],
+    ["🎓 Schools", "Primary schools serve nearby homes, secondary schools a wider area, and one polytechnic or university most of the region. Residents say which level is missing."],
     ["📐 Town purposes", "In 🏘️ Towns, plan each town as residential, commercial, industrial, heritage or mixed. It decides what grows there and what residents expect (no one asks for a wet market in a CBD)."],
     ["🏝️ Sentosa (South)", "The island is run for visitors: build links (cable car, bridge, monorail) and attractions, set the entry fee and marketing, and watch crowding."],
     ["📊 Mayors' league", "AI mayors run the other regions. Every 10 years you get a report card comparing happiness, housing, health, births, money and reputation."],

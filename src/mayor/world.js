@@ -825,30 +825,53 @@ export function planStruct(w, type, x, y) {
   const side = Math.sign(tx * (y - near.y) - ty * (x - near.x)) || 1;
   const nx = -ty * side;
   const ny = tx * side;
-  const off = ROAD_TYPES[near.seg.type].half + 0.2 + S.d / 2;
-  const cx = near.x + nx * off;
-  const cy = near.y + ny * off;
-  const ang = Math.atan2(ty, tx);
-  const q = rectQuad(cx, cy, ang, S.w, S.d).map((v) => +v.toFixed(3));
-  const base = { ok: false, type, q, x: cx, y: cy, ang, cost: S.cost };
+  const off0 = ROAD_TYPES[near.seg.type].half + 0.2 + S.d / 2;
+  const ang0 = Math.atan2(ty, tx);
   const o = occ(w);
-  const lots = new Set();
-  for (let a = 0; a < 5; a++) {
-    for (let b = 0; b < 5; b++) {
-      const u = 0.1 + a * 0.2;
-      const v = 0.1 + b * 0.2;
-      const px = q[0] + (q[2] - q[0]) * u + (q[6] - q[0]) * v;
-      const py = q[1] + (q[3] - q[1]) * u + (q[7] - q[1]) * v;
-      const t = terrainAt(w, px, py);
-      if (t !== "land") return { ...base, msg: t === "foreign" ? "That's Johor!" : "Needs dry land" };
-      const c = cellOf(px, py);
-      const v0 = c < 0 ? -99 : o[c];
-      if (v0 === -1 || v0 === -4) return { ...base, msg: "Overlaps a road" };
-      if (v0 === -3) return { ...base, msg: "A kampong is here. Resettle it first (🏗️ Renew)" };
-      if (v0 <= -10) return { ...base, msg: "Something is already built here" };
-      if (v0 > 0) lots.add(v0);
+  // Does the footprint fit here? On a curve the first try may clip the road,
+  // so we also nudge it further from the road and turn it a little.
+  const fit = (cx, cy, ang) => {
+    const q = rectQuad(cx, cy, ang, S.w, S.d).map((v) => +v.toFixed(3));
+    const lots = new Set();
+    for (let a = 0; a < 5; a++) {
+      for (let b = 0; b < 5; b++) {
+        const u = 0.1 + a * 0.2;
+        const v = 0.1 + b * 0.2;
+        const px = q[0] + (q[2] - q[0]) * u + (q[6] - q[0]) * v;
+        const py = q[1] + (q[3] - q[1]) * u + (q[7] - q[1]) * v;
+        const t = terrainAt(w, px, py);
+        if (t !== "land") return { q, msg: t === "foreign" ? "That's Johor!" : "Needs dry land" };
+        const c = cellOf(px, py);
+        const v0 = c < 0 ? -99 : o[c];
+        if (v0 === -1 || v0 === -4) return { q, msg: "Overlaps a road" };
+        if (v0 === -3) return { q, msg: "A kampong is here. Resettle it first (🏗️ Renew)" };
+        if (v0 <= -10) return { q, msg: "Something is already built here" };
+        if (v0 > 0) lots.add(v0);
+      }
     }
+    return { q, ok: true, lots };
+  };
+  let found = null;
+  let first = null;
+  for (const extra of [0, 0.3, 0.6, 1, 1.5]) {
+    for (const da of [0, 0.2, -0.2, 0.4, -0.4, 0.7, -0.7]) {
+      const off = off0 + extra;
+      const cx = near.x + nx * off;
+      const cy = near.y + ny * off;
+      const r = fit(cx, cy, ang0 + da);
+      if (!first) first = { ...r, cx, cy, ang: ang0 + da };
+      if (r.ok) {
+        found = { ...r, cx, cy, ang: ang0 + da };
+        break;
+      }
+    }
+    if (found) break;
   }
+  const pick = found || first;
+  const { cx, cy, ang, q } = pick;
+  const base = { ok: false, type, q, x: cx, y: cy, ang, cost: S.cost, town: townOf(w, cx, cy) };
+  if (!found) return { ...base, msg: first.msg };
+  const lots = found.lots;
   if (S.coastal) {
     let wet = false;
     for (let a = 0; a < 16 && !wet; a++) {

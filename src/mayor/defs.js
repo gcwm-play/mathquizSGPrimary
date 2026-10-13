@@ -58,7 +58,9 @@ export const KAMPONG = { name: "Kampong", housePop: 28, q: 22 };
 export const STRUCTS = {
   market: { name: "Wet market", icon: "🐟", cost: 250, upkeep: 2, w: 1.6, d: 1.4, cover: "food", r: 6, year: 1965, tip: "Fresh food for nearby homes." },
   hawker: { name: "Hawker centre", icon: "🍜", cost: 450, upkeep: 4, w: 2, d: 1.6, cover: "food", r: 9, year: 1971, tip: "Cheap, good food. Residents love these." },
-  school: { name: "Primary school", icon: "🏫", cost: 800, upkeep: 8, w: 2.4, d: 2, cover: "school", r: 9, year: 1965, tip: "Families want a school nearby." },
+  school: { name: "Primary school", icon: "🏫", cost: 800, upkeep: 8, w: 2.4, d: 2, cover: "school", r: 9, year: 1965, tip: "Young children need one close to home." },
+  secondary: { name: "Secondary school", icon: "🎒", cost: 1200, upkeep: 11, w: 2.8, d: 2.2, cover: "school2", r: 13, year: 1965, tip: "Teenagers can travel a bit further. Covers a wider area." },
+  tertiary: { name: "Polytechnic / university", icon: "🎓", cost: 6000, upkeep: 40, w: 4.2, d: 3.2, cover: "school3", r: 30, year: 1968, tip: "One campus can serve most of your region." },
   clinic: { name: "Polyclinic", icon: "🩺", cost: 900, upkeep: 9, w: 1.8, d: 1.6, cover: "health", r: 9, year: 1965, tip: "Everyday healthcare." },
   hospital: { name: "Hospital", icon: "🏥", cost: 4000, upkeep: 35, w: 3.6, d: 3, cover: "health", r: 22, year: 1965, tip: "Covers the whole region." },
   police: { name: "Police post", icon: "👮", cost: 500, upkeep: 5, w: 1.4, d: 1.2, cover: "safety", r: 10, year: 1965, tip: "Keeps neighbourhoods safe." },
@@ -107,9 +109,9 @@ export const STRUCTS = {
 for (const S of Object.values(STRUCTS)) if (S.upkeep) S.upkeep = Math.round(S.upkeep * 1.6);
 
 export const ROAD_TYPES = {
-  road: { name: "Road", half: 0.42, cost: 30, lots: true },
-  avenue: { name: "Avenue", half: 0.62, cost: 55, lots: true, transport: 0.15 },
-  rail: { name: "MRT track", half: 0.32, cost: 160, lots: false, rail: true, year: 1987 },
+  road: { name: "Road", half: 0.3, cost: 30, lots: true },
+  avenue: { name: "Avenue", half: 0.45, cost: 55, lots: true, transport: 0.15 },
+  rail: { name: "MRT track", half: 0.26, cost: 160, lots: false, rail: true, year: 1987 },
 };
 
 export const TOOL_GROUPS = [
@@ -137,7 +139,7 @@ export const TOOL_GROUPS = [
       { id: "zone:none", icon: "🧽", name: "Unzone", mode: "brush", cost: 0, tip: "Clear zoning from empty lots." },
     ],
   },
-  { id: "services", icon: "🍜", name: "Services", tools: ["market", "hawker", "school", "clinic", "hospital", "police", "fire", "cc", "park", "bus", "sports", "mrt"].map((k) => ({ id: `s:${k}`, mode: "place", struct: k })) },
+  { id: "services", icon: "🍜", name: "Services", tools: ["market", "hawker", "school", "secondary", "tertiary", "clinic", "hospital", "police", "fire", "cc", "park", "bus", "sports", "mrt"].map((k) => ({ id: `s:${k}`, mode: "place", struct: k })) },
   { id: "landmarks", icon: "🌟", name: "Landmarks", tools: [] },
   {
     id: "renew",
@@ -222,6 +224,9 @@ export const COMPLAINTS = {
   cost: ["Everything so expensive now!", "Taxes going up again ah?"],
   food: ["Nearest hawker centre is so far away!", "Need a wet market nearby to buy fresh food."],
   school: ["My kids take two buses to school.", "Need a primary school in our town."],
+  school1: ["Need a primary school in our town.", "Our little ones walk so far to school!"],
+  school2: ["My teenager travels an hour to secondary school.", "Need a secondary school around here."],
+  school3: ["No polytechnic or university nearby for our grown-up kids.", "Young people have to leave the region to study further."],
   health: ["Queue at the clinic is so long.", "Need a polyclinic nearby."],
   safety: ["Got some break-ins recently. Need a police post.", "Worried about fires. No fire station near us."],
   transport: ["Bus so slow and crowded!", "When is the MRT coming to our town?", "Need more roads, the jam is terrible."],

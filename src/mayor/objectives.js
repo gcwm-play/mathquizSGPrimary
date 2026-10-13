@@ -180,7 +180,7 @@ function hintFor(k) {
   const h = {
     housing: "Upgrade or rebuild old blocks with 🏗️ Renew, and raise estate maintenance in 💰 Finances.",
     food: "Build a wet market or hawker centre near the homes.",
-    school: "Build a school near the homes.",
+    school: "Build primary and secondary schools near the homes; one polytechnic or university serves a wide area.",
     health: "Build a polyclinic or hospital near the homes.",
     safety: "Build a police post and fire station.",
     transport: "Add a bus interchange, or MRT from 1987.",
