@@ -3,6 +3,7 @@
 // start with "_" and are never saved.
 import { MAP, REGIONS, es2w, w2es } from "./regions.js";
 import { ROAD_TYPES, STRUCTS, LOT_TYPES, ZONE_LINE, DIFFICULTY, START_YEAR, FIRST_ELECTION, KAMPONG } from "./defs.js";
+import { residents, displace, relocationPlan } from "./housing.js";
 import { dist, clamp, bezPoint, bezSplit, sampleBez, polyLength, pointAt, nearestOnPoly, polyCrossings, inQuad, rectQuad, quadCenter, makeRng, makeNoise, distToPath } from "./geom.js";
 
 export const RES = 0.5;
@@ -180,12 +181,13 @@ export function townOf(w, x, y) {
   return best;
 }
 
-export function newWorld({ region = "east", difficulty = "normal", name, seed = Math.floor(Math.random() * 1e9) } = {}) {
+export function newWorld({ region = "east", difficulty = "normal", name, seed = Math.floor(Math.random() * 1e9), mode = "campaign" } = {}) {
   const R = REGIONS[region];
   const D = DIFFICULTY[difficulty] || DIFFICULTY.normal;
   const w = {
     version: 1,
     kind: "mayor",
+    mode,
     region,
     difficulty,
     name: name || R.name,
@@ -384,25 +386,47 @@ function buildingComp(l) {
   return ((T.cap || 0) + (T.jobs || 0) * 0.5) * 0.4;
 }
 
-// Residents of demolished homes go back on the waiting list and are upset.
-function demolishLot(w, l, keepLot = false) {
-  if (l.b && l.b.state === "live") {
-    const T = LOT_TYPES[l.b.type];
-    if (T.cap) {
-      w.waitlist += Math.round(T.cap * 0.8);
-      w.towns[l.town].anger += T.cap / 260;
-    }
+// Clear buildings. Their residents move into empty flats nearby if there
+// are any, otherwise join the waiting list (and some leave the region).
+export function clearLots(w, lots, keepLot = false) {
+  const byTown = new Map();
+  const ids = new Set(lots.map((l) => l.id));
+  for (const l of lots) {
+    const n = residents(l.b);
+    if (n) byTown.set(l.town, (byTown.get(l.town) || 0) + n);
+    if (l.b?.state === "live" && LOT_TYPES[l.b.type].jobs) w.towns[l.town].anger += LOT_TYPES[l.b.type].jobs / 2000;
+    l.b = null;
   }
-  l.b = null;
-  if (!keepLot) w.lots = w.lots.filter((x) => x.id !== l.id);
+  if (!keepLot) w.lots = w.lots.filter((x) => !ids.has(x.id));
+  let out = null;
+  for (const [town, n] of byTown) out = displace(w, n, town);
+  return out;
+}
+function demolishLot(w, l, keepLot = false) {
+  clearLots(w, [l], keepLot);
+}
+
+// Preview of where the residents of these lots would go.
+export function clearPreview(w, lotIds) {
+  const byTown = new Map();
+  for (const id of lotIds) {
+    const l = w.lots.find((x) => x.id === id);
+    const n = residents(l?.b);
+    if (n) byTown.set(l.town, (byTown.get(l.town) || 0) + n);
+  }
+  if (!byTown.size) return null;
+  const sum = { n: 0, same: 0, other: 0, queue: 0, leave: 0, anger: 0 };
+  for (const [town, n] of byTown) {
+    const p = relocationPlan(w, n, town, { excludeLots: new Set(lotIds) });
+    for (const k of Object.keys(sum)) sum[k] += p[k];
+  }
+  sum.queueAfter = w.waitlist + sum.queue;
+  return sum;
 }
 
 function removeLotsInQuad(w, q) {
-  w.lots = w.lots.filter((l) => {
-    const inside = inQuad(q, l.x, l.y) || [0, 1, 2, 3].some((k) => inQuad(q, l.q[k * 2], l.q[k * 2 + 1]));
-    if (inside) demolishLot(w, l, true);
-    return !inside;
-  });
+  const hit = w.lots.filter((l) => inQuad(q, l.x, l.y) || [0, 1, 2, 3].some((k) => inQuad(q, l.q[k * 2], l.q[k * 2 + 1])));
+  if (hit.length) clearLots(w, hit);
   touch(w);
 }
 
@@ -446,10 +470,8 @@ export function commitRoad(w, plan, opts = {}) {
   const { type, c } = plan;
   const layer = layerOf(type);
   // clear what's in the way
-  for (const id of plan.demolish.lots) {
-    const l = w.lots.find((x) => x.id === id);
-    if (l) demolishLot(w, l);
-  }
+  const hit = plan.demolish.lots.map((id) => w.lots.find((x) => x.id === id)).filter(Boolean);
+  if (hit.length) clearLots(w, hit);
   for (const id of plan.demolish.structs) w.structs = w.structs.filter((s) => s.id !== id);
   const byK = new Map();
   for (const [kid, hi] of plan.demolish.houses) {
@@ -459,10 +481,7 @@ export function commitRoad(w, plan, opts = {}) {
   for (const [kid, set] of byK) {
     const k = w.kampongs.find((x) => x.id === kid);
     k.houses = k.houses.filter((_, i) => !set.has(i));
-    if (!opts.free) {
-      w.waitlist += set.size * KAMPONG.housePop;
-      w.towns[k.town].anger += set.size * 0.06;
-    }
+    if (!opts.free) displace(w, set.size * KAMPONG.housePop, k.town, { kampong: true });
   }
   w.kampongs = w.kampongs.filter((k) => k.houses.length > 0);
   touch(w);
@@ -528,8 +547,25 @@ export function commitRoad(w, plan, opts = {}) {
   const half = ROAD_TYPES[type].half + 0.15;
   removeTreesNear(w, (x, y) => nearestOnPoly(pts, x, y).d < half + 0.3);
   for (const s of made) genLots(w, s);
-  if (!opts.free) w.cash -= plan.cost;
+  if (!opts.free) {
+    const mid = segPts(w, made[Math.floor(made.length / 2)] || made[0]);
+    charge(w, plan.cost, mid?.[Math.floor(mid.length / 4) * 2], mid?.[Math.floor(mid.length / 4) * 2 + 1]);
+  }
   return made;
+}
+
+// Record one-off spending so the finance charts can show it per town.
+export function charge(w, cost, x, y) {
+  w.cash -= cost;
+  if (!cost) return;
+  const m = (w.spend = w.spend || { total: 0, towns: [] });
+  m.total += cost;
+  const ti = x == null ? null : townOf(w, x, y);
+  if (ti == null) {
+    // split by population when it can't be placed
+    const tp = w.towns.reduce((a, t) => a + (t.pop || 0), 0) || 1;
+    w.towns.forEach((t, i) => (m.towns[i] = (m.towns[i] || 0) + cost * ((t.pop || 0) / tp || 1 / w.towns.length)));
+  } else m.towns[ti] = (m.towns[ti] || 0) + cost;
 }
 
 // ---------- lots ----------
@@ -616,7 +652,7 @@ export function refillLots(w, x, y, r) {
 export function removeRoad(w, segId) {
   const s = w.segs.find((x) => x.id === segId);
   if (!s) return { ok: false };
-  for (const l of w.lots.filter((l) => l.seg === segId)) demolishLot(w, l);
+  clearLots(w, w.lots.filter((l) => l.seg === segId));
   w.segs = w.segs.filter((x) => x.id !== segId);
   w._pts?.delete(segId);
   w.nodes = w.nodes.filter((n) => w.segs.some((x) => x.a === n.id || x.b === n.id));
@@ -654,7 +690,7 @@ export function paintZone(w, zone, x, y, r) {
     }
   }
   const cost = zone === "none" ? 0 : n * 2;
-  w.cash -= cost;
+  charge(w, cost, x, y);
   if (n) touch(w);
   return { n, cost, skipped };
 }
@@ -671,7 +707,7 @@ export function plantTrees(w, x, y, r, rng = Math.random) {
     w.trees.push([+px.toFixed(2), +py.toFixed(2), Math.floor(rng() * 6)]);
     n++;
   }
-  w.cash -= n * 4;
+  charge(w, n * 4, x, y);
   if (n) touch(w);
   return { n, cost: n * 4 };
 }
@@ -699,14 +735,13 @@ export function bulldozeCost(w, sel) {
 }
 export function bulldozeCommit(w, sel) {
   const cost = bulldozeCost(w, sel);
-  for (const id of sel.lots) {
-    const l = w.lots.find((x) => x.id === id);
-    if (l) demolishLot(w, l, true);
-  }
+  const lots = [...sel.lots].map((id) => w.lots.find((x) => x.id === id)).filter(Boolean);
+  const first = lots[0] || w.structs.find((s) => sel.structs.has(s.id));
+  clearLots(w, lots, true);
   const gone = w.structs.filter((s) => sel.structs.has(s.id));
   w.structs = w.structs.filter((s) => !sel.structs.has(s.id));
   w.trees = w.trees.filter((_, i) => !sel.trees.has(i));
-  w.cash -= cost;
+  charge(w, cost, first?.x, first?.y);
   touch(w);
   for (const s of gone) refillLots(w, s.x, s.y, 3);
   return cost;
@@ -727,7 +762,7 @@ export function reclaimOk(w, x, y, r) {
 export function reclaimCommit(w, circles) {
   for (const c of circles) w.edits.push({ x: +c.x.toFixed(2), y: +c.y.toFixed(2), r: c.r });
   const cost = circles.length * 120;
-  w.cash -= cost;
+  charge(w, cost, circles[0]?.x, circles[0]?.y);
   touch(w);
   for (const c of circles) refillLots(w, c.x, c.y, c.r + 1);
   return cost;
@@ -793,14 +828,12 @@ export function planStruct(w, type, x, y) {
 }
 
 export function commitStruct(w, plan) {
-  for (const id of plan.lots) {
-    const l = w.lots.find((x) => x.id === id);
-    if (l) demolishLot(w, l);
-  }
+  const hit = plan.lots.map((id) => w.lots.find((x) => x.id === id)).filter(Boolean);
+  if (hit.length) clearLots(w, hit);
   const q = plan.q;
   w.structs.push({ id: w.nextId++, type: plan.type, x: +plan.x.toFixed(3), y: +plan.y.toFixed(3), ang: +plan.ang.toFixed(3), q, built: w.t, state: "live" });
   removeTreesNear(w, (x, y) => inQuad(q, x, y));
-  w.cash -= plan.cost;
+  charge(w, plan.cost, plan.x, plan.y);
   touch(w);
 }
 
@@ -815,11 +848,14 @@ export function latestType(w, zone) {
   return best;
 }
 
+const lc = (s) => s.replace(/^[A-Z][a-z]/, (m) => m.toLowerCase());
+
 export function renewOptions(w, target) {
   const out = [];
   if (target.kind === "kampong") {
     const k = target.k;
     const pop = k.houses.length * KAMPONG.housePop;
+    const half = Math.ceil(k.houses.length / 2) * KAMPONG.housePop;
     out.push({
       id: "improve",
       icon: "🚰",
@@ -834,13 +870,26 @@ export function renewOptions(w, target) {
     out.push({
       id: "resettle",
       icon: "🏚️",
-      name: "Resettle the kampong",
-      desc: `Pay compensation and move ${pop.toLocaleString()} people onto the waiting list for modern flats. The land is cleared for new roads and estates.`,
+      name: "Resettle the whole kampong",
+      desc: `Pay compensation and move ${pop.toLocaleString()} people out. The land is cleared for new roads and estates.`,
       cost: Math.round(pop * 0.9),
       months: 3,
       ok: true,
-      effect: "Frees land · residents upset for a few years",
+      effect: "Frees all the land · residents upset for a few years",
+      impact: relocationPlan(w, pop, k.town, { kampong: true }),
     });
+    if (k.houses.length >= 6)
+      out.push({
+        id: "resettleHalf",
+        icon: "🪜",
+        name: "Resettle in phases (half now)",
+        desc: `Move the outer ${half.toLocaleString()} residents now and the rest later, so fewer families wait at once.`,
+        cost: Math.round(half * 1.0),
+        months: 3,
+        ok: true,
+        effect: "Less anger at a time · frees part of the land",
+        impact: relocationPlan(w, half, k.town, { kampong: true }),
+      });
     return out;
   }
   if (target.kind === "lot") {
@@ -848,6 +897,7 @@ export function renewOptions(w, target) {
     if (!l.b || l.b.state !== "live") return out;
     const T = LOT_TYPES[l.b.type];
     const age = Math.floor((w.t - l.b.built) / 12);
+    const occ = residents(l.b);
     if (T.zone === "hdb") {
       const recent = l.b.up && w.t - l.b.up < 12 * 15;
       out.push({
@@ -859,7 +909,7 @@ export function renewOptions(w, target) {
         months: 6,
         ok: w.year >= 1989 && age >= 15 && !recent,
         why: w.year < 1989 ? "Available from 1989" : age < 15 ? "Block is still fairly new" : recent ? "Upgraded recently" : null,
-        effect: "+ housing quality, cheap",
+        effect: "+ housing quality, wear reset · nobody moves out",
       });
     }
     if (l.zone === "com" && l.b.type === "shophouse" && REGIONS[w.region].heritage) {
@@ -878,21 +928,24 @@ export function renewOptions(w, target) {
     const newest = latestType(w, l.zone);
     const N = newest && LOT_TYPES[newest];
     const better = N && newest !== l.b.type && (N.cap || 0) + (N.jobs || 0) > (T.cap || 0) + (T.jobs || 0);
-    const res = (T.cap || 0) > 0;
+    const res = occ > 0;
     const sers = T.zone === "hdb" && w.year >= 1995;
+    const ex = new Set([l.id]);
     out.push({
       id: "rebuild",
       icon: "🏗️",
       name: T.zone === "hdb" ? (sers ? "Redevelop (en bloc / SERS)" : "Tear down and rebuild") : "Redevelop the site",
       desc: better
-        ? `Replace the ${T.name.toLowerCase()} (${age} years old) with ${N.name.toLowerCase()}. ${res ? `${(T.cap || 0).toLocaleString()} residents must move out while it's built${sers ? " (replacement flats keep them closer to home)" : ""}.` : "Business stops during the works."}`
+        ? `Replace the ${lc(T.name)} (${age} years old) with ${lc(N.name)}. ${res ? `${occ.toLocaleString()} residents must move out while it's built${sers ? " (SERS gives them priority for new flats nearby)" : ""}.` : T.jobs ? "Business stops during the works." : ""}`
         : "There's nothing newer to build here yet.",
-      cost: better ? Math.round(N.cost + (T.cap || 0) * 0.5 + (T.jobs || 0) * 0.2) : 0,
+      cost: better ? Math.round(N.cost + occ * 0.5 + (T.jobs || 0) * 0.2) : 0,
       months: better ? N.build + 4 : 0,
       ok: !!better && !l.b.conserved,
       why: l.b.conserved ? "Conserved heritage" : !better ? "No better building type yet" : null,
-      effect: better ? `${(N.cap || N.jobs || 0).toLocaleString()} ${N.cap ? "residents" : "jobs"} when done${res ? " · residents upset meanwhile" : ""}` : "",
+      effect: better ? `${(N.cap || N.jobs || 0).toLocaleString()} ${N.cap ? "residents" : "jobs"} when done (${N.cap && T.cap ? `+${(N.cap - T.cap).toLocaleString()} homes` : "more jobs"})` : "",
       to: newest,
+      impact: res && better ? relocationPlan(w, occ, l.town, { sers, excludeLots: ex }) : null,
+      gain: better && N.cap ? N.cap - (T.cap || 0) : 0,
     });
     return out;
   }
@@ -903,19 +956,27 @@ export function applyRenew(w, target, optId) {
   const opt = renewOptions(w, target).find((o) => o.id === optId);
   if (!opt || !opt.ok) return { ok: false, msg: opt?.why || "Not possible" };
   if (opt.cost > w.cash && !w.sandbox) return { ok: false, msg: "Not enough money" };
-  w.cash -= opt.cost;
+  const at = target.kind === "kampong" ? target.k : target.l;
+  charge(w, opt.cost, at.x, at.y);
   if (target.kind === "kampong") {
     const k = target.k;
-    const pop = k.houses.length * KAMPONG.housePop;
     if (optId === "improve") {
       k.improved = true;
       k.q = KAMPONG.q + 14;
       w.towns[k.town].anger = Math.max(0, w.towns[k.town].anger - 1);
     } else {
-      w.waitlist += pop;
-      w.towns[k.town].anger += pop / 140;
-      w.stats.resettled = (w.stats.resettled || 0) + pop;
-      w.kampongs = w.kampongs.filter((x) => x.id !== k.id);
+      let moved;
+      if (optId === "resettleHalf") {
+        const n = Math.ceil(k.houses.length / 2);
+        k.houses.sort((a, b) => dist(b[0], b[1], k.x, k.y) - dist(a[0], a[1], k.x, k.y));
+        k.houses.splice(0, n);
+        moved = n * KAMPONG.housePop;
+      } else {
+        moved = k.houses.length * KAMPONG.housePop;
+        w.kampongs = w.kampongs.filter((x) => x.id !== k.id);
+      }
+      displace(w, moved, k.town, { kampong: true });
+      w.stats.resettled = (w.stats.resettled || 0) + moved;
       w.resettledThisTerm = (w.resettledThisTerm || []).concat([k.town]);
       touch(w);
       refillLots(w, k.x, k.y, k.r + 1);
@@ -930,12 +991,10 @@ export function applyRenew(w, target, optId) {
     } else if (optId === "conserve") {
       l.b.conserved = true;
     } else if (optId === "rebuild") {
-      if (T.cap) {
-        const sers = T.zone === "hdb" && w.year >= 1995;
-        w.waitlist += Math.round(T.cap * (sers ? 0.3 : 0.9));
-        w.towns[l.town].anger += (T.cap / 220) * (sers ? 0.4 : 1);
-      }
+      const n = residents(l.b);
+      const sers = T.zone === "hdb" && w.year >= 1995;
       l.b = { type: opt.to, state: "build", until: w.t + opt.months, built: w.t + opt.months, v: l.b.v, renewed: true };
+      if (n) displace(w, n, l.town, { sers, excludeLots: new Set([l.id]) });
       touch(w);
     }
   }

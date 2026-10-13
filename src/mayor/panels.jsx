@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Panel } from "../city/panels.jsx";
 import { NEEDS, TERM_YEARS, diffOf } from "./defs.js";
-import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS } from "./sim.js";
+import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS, modeOf } from "./sim.js";
+import { housingByTown } from "./housing.js";
+import { ImpactBox, ObjectiveRow } from "./panels2.jsx";
 
 export { Panel };
 
@@ -26,13 +28,23 @@ export const yearsMonths = (m) => {
 
 export function TownsPanel({ world: w, onClose, onShow }) {
   const D = diffOf(w);
+  const H = housingByTown(w);
+  const vacant = H.reduce((a, h) => a + h.vacant, 0);
+  const building = H.reduce((a, h) => a + h.building, 0);
   return (
     <Panel title="🏘️ Your towns" onClose={onClose}>
-      <div className="mb-3 grid grid-cols-3 gap-2 text-center">
-        <Stat label="Region happiness" value={`${face(w.approval)} ${Math.round(w.approval)}%`} />
+      <div className="mb-3 grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
+        <Stat label="Happiness" value={`${face(w.approval)} ${Math.round(w.approval)}%`} />
         <Stat label="Trust in you" value={`${Math.round(w.trust)}`} />
-        <Stat label="Waiting for a flat" value={fmtNum(w.waitlist)} tone={w.waitlist > (w.stats.pop || 1) * 0.15 ? "bad" : null} />
+        <Stat label="Reputation" value={`⭐ ${Math.round(w.rep ?? 50)}`} />
+        <Stat label="Housing queue" value={fmtNum(w.waitlist)} tone={w.waitlist > (w.stats.pop || 1) * 0.15 ? "bad" : null} />
+        <Stat label="Births/woman" value={`👶 ${(w.stats.tfr ?? 0).toFixed(2)}`} />
+        <Stat label="Life expect." value={`🩺 ${(w.stats.life ?? 0).toFixed(1)}`} />
       </div>
+      <p className="-mt-1 mb-3 text-[13px] leading-snug text-[var(--muted)]">
+        🏠 {fmtNum(vacant)} empty homes ready · 🏗️ {fmtNum(building)} homes being built · ⏳ {fmtNum(w.waitlist)} families waiting
+        {w.leftRegion ? ` · ✈️ ${fmtNum(w.leftRegion)} have left the region so far` : ""}. Families move into empty homes over a few months; people moved out by demolitions take empty homes first.
+      </p>
       <div className="space-y-3">
         {w.towns.map((t, i) => {
           const sup = townSupport(w, i);
@@ -44,6 +56,10 @@ export function TownsPanel({ world: w, onClose, onShow }) {
                   <div className="text-[13px] text-[var(--muted)]">
                     👥 {fmtNum(t.pop || 0)} residents{t.kpop ? ` · 🛖 ${fmtNum(t.kpop)} in kampongs` : ""}
                     {t.old ? ` · 🏚️ ${t.old} ageing blocks` : ""}
+                    <br />
+                    🏠 {fmtNum(H[i].occ)}/{fmtNum(H[i].cap)} homes filled{H[i].vacant ? ` · ${fmtNum(H[i].vacant)} empty` : ""}
+                    {H[i].building ? ` · ${fmtNum(H[i].building)} being built` : ""} · 👶 {(t.tfr ?? 0).toFixed(2)} · 🩺 {(t.life ?? 0).toFixed(1)}y
+                    {(t.maint ?? 100) !== 100 || (t.scc ?? 100) !== 100 ? ` · 🧽 ${t.maint ?? 100}% · 🧹 ${t.scc ?? 100}%` : ""}
                   </div>
                 </div>
                 <button onClick={() => onShow(t)} className="city-btn rounded-full bg-[var(--soft)] px-3 py-1.5 text-sm font-bold">
@@ -80,7 +96,7 @@ export function TownsPanel({ world: w, onClose, onShow }) {
         })}
       </div>
       <p className="mt-3 text-[13px] text-[var(--muted)]">
-        Elections come every {TERM_YEARS} years. {D.voteMin ? "Win more than half the votes across your towns to stay mayor." : "On Easy you can't be voted out, but residents still tell you what they think."}
+        Elections come every {TERM_YEARS} years. {D.voteMin && w.mode !== "sandbox" ? "Win more than half the votes across your towns to stay mayor." : "You can't be voted out, but residents still tell you what they think."} Unhappy towns slowly lose residents to other regions.
       </p>
     </Panel>
   );
@@ -302,6 +318,7 @@ export function RenewSheet({ target, options, world: w, onPick, onClose }) {
                   </div>
                 )}
                 {!o.ok && o.why && <div className="mt-1 text-[13px] font-semibold text-[var(--bad)]">{o.why}</div>}
+                {o.ok && <ImpactBox impact={o.impact} town={o.townName || target.townName} gain={o.gain} months={o.months} />}
               </div>
             </div>
             {o.ok && (
@@ -336,9 +353,32 @@ export function NewsPanel({ world, onClose }) {
   );
 }
 
-export function GoalsPanel({ world: w, onClose }) {
+export function GoalsPanel({ world: w, analysis: A, onClose }) {
+  const open = (w.objectives || []).filter((o) => o.status === "open");
+  const past = (w.objectives || []).filter((o) => o.status !== "open").slice(-6).reverse();
+  const starterDone = GOALS.every((g) => w.goalsDone[g.id]);
   return (
-    <Panel title="🎯 Goals" onClose={onClose}>
+    <Panel title="🎯 Goals & objectives" onClose={onClose}>
+      <h3 className="mb-1 font-bold">🏛️ Mayor's objectives</h3>
+      {open.length ? (
+        <ul className="space-y-2">
+          {open.map((o) => (
+            <ObjectiveRow key={o.id} world={w} analysis={A} o={o} />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[14px] text-[var(--muted)]">New objectives appear once you're nearly through the starter goals. They adapt to what your region needs most, and pay a bonus grant when you hit them.</p>
+      )}
+      {past.length > 0 && (
+        <ul className="mt-2 space-y-0.5 text-[13px]">
+          {past.map((o) => (
+            <li key={o.id} className={o.status === "done" ? "text-[var(--good)]" : "text-[var(--muted)]"}>
+              {o.status === "done" ? "✅" : "⌛"} {o.text}
+            </li>
+          ))}
+        </ul>
+      )}
+      <h3 className="mb-1 mt-4 font-bold">🌱 Starter goals {starterDone ? "(all done!)" : ""}</h3>
       <ul className="space-y-1.5 text-[15px]">
         {GOALS.map((g) => (
           <li key={g.id} className={w.goalsDone[g.id] ? "text-[var(--good)]" : ""}>
@@ -361,6 +401,10 @@ export function HelpPanel({ onClose }) {
     ["🛖 Kampongs", "Improve them with water and power, or resettle them to free land. Resettling costs money and upsets residents for a while."],
     ["🏘️ Listen to your towns", "Tap 🏘️ to see each town's happiness and what residents are saying."],
     ["🗳️ Elections every 6 years", "In the 6 months before polling day you can make pledges. Keep them and trust grows."],
+    ["🚚 Where do people go?", "New flats fill gradually. When you clear homes, residents take empty flats first, then join the queue, and some leave. 🏗️ Renew shows the estimate before you commit."],
+    ["💰 Finances", "Each term the government gives a fixed block grant. Tap 💰 for charts of money in and out, with projections, and set tax, S&CC and estate maintenance per town."],
+    ["⚠️ Crises & decisions", "Real crises (oil shock, SARS, COVID…) arrive on their real dates, and random dilemmas pop up. Your choices and what you've built decide how hard they hit."],
+    ["📊 Mayors' league", "AI mayors run the other regions. Every 10 years you get a report card comparing happiness, housing, health, births, money and reputation."],
   ];
   return (
     <Panel title="❓ How to be mayor" onClose={onClose}>
@@ -392,7 +436,7 @@ function Toggle({ id, label, hint, checked, onChange }) {
   );
 }
 
-export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHelp, onGoals, onQuit, saved }) {
+export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHelp, onGoals, onQuit, saved, onFinance, onRivals }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
   return (
     <Panel title="☰ Menu" onClose={onClose}>
@@ -400,6 +444,8 @@ export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHel
         {[
           ["💾", saved ? "Saved!" : "Save now", onSave],
           ["🎯", "Goals", onGoals],
+          ["💰", "Finances", onFinance],
+          ["📊", "Mayors' league", onRivals],
           ["❓", "How to play", onHelp],
           ["🏠", "Title screen", onQuit],
         ].map(([i, l, f]) => (
@@ -415,7 +461,7 @@ export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHel
         <Toggle id="ms-motion" label="Moving cars, trains, boats and clouds" hint="Turn off to save battery or reduce motion." checked={settings.motion} onChange={(v) => set("motion", v)} />
       </div>
       <p className="mt-3 text-[13px] text-[var(--muted)]">
-        {world.name} · {diffOf(world).label}. Saves itself on this device every month and after every change.
+        {world.name} · {modeOf(world).name} · {diffOf(world).label}{world.endYear ? ` · ends ${world.endYear}` : ""}. Saves itself on this device every month and after every change.
       </p>
     </Panel>
   );

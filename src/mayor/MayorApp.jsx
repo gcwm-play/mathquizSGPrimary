@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MapView, { zoomAt, lookAt } from "./MapView.jsx";
-import { TownsPanel, ElectionPanel, BudgetPanel, RenewSheet, NewsPanel, GoalsPanel, HelpPanel, MenuPanel, Panel, yearsMonths } from "./panels.jsx";
+import { TownsPanel, ElectionPanel, RenewSheet, NewsPanel, GoalsPanel, HelpPanel, MenuPanel, Panel, yearsMonths } from "./panels.jsx";
+import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank } from "./panels2.jsx";
+import { decide, CRISES } from "./events.js";
 import { REGIONS, REGION_ORDER } from "./regions.js";
 import { DIFFICULTY, ALL_TOOLS, STRUCTS, ROAD_TYPES, toolGroups } from "./defs.js";
 import {
   saveCheckpoint, loadCheckpoint, checkpointInfo,
   newWorld, planRoad, commitRoad, snapPoint, planStruct, commitStruct, removeRoad, nearestSeg, segPts, paintZone, plantTrees,
-  bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, saveInfo,
+  bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, saveInfo, clearPreview,
 } from "./world.js";
-import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate } from "./sim.js";
+import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES } from "./sim.js";
 import { OVERLAYS, ZONE_TINT } from "./render.js";
 import { inQuad, dist } from "./geom.js";
 
@@ -56,7 +58,7 @@ export default function MayorApp() {
   const ref = useRef(null);
   const [run, setRun] = useState(0);
   const start = (w) => {
-    ref.current = w;
+    ref.current = ensureWorld(w);
     setRun((r) => r + 1);
     setScreen("game");
   };
@@ -70,11 +72,12 @@ export default function MayorApp() {
 function Title({ onStart }) {
   const [region, setRegion] = useState("east");
   const [difficulty, setDifficulty] = useState("normal");
+  const [mode, setMode] = useState("campaign");
   const [help, setHelp] = useState(false);
   const [confirmNew, setConfirmNew] = useState(false);
   const saved = saveInfo();
   const check = checkpointInfo();
-  const make = () => onStart(newWorld({ region, difficulty }));
+  const make = () => onStart(newWorld({ region, difficulty, mode }));
   return (
     <div className="city-title city-scroll absolute inset-0 overflow-y-auto">
       <div className="mx-auto flex min-h-full max-w-5xl flex-col items-center justify-center gap-3 px-4 py-4 landscape:flex-row landscape:gap-5 lg:gap-6">
@@ -128,6 +131,16 @@ function Title({ onStart }) {
                 </button>
               );
             })}
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4" role="radiogroup" aria-label="Game mode">
+            {Object.entries(MODES).map(([k, m]) => (
+              <button key={k} role="radio" aria-checked={mode === k} onClick={() => setMode(k)} title={m.desc} className={`city-btn rounded-xl px-1.5 py-1.5 text-left ${mode === k ? "bg-[var(--brand)] text-white" : "bg-[var(--soft)]"}`}>
+                <span className="block text-[14px] font-bold leading-tight">
+                  {m.icon} {m.name}
+                </span>
+                <span className="city-clamp block text-[11px] leading-tight opacity-85">{m.desc}</span>
+              </button>
+            ))}
           </div>
           <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Difficulty">
             {Object.entries(DIFFICULTY).map(([k, d]) => (
@@ -198,7 +211,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const [tool, setTool] = useState("look");
   const [tray, setTray] = useState(null);
   const [speed, setSpeed] = useState(2);
-  const [panel, setPanel] = useState(initial.t === 0 ? { id: "help" } : null);
+  const [panel, setPanel] = useState(initial.decision ? { id: "decision" } : initial.t === 0 ? { id: "help" } : null);
   const [overlay, setOverlay] = useState("none");
   const [inspect, setInspect] = useState(null);
   const [toastMsg, setToastMsg] = useState(null);
@@ -208,7 +221,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const w = worldRef.current;
   const groups = toolGroups(w.region);
   // handy for automated tests and debugging in the console
-  if (typeof window !== "undefined") window.__lionMayor = { worldRef, camRef };
+  if (typeof window !== "undefined") window.__lionMayor = { worldRef, camRef, setPanel };
 
   const refresh = useCallback(() => {
     analysisRef.current = analyze(worldRef.current);
@@ -250,8 +263,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       if (world.election.justHeld) {
         saveCheckpoint(world);
         setPanel({ id: "result" });
-      }
-      else if (inSeason(world) && world.t === world.election.next - 6) setPanel({ id: "election" });
+      } else if (world.decision) setPanel({ id: "decision" });
+      else if (world.reportReady != null) {
+        setPanel({ id: "report", index: world.reportReady });
+        world.reportReady = null;
+      } else if (inSeason(world) && world.t === world.election.next - 6) setPanel({ id: "election" });
       save();
       replan();
       refresh();
@@ -539,17 +555,20 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       ok = !!p.plan?.ok;
       label = ok ? `✓ Build ${fmtMoney(p.plan.cost)}` : p.plan?.msg || "Can't build";
       note = ok ? p.plan.msg : null;
+      if (ok && p.plan.demolish?.lots?.length) note = movedNote(w, p.plan.demolish.lots) || note;
     } else if (p.kind === "struct") {
       ok = !!p.plan?.ok;
       label = ok ? `✓ Build ${fmtMoney(p.plan.cost)}` : p.plan?.msg || "Can't build here";
-      note = ok ? p.plan.msg : null;
+      note = ok ? movedNote(w, p.plan.lots || []) || p.plan.msg : null;
     } else if (p.kind === "unroad") {
       label = "✓ Remove road";
-      note = p.built ? `Demolishes ${p.built} building${p.built > 1 ? "s" : ""}` : null;
+      const s = w.segs.find((x) => x.id === p.seg);
+      note = (s && movedNote(w, w.lots.filter((l) => l.seg === s.id).map((l) => l.id))) || (p.built ? `Demolishes ${p.built} building${p.built > 1 ? "s" : ""}` : null);
     } else if (p.kind === "select") {
       const n = p.sel.lots.size + p.sel.structs.size + p.sel.trees.size;
       ok = n > 0;
       label = ok ? `✓ Clear ${n} · ${fmtMoney(p.cost || 0)}` : "Paint over things to clear";
+      note = ok ? movedNote(w, [...p.sel.lots]) : null;
     } else if (p.kind === "reclaim") {
       const n = p.circles.filter((c) => c.ok).length;
       ok = n > 0;
@@ -598,7 +617,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             </button>
             <div className="city-sticker city-noscrollbar flex min-w-0 items-stretch overflow-x-auto rounded-full bg-[var(--card)] text-[14px] font-bold tabular-nums">
               <span className="hidden items-center whitespace-nowrap px-3 md:flex">📅 {dateLabel(w)}</span>
-              <Seg onClick={() => setPanel({ id: "budget" })} label={`Budget ${fmtMoney(w.cash)}`} bad={w.cash < 0}>
+              <Seg onClick={() => setPanel({ id: "finance" })} label={`Finances ${fmtMoney(w.cash)}`} bad={w.cash < 0}>
                 💰 {fmtMoney(w.cash)}
               </Seg>
               <Seg onClick={() => setPanel({ id: "towns" })} label={`Population ${fmtNum(w.stats.pop || 0)}`}>
@@ -609,12 +628,22 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
               </Seg>
             </div>
           </div>
-          <button
-            onClick={() => setPanel({ id: "election" })}
-            className={`city-btn city-sticker pointer-events-auto whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-bold ${season ? "city-pulse bg-[var(--brand)] text-white" : "bg-[var(--card)]"}`}
-          >
-            🗳️ {season ? `Election season! Vote ${tToDate(w, w.election.next)}` : `Next election ${tToDate(w, w.election.next).split(" ")[1]} · ${yearsMonths(months)}`}
-          </button>
+          <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setPanel({ id: "election" })}
+              className={`city-btn city-sticker whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-bold ${season ? "city-pulse bg-[var(--brand)] text-white" : "bg-[var(--card)]"}`}
+            >
+              🗳️ {season ? `Election season! Vote ${tToDate(w, w.election.next)}` : `Next election ${tToDate(w, w.election.next).split(" ")[1]} · ${yearsMonths(months)}`}
+            </button>
+            <button onClick={() => setPanel({ id: "rivals" })} aria-label="Mayors' league" className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--card)] px-3 py-1.5 text-[13px] font-bold">
+              📊 {w.yearly?.length ? `#${myRank(w)} of ${(w.rivals?.length || 0) + 1}` : "League"}
+            </button>
+            {w.crisis && (
+              <button onClick={() => setPanel({ id: "crisis" })} className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--bad)] px-3 py-1.5 text-[13px] font-bold text-white">
+                {CRISES[w.crisis.id].icon} {CRISES[w.crisis.id].name.split(" ").slice(0, 3).join(" ")} · {Math.max(0, w.crisis.until - w.t)}m
+              </button>
+            )}
+          </div>
           {inspect ? (
             <div className="city-card city-pop city-goal pointer-events-auto p-3">
               <div className="flex items-start justify-between gap-2">
@@ -640,8 +669,10 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           ) : goal && goalOpen && !tray && tool === "look" ? (
             <div className="city-card city-pop city-goal pointer-events-auto p-2.5">
               <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[12px] font-bold uppercase tracking-wide text-[var(--brand)]">🎯 Next goal · {dateLabel(w)}</div>
+                <div className="min-w-0 flex-1" onClick={() => goal.deadline && setPanel({ id: "goals" })}>
+                  <div className="text-[12px] font-bold uppercase tracking-wide text-[var(--brand)]">
+                    🎯 {goal.deadline ? `Objective · ${yearsMonths(Math.max(0, goal.deadline - w.t))} left` : `Next goal · ${dateLabel(w)}`}
+                  </div>
                   <div className="font-bold leading-tight">{goal.text}</div>
                   <div className="city-clamp mt-0.5 text-[13px] leading-snug text-[var(--muted)]">{goal.hint}</div>
                 </div>
@@ -788,9 +819,25 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           )}
         </Panel>
       )}
-      {panel?.id === "budget" && <BudgetPanel world={w} analysis={A} onChange={afterChange} onClose={() => setPanel(null)} />}
+      {panel?.id === "finance" && <FinancePanel world={w} analysis={A} onChange={afterChange} onClose={() => setPanel(null)} />}
+      {panel?.id === "decision" && w.decision && (
+        <DecisionPanel
+          world={w}
+          onPick={(id) => {
+            decide(w, id, (t) => {
+              w.news.unshift({ t: w.t, date: dateLabel(w), text: t });
+              toast(t);
+            });
+            setPanel(null);
+            afterChange();
+          }}
+        />
+      )}
+      {panel?.id === "crisis" && <CrisisPanel world={w} onClose={() => setPanel(null)} />}
+      {panel?.id === "rivals" && <RivalsPanel world={w} onClose={() => setPanel(null)} onReport={(i) => setPanel({ id: "report", index: i })} />}
+      {panel?.id === "report" && <ReportPanel world={w} index={panel.index} onClose={() => setPanel(null)} />}
       {panel?.id === "news" && <NewsPanel world={w} onClose={() => setPanel(null)} />}
-      {panel?.id === "goals" && <GoalsPanel world={w} onClose={() => setPanel(null)} />}
+      {panel?.id === "goals" && <GoalsPanel world={w} analysis={A} onClose={() => setPanel(null)} />}
       {panel?.id === "help" && <HelpPanel onClose={() => setPanel(null)} />}
       {panel?.id === "renew" && (
         <RenewSheet
@@ -843,6 +890,8 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             setTimeout(() => setSaved(false), 1500);
           }}
           onGoals={() => setPanel({ id: "goals" })}
+          onFinance={() => setPanel({ id: "finance" })}
+          onRivals={() => setPanel({ id: "rivals" })}
           onHelp={() => setPanel({ id: "help" })}
           onQuit={() => {
             save();
@@ -850,24 +899,36 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           }}
         />
       )}
-      {w.gameOver && panel?.id !== "result" && (
+      {w.gameOver && panel?.id !== "result" && panel?.id !== "report" && (
         <Panel title="📋 Your time as mayor" onClose={() => {}} closable={false}>
           <p className="text-lg">{w.gameOver.text}</p>
           <p className="mt-2 text-sm text-[var(--muted)]">
             You housed {fmtNum(w.stats.pop)} people by {dateLabel(w)}.
           </p>
+          <FinalReport final={w.gameOver.final} />
+          {w.reports?.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {w.reports.map((r, i) => (
+                <button key={i} onClick={() => setPanel({ id: "report", index: i })} className="city-btn rounded-full bg-[var(--soft)] px-3 py-1 text-[12px] font-bold">
+                  {r.from}s: #{r.rank} · {r.grade.g}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               onClick={() => {
                 w.gameOver = null;
-                w.sandbox = true;
+                w.mode = "sandbox";
+                w.endYear = null;
+                w.cash = Math.max(w.cash, 20000);
                 refresh();
               }}
               className="city-btn rounded-2xl bg-[var(--soft)] px-4 py-2 font-bold"
             >
-              Keep playing for fun
+              Keep playing in Sandbox
             </button>
-            <button onClick={() => onRestart(newWorld({ region: w.region, difficulty: w.difficulty }))} className="city-btn rounded-2xl bg-[var(--brand)] px-4 py-2 font-bold text-white">
+            <button onClick={() => onRestart(newWorld({ region: w.region, difficulty: w.difficulty, mode: w.mode === "sandbox" ? "campaign" : w.mode }))} className="city-btn rounded-2xl bg-[var(--brand)] px-4 py-2 font-bold text-white">
               Try again
             </button>
           </div>
@@ -875,6 +936,14 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       )}
     </div>
   );
+}
+
+// "1,200 residents displaced: 800 rehoused, 400 to the queue"
+function movedNote(w, lotIds) {
+  const P = lotIds?.length ? clearPreview(w, lotIds) : null;
+  if (!P) return null;
+  const re = P.same + P.other;
+  return `🚚 ${fmtNum(P.n)} must move: ${fmtNum(re)} rehoused${P.queue ? `, ${fmtNum(P.queue)} to queue` : ""}${P.leave ? `, ${fmtNum(P.leave)} leave` : ""}`;
 }
 
 function Seg({ children, onClick, label, bad }) {
