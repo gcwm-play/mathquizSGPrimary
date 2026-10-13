@@ -4,6 +4,7 @@ import { TownsPanel, ElectionPanel, BudgetPanel, RenewSheet, NewsPanel, GoalsPan
 import { REGIONS, REGION_ORDER } from "./regions.js";
 import { DIFFICULTY, ALL_TOOLS, STRUCTS, ROAD_TYPES, toolGroups } from "./defs.js";
 import {
+  saveCheckpoint, loadCheckpoint, checkpointInfo,
   newWorld, planRoad, commitRoad, snapPoint, planStruct, commitStruct, removeRoad, nearestSeg, segPts, paintZone, plantTrees,
   bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, saveInfo,
 } from "./world.js";
@@ -53,13 +54,15 @@ export default function MayorApp() {
   const [screen, setScreen] = useState("title");
   const [settings, setSettings] = useSettings();
   const ref = useRef(null);
+  const [run, setRun] = useState(0);
   const start = (w) => {
     ref.current = w;
+    setRun((r) => r + 1);
     setScreen("game");
   };
   return (
     <div className="city-app fixed inset-0 overflow-hidden">
-      {screen === "title" ? <Title onStart={start} /> : <Game key={ref.current.seed + ":" + ref.current.t} initial={ref.current} settings={settings} setSettings={setSettings} onQuit={() => setScreen("title")} onRestart={start} />}
+      {screen === "title" ? <Title onStart={start} /> : <Game key={run} initial={ref.current} settings={settings} setSettings={setSettings} onQuit={() => setScreen("title")} onRestart={start} />}
     </div>
   );
 }
@@ -70,6 +73,7 @@ function Title({ onStart }) {
   const [help, setHelp] = useState(false);
   const [confirmNew, setConfirmNew] = useState(false);
   const saved = saveInfo();
+  const check = checkpointInfo();
   const make = () => onStart(newWorld({ region, difficulty }));
   return (
     <div className="city-title city-scroll absolute inset-0 overflow-y-auto">
@@ -92,6 +96,20 @@ function Title({ onStart }) {
               ▶ Continue as mayor of {saved.name}
               <span className="block text-[13px] font-semibold text-white/90">
                 {saved.year} · {fmtNum(saved.pop)} residents
+              </span>
+            </button>
+          )}
+          {check && (
+            <button
+              onClick={() => {
+                const w = loadCheckpoint();
+                if (w) onStart(w);
+              }}
+              className="city-btn w-full rounded-2xl bg-[var(--soft)] py-2 text-[14px] font-bold"
+            >
+              ↩ Go back to just after the {check.year} election
+              <span className="block text-[12px] font-semibold text-[var(--muted)]">
+                {check.name} · {fmtNum(check.pop)} residents
               </span>
             </button>
           )}
@@ -229,7 +247,10 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       const before = world.news[0];
       stepMonth(world);
       if (world.news[0] && world.news[0] !== before) toast(world.news[0].text);
-      if (world.election.justHeld) setPanel({ id: "result" });
+      if (world.election.justHeld) {
+        saveCheckpoint(world);
+        setPanel({ id: "result" });
+      }
       else if (inSeason(world) && world.t === world.election.next - 6) setPanel({ id: "election" });
       save();
       replan();
@@ -524,7 +545,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       note = ok ? p.plan.msg : null;
     } else if (p.kind === "unroad") {
       label = "✓ Remove road";
-      note = p.built ? `Demolishes ${p.built} buildings` : null;
+      note = p.built ? `Demolishes ${p.built} building${p.built > 1 ? "s" : ""}` : null;
     } else if (p.kind === "select") {
       const n = p.sel.lots.size + p.sel.structs.size + p.sel.trees.size;
       ok = n > 0;
@@ -536,10 +557,10 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
     }
     confirmUI = (
       <>
-        <button onClick={() => setPending(null)} className="city-btn city-sticker rounded-full bg-[var(--card)] px-4 py-2 text-[15px] font-bold">
+        <button onClick={() => setPending(null)} className="city-btn city-sticker shrink-0 rounded-full bg-[var(--card)] px-4 py-2 text-[15px] font-bold">
           Cancel
         </button>
-        <button onClick={confirm} disabled={!ok} className="city-btn city-sticker rounded-full bg-[var(--good)] px-4 py-2 text-[15px] font-bold text-white disabled:bg-[var(--muted)]">
+        <button onClick={confirm} disabled={!ok} className="city-btn city-sticker max-w-full shrink-0 rounded-full bg-[var(--good)] px-4 py-2 text-[15px] font-bold text-white disabled:bg-[var(--muted)]">
           {label}
           {note && <span className="block text-[11px] font-semibold opacity-90">{note}</span>}
         </button>
@@ -689,12 +710,12 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         {!tray && (
           <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 px-2">
             {undoRef.current.length > 0 && !confirmUI && (
-              <button onClick={undo} className="city-btn city-sticker rounded-full bg-[var(--card)] px-3 py-2 text-[14px] font-bold">
+              <button onClick={undo} className="city-btn city-sticker shrink-0 rounded-full bg-[var(--card)] px-3 py-2 text-[14px] font-bold">
                 ↶ Undo
               </button>
             )}
             {T && T.mode !== "look" && (
-              <div className="city-sticker flex min-w-0 max-w-full items-center gap-2 rounded-full bg-[var(--card)] py-1 pl-3 pr-1">
+              <div className="city-sticker flex min-w-0 max-w-full shrink-0 items-center gap-2 overflow-hidden rounded-full bg-[var(--card)] py-1 pl-3 pr-1">
                 <span className="text-xl">{T.icon}</span>
                 <span className="min-w-0 leading-tight">
                   <span className="block truncate text-[14px] font-bold">

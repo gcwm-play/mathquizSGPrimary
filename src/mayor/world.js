@@ -373,9 +373,11 @@ export function planRoad(w, type, A, B, Cc, opts = {}) {
     cost,
     bridge: water,
     demolish: { lots: lots.map((l) => l.id), built: lots.filter((l) => l.b).length, structs: structs.map((s) => s.id), houses },
-    msg: houses.length ? `Resettles ${houses.length} kampong homes` : lots.some((l) => l.b) ? `Demolishes ${lots.filter((l) => l.b).length} buildings` : water > 0 ? "Includes a bridge" : null,
+    msg: houses.length ? `Resettles ${houses.length} kampong home${houses.length > 1 ? "s" : ""}` : lots.some((l) => l.b) ? plural(lots.filter((l) => l.b).length) : water > 0 ? "Includes a bridge" : null,
   };
 }
+
+const plural = (n) => `Demolishes ${n} building${n > 1 ? "s" : ""}`;
 
 function buildingComp(l) {
   const T = LOT_TYPES[l.b.type];
@@ -787,7 +789,7 @@ export function planStruct(w, type, x, y) {
   const hit = [...lots].map((id) => w.lots.find((l) => l.id === id)).filter(Boolean);
   const built = hit.filter((l) => l.b);
   const cost = S.cost + Math.round(built.reduce((a, l) => a + buildingComp(l), 0));
-  return { ...base, ok: true, cost, lots: hit.map((l) => l.id), msg: built.length ? `Demolishes ${built.length} buildings` : null };
+  return { ...base, ok: true, cost, lots: hit.map((l) => l.id), msg: built.length ? plural(built.length) : null };
 }
 
 export function commitStruct(w, plan) {
@@ -970,6 +972,35 @@ export function loadWorld() {
     return null;
   }
 }
+// A separate save made right after each election, to go back to if needed.
+const CHECK_KEY = "lion-city-mayor-election";
+export function saveCheckpoint(w) {
+  try {
+    localStorage.setItem(CHECK_KEY, snapshot(w));
+    return true;
+  } catch {
+    return false;
+  }
+}
+export function loadCheckpoint() {
+  try {
+    const raw = localStorage.getItem(CHECK_KEY);
+    return raw ? restore(raw) : null;
+  } catch {
+    return null;
+  }
+}
+export function checkpointInfo() {
+  try {
+    const raw = localStorage.getItem(CHECK_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return { name: d.name, year: d.election?.last?.year || d.year, pop: d.stats?.pop || 0 };
+  } catch {
+    return null;
+  }
+}
+
 export function saveInfo() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
