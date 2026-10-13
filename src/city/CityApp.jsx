@@ -137,6 +137,9 @@ function Title({ onStart }) {
           <button onClick={() => setHelp(true)} className="city-btn w-full rounded-2xl bg-[var(--soft)] py-2 font-bold">
             ❓ How to play
           </button>
+          <a href="mayor.html" className="city-btn block w-full rounded-2xl bg-[var(--good-bg)] py-2 text-center font-bold text-[var(--good)]">
+            🏙️ New: be mayor of one region (Lion City Mayor)
+          </a>
         </div>
       </div>
       {help && <HelpPanel onClose={() => setHelp(false)} />}
@@ -394,8 +397,8 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           ) : null}
           <RotateTip />
         </div>
-        <div className="pointer-events-auto ml-auto flex shrink-0 flex-col items-end gap-2">
-          <div className="flex items-center gap-1.5">
+        <div className="pointer-events-none ml-auto flex shrink-0 flex-col items-end gap-2">
+          <div className="pointer-events-auto flex items-center gap-1.5">
             <button
               onClick={() => setSpeed(speed === 0 ? 2 : 0)}
               aria-label={speed === 0 ? "Play" : "Pause"}
@@ -418,7 +421,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             </button>
           </div>
           <RCI demand={w.demand} />
-          <div className="city-zoom flex-col gap-1.5">
+          <div className="city-zoom pointer-events-auto flex-col gap-1.5">
             <button onClick={() => zoomBtn(1.25)} aria-label="Zoom in" className="city-btn city-sticker flex h-10 w-10 items-center justify-center rounded-full bg-[var(--card)] text-xl font-bold">
               ＋
             </button>
@@ -621,7 +624,7 @@ function RCI({ demand }) {
   ];
   return (
     <div
-      className="city-sticker flex items-end gap-1 rounded-2xl bg-[var(--card)] px-2 py-1"
+      className="city-sticker pointer-events-auto flex items-end gap-1 rounded-2xl bg-[var(--card)] px-2 py-1"
       title="Demand: R homes, C shops & offices, I factories"
       role="img"
       aria-label={`Demand: homes ${Math.round((demand?.r || 0) * 100)}, shops ${Math.round((demand?.c || 0) * 100)}, factories ${Math.round((demand?.i || 0) * 100)}`}

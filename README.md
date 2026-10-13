@@ -18,6 +18,19 @@ A fourth app at `city.html` (`/mathquizSGPrimary/city.html` on Pages): a cartoon
 
 Phone-friendly controls: one finger moves the map, two fingers pinch to zoom, and building is tap-based (tap to place, or tap a start and an end) with a ✓ Build / Cancel step and Undo. A "next goal" card explains what to do. Settings include bigger text and buttons, building without confirmation, and turning off animation (cars, MRT trains, boats and clouds). Saves automatically to the device. Source: `src/city/` (`sim.js` simulation, `art.js` building art, `render.js` renderer, `agents.js` moving traffic).
 
+## Lion City Mayor (regional city builder)
+
+A fifth app at `mayor.html` (`/mathquizSGPrimary/mayor.html` on Pages), and the follow-on to Lion City Planner (which stays playable). You are mayor of one region of Singapore from 1965: Tampines / Changi, Jurong / Tuas, Central / CBD / Orchard, or Woodlands / Causeway, each with its own coastline, rivers, towns, kampongs, old roads and history.
+
+- Free-flowing building: draw curved roads (tap a start and an end, then drag the bend handle); building lots appear along both sides and follow the curve. Paint zones over lots with one finger.
+- Housing that evolves by decade: emergency flats, HDB slab blocks, point blocks, New Generation flats, modern estates and BTO towers, alongside terraces, condos, shophouses, malls, offices, farms, factories, JTC flats and business parks. Construction takes months (with cranes).
+- Renewal decisions: improve or resettle kampongs, upgrade ageing blocks (from 1989) or redevelop them (en bloc / SERS from 1995), and conserve shophouses in the Central region. Each choice costs money and time, and demolition or resettlement upsets residents for a while.
+- Towns: every region has four towns, each with its own happiness, resident feedback and vote.
+- Elections every 6 years from 1968, with an election season in which you can make up to 3 pledges. Kept promises build trust; broken ones cost votes. Lose the region-wide vote (on Normal or Hard) and you're out.
+- Region landmarks unlock by year (Changi Airport, Jurong Bird Park, Marina Bay Sands, Woodlands Checkpoint and more), plus traffic, MRT trains, boats and clouds.
+
+Source: `src/mayor/` (`world.js` terrain, roads and lots; `sim.js` simulation; `art.js` and `render.js` drawing; `MapView.jsx` touch input).
+
 ## Development
 
 ```bash

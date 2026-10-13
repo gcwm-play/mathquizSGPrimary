@@ -12,6 +12,7 @@ export default defineConfig({
         colorvision: fileURLToPath(new URL("./colorvision.html", import.meta.url)),
         ai: fileURLToPath(new URL("./ai.html", import.meta.url)),
         city: fileURLToPath(new URL("./city.html", import.meta.url)),
+        mayor: fileURLToPath(new URL("./mayor.html", import.meta.url)),
       },
     },
   },
