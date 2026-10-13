@@ -2,7 +2,7 @@
 // happiness and feedback, money, elections and pledges.
 import { PURPOSES, purposeOf, MINOR, LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
 import { REGIONS } from "./regions.js";
-import { terrainAt, segPts, townOf, latestType, refillLots } from "./world.js";
+import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteImpactSim } from "./world.js";
 import { dist, clamp, polyLength, nearestOnPoly, makeRng } from "./geom.js";
 import { residents, housingByTown, displace } from "./housing.js";
 import { townTfr, townLife, baseTfr, lifeIndex, tfrIndex, financeIndex } from "./society.js";
@@ -132,6 +132,7 @@ export function analyze(w) {
   const stations = [];
   for (const s of w.structs) {
     const S = STRUCTS[s.type];
+    if (s.state === "build") continue; // still a building site
     if (!S.fixed && S.upkeep) {
       upkeep += S.upkeep * fund;
       upkeepTown[townOf(w, s.x, s.y)] += S.upkeep * fund;
@@ -143,7 +144,9 @@ export function analyze(w) {
     }
     if (S.cover) services.push({ x: s.x, y: s.y, cover: S.cover, r: S.r, f: fund, type: s.type });
     if (s.type === "sports") services.push({ x: s.x, y: s.y, cover: "community", r: S.r, f: fund });
-    if (S.tourism) tourism += S.tourism;
+    if (S.alsoCover) services.push({ x: s.x, y: s.y, cover: S.alsoCover, r: S.r, f: fund });
+    // copies of someone else's landmark draw fewer visitors
+    if (S.tourism) tourism += S.tourism * (s.copy ? 0.6 : 1);
     if (S.trade) trade += S.trade;
     if (S.jobs) structJobs += S.jobs;
     if (S.landmark) landmarks.push(s);
@@ -355,7 +358,7 @@ export function monthlyBudget(w, A, ov = null) {
   const fundK = ov?.funding != null ? ov.funding / Math.max(1, w.funding) : 1;
   const z = () => w.towns.map(() => 0);
   const T = { property: z(), business: z(), scc: z(), grant: z(), tourism: z(), sentosa: z(), trade: z(), schemes: z(), landSales: z(), hdbSales: z() };
-  const X = { services: z(), maintenance: z(), sentosa: z(), hdbBuild: z(), policies: z(), construction: z() };
+  const X = { services: z(), maintenance: z(), sentosa: z(), hdbBuild: z(), policies: z(), interest: z(), construction: z() };
   const sl = w.sentosa?.last;
   const resortTown = w.towns.findIndex((t) => t.purpose === "resort");
   if (sl && resortTown >= 0) {
@@ -411,6 +414,7 @@ export function monthlyBudget(w, A, ov = null) {
     X.maintenance[i] = hdbCap[i] * 0.005 * maint * upk;
     X.hdbBuild[i] = pend?.[i]?.hdbBuild || 0;
     X.policies[i] = policy * share(i);
+    X.interest[i] = w.cash < 0 && !w.sandbox ? -w.cash * 0.006 * share(i) : 0;
     T.schemes[i] = scheme * share(i);
     X.construction[i] = w.spend?.towns?.[i] || 0;
   }
@@ -499,11 +503,12 @@ export const EXP_LABELS = {
   sentosa: "🏝️ Sentosa upkeep & marketing",
   hdbBuild: "🏗️ HDB construction",
   policies: "📋 Ongoing schemes",
+  interest: "🏦 Interest on debt",
   construction: "🚧 Projects & compensation",
 };
 
 // ---------- pledges ----------
-const hasNewStruct = (w, p, types, town) => w.structs.some((s) => types.includes(s.type) && s.built >= p.made && (town == null || townOf(w, s.x, s.y) === town));
+const hasNewStruct = (w, p, types, town) => w.structs.some((s) => s.state !== "build" && types.includes(s.type) && s.built >= p.made && (town == null || townOf(w, s.x, s.y) === town));
 export const PLEDGE_KINDS = {
   clinic: { icon: "🩺", text: (t) => `A polyclinic for ${t}`, need: "health", boost: 6, years: 4, check: (w, p) => hasNewStruct(w, p, ["clinic", "hospital"], p.town) },
   food: { icon: "🍜", text: (t) => `A hawker centre or market for ${t}`, need: "food", boost: 5, years: 3, check: (w, p) => hasNewStruct(w, p, ["hawker", "market", "causewayPoint"], p.town) },
@@ -679,6 +684,7 @@ export function sentosaState(w, A) {
   const parts = [];
   for (const st of w.structs) {
     const S = STRUCTS[st.type];
+    if (st.state === "build") continue;
     if (S.sentosaLink) link += S.sentosaLink;
     if (S.sentosaAppeal) appeal += S.sentosaAppeal;
     if (S.sentosaCap) cap += S.sentosaCap;
@@ -713,6 +719,9 @@ export function sentosaState(w, A) {
   return { link, appeal, cap, capacity, crowd, sat, visitors, tickets, spending, upkeep, marketing: mk, hotels, homes, parts };
 }
 
+// How far into the red the region may go before the government steps in.
+export const debtLimit = (w) => Math.max(15000, (w.term?.block || 150) * 48);
+
 // ---------- monthly step ----------
 export const wearRate = (maint) => {
   const m = maint / 100;
@@ -741,6 +750,31 @@ export function stepMonth(w, rng = Math.random) {
   let A = analyze(w);
   w.election.justHeld = null;
   w.boosts = w.boosts.filter((b) => b.until > w.t);
+
+  // landmarks and malls open when their works are done
+  for (const st of w.structs) {
+    if (st.state !== "build" || w.t < st.until) continue;
+    st.state = "live";
+    const S = STRUCTS[st.type];
+    const ti = townOf(w, st.x, st.y);
+    const name = st.name || S.name;
+    let note = "";
+    if (st.copy) {
+      w.rep = clamp((w.rep ?? 50) - 4, 0, 100);
+      w.towns[ti].anger += 0.4;
+      note = ` Some residents call it a copycat of ${st.copy.region}'s (${st.copy.year}), and fewer tourists bother to come.`;
+      w.log.push({ year: w.year, text: `opened a copy of ${S.name}`, tone: "bad" });
+    } else if (S.landmark && !S.group) {
+      w.rep = clamp((w.rep ?? 50) + 4, 0, 100);
+      note = " The first of its kind in Singapore: your reputation soars!";
+      w.log.push({ year: w.year, text: `opened ${name}, a first for Singapore`, tone: "good" });
+    }
+    if (S.prestige) w.rep = clamp((w.rep ?? 50) + S.prestige, 0, 100);
+    if (S.pricey) w.boosts.push({ town: ti, need: "cost", v: -6, until: w.t + 120 });
+    push(`🎉 ${name} opens in ${w.towns[ti].name}!${note}`);
+    noteImpactSim(w, `${name} opened`, ti, S.cover === "food" ? "food" : S.cover === "green" ? "green" : S.cover === "community" ? "community" : null);
+    w.rev = (w.rev || 0) + 1;
+  }
 
   // finish construction and upgrades; buildings age with wear
   for (const l of w.lots) {
@@ -1032,7 +1066,7 @@ export function stepMonth(w, rng = Math.random) {
   if (w.t === w.election.next) holdElection(w, rng);
 
   for (const ev of [...GLOBAL_EVENTS, ...(R.events || [])]) if (ev.year === w.year && ev.month === w.month) pushNews(w, ev.text);
-  if (w.cash < -10000 && canLose(w) && D.voteMin) {
+  if (w.cash < -debtLimit(w) && canLose(w) && D.voteMin) {
     w.gameOver = w.gameOver || { reason: "broke", text: "The region ran out of money. The central government has appointed a new mayor." };
     if (w.yearly.length && !w.gameOver.final) w.gameOver.final = finishReports(w);
   }
@@ -1072,7 +1106,14 @@ function yearEnd(w, A, rng, finIdx) {
     cash: Math.round(w.cash),
   });
   if (w.yearly.length > 260) w.yearly.shift();
-  stepRivals(w, rng);
+  for (const o of stepRivals(w, rng)) {
+    const S = STRUCTS[o.type];
+    if (o.copiedYou) {
+      w.rep = clamp((w.rep ?? 50) + 1, 0, 100);
+      pushNews(w, `🏗️ ${o.rival.mayor} (${o.rival.regionName}) copied your ${S.name}. Imitation is flattery: your reputation rises a little.`);
+    } else if (o.copy) pushNews(w, `🏗️ ${o.rival.mayor} built their own ${S.name} in ${o.rival.regionName}.`);
+    else pushNews(w, `🏗️ ${o.rival.mayor} opened ${S.icon} ${S.name} in ${o.rival.regionName}, the first in Singapore.${S.regionOnly ? "" : " Build one now and residents may call it a copycat."}`);
+  }
   if (w.year % 10 === 5 && w.year > 1966) {
     const r = decadeReport(w, w.year - 10, w.year);
     if (r) {
@@ -1184,12 +1225,15 @@ export function describe(w, A, hit) {
   if (hit.kind === "struct") {
     const s = hit.s;
     const S = STRUCTS[s.type];
-    const lines = [S.tip || ""];
+    const lines = [S.group ? S.kind : S.tip || ""];
+    if (s.state === "build") lines.unshift(`🏗️ Under construction, opens ${tToDate(w, s.until)}`);
+    if (s.copy) lines.push(`🪞 A copy of ${s.copy.region}'s (${s.copy.year}): fewer tourists come`);
+    if (s.name) lines.push(`Based on: ${S.name}`);
     if (S.cover) lines.push(`Serves homes within ${S.r * 50} m`);
     if (s.type === "mrt" && A && !A.stations.includes(s)) lines.push("⚠️ Not beside an MRT track");
     else if (s.type === "mrt" && A && !A.mrtRunning) lines.push("⚠️ Needs a second station on the line");
     if (S.upkeep) lines.push(`Upkeep ${fmtMoney(S.upkeep)}/month`);
-    return { title: S.name, icon: S.icon, lines };
+    return { title: s.name || S.name, icon: S.icon, lines };
   }
   if (hit.kind === "road") return { title: ROAD_TYPES[hit.s.type].name, icon: "🛣️", lines: ["Lots line both sides of roads. Zone them to build."] };
   return null;

@@ -440,6 +440,7 @@ export function HelpPanel({ onClose }) {
     ["⚠️ Crises & decisions", "Real crises (oil shock, SARS, COVID…) arrive on their real dates, and random dilemmas pop up. Your choices and what you've built decide how hard they hit."],
     ["🗺️ Town borders & coverage", "Purple dashed lines mark where one town ends and the next begins; a service counts for the town it's built in. When placing or tapping a service, a blue circle shows the homes it reaches."],
     ["🎓 Schools", "Primary schools serve nearby homes, secondary schools a wider area, and one polytechnic or university most of the region. Residents say which level is missing."],
+    ["🌟 Landmarks & malls", "Every landmark can be built in any region (a few are tied to geography). Name it, then pick a spot; big projects take years to build. Be first in Singapore for prestige, or residents may call yours a copycat. You can borrow for a landmark, but debt freezes other spending."],
     ["📐 Town purposes", "In 🏘️ Towns, plan each town as residential, commercial, industrial, heritage or mixed. It decides what grows there and what residents expect (no one asks for a wet market in a CBD)."],
     ["🏝️ Sentosa (South)", "The island is run for visitors: build links (cable car, bridge, monorail) and attractions, set the entry fee and marketing, and watch crowding."],
     ["📊 Mayors' league", "AI mayors run the other regions. Every 10 years you get a report card comparing happiness, housing, health, births, money and reputation."],

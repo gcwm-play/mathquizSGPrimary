@@ -939,22 +939,42 @@ export function bridgeEnd(w, x, y, to) {
   return null;
 }
 
-export function commitStruct(w, plan) {
+// Who has already built this landmark somewhere in Singapore?
+export function landmarkFirst(w, type) {
+  return (w.lmBuilt || []).find((x) => x.type === type) || null;
+}
+
+export function commitStruct(w, plan, opts = {}) {
   const hit = plan.lots.map((id) => w.lots.find((x) => x.id === id)).filter(Boolean);
   if (hit.length) clearLots(w, hit);
   const q = plan.q;
   const S = STRUCTS[plan.type];
+  const ti = townOf(w, plan.x, plan.y);
   const st = { id: w.nextId++, type: plan.type, x: +plan.x.toFixed(3), y: +plan.y.toFixed(3), ang: +plan.ang.toFixed(3), q, built: w.t, state: "live" };
+  if (opts.name && opts.name.trim() && opts.name.trim() !== S.name) st.name = opts.name.trim().slice(0, 40);
+  // big projects take time: they open when finished
+  if (S.landmark && S.build) {
+    st.state = "build";
+    st.until = w.t + S.build;
+    st.built = st.until;
+  }
   const to = S.facesJohor ? "johor" : S.sentosaLink && !S.onResort ? "sentosa" : null;
   const end = to && bridgeEnd(w, plan.x, plan.y, to);
   if (end) st.bridge = [st.x, st.y, +end[0].toFixed(2), +end[1].toFixed(2), plan.type === "cableCar" ? "cable" : plan.type === "sentosaExpress" ? "rail" : "road"];
+  // first in Singapore, or a copy of someone else's?
+  if (S.landmark && !S.group) {
+    const first = landmarkFirst(w, plan.type);
+    if (first && first.by !== "you") st.copy = { by: first.by, region: first.region, year: first.year };
+    w.lmBuilt = w.lmBuilt || [];
+    if (!first) w.lmBuilt.push({ type: plan.type, name: st.name || S.name, by: "you", region: w.name, year: w.year });
+  }
   w.structs.push(st);
-  const ti = townOf(w, plan.x, plan.y);
   const NEED_OF = { food: "food", school: "school", health: "health", safety: "safety", fire: "safety", community: "community", green: "green", transport: "transport", mrt: "transport" };
-  noteImpact(w, `you built the ${S.name} in ${w.towns[ti].name}`, ti, NEED_OF[S.cover]);
+  if (st.state === "live") noteImpact(w, `you built the ${st.name || S.name} in ${w.towns[ti].name}`, ti, NEED_OF[S.cover]);
   removeTreesNear(w, (x, y) => inQuad(q, x, y));
   charge(w, plan.cost, plan.x, plan.y);
   touch(w);
+  return st;
 }
 
 // ---------- renewal ----------

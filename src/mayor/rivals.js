@@ -4,6 +4,7 @@ import { REGIONS, REGION_ORDER } from "./regions.js";
 import { clamp } from "./geom.js";
 import { baseLife, baseTfr, mayorScore, METRICS, grade } from "./society.js";
 import { CRISES } from "./events.js";
+import { STRUCTS } from "./defs.js";
 
 export const STYLES = {
   builder: { name: "The Builder", blurb: "Builds homes fast, worries about money later.", bias: { housing: 9, happy: 2, finance: -6, health: -1, fert: 2, rep: 1 } },
@@ -74,9 +75,34 @@ export function initRivals(w, rng) {
 }
 
 // once a year
+// Now and then an AI mayor opens a landmark of their own.
+function rivalLandmark(w, r, rng, out) {
+  const keen = { futurist: 0.2, showman: 0.2, gardener: 0.14, builder: 0.12, conservator: 0.1, accountant: 0.06 }[r.style] || 0.1;
+  if (rng() > keen) return;
+  r.built = r.built || [];
+  const ready = Object.entries(STRUCTS).filter(([k, S]) => S.landmark && !S.group && !S.hidden && S.year <= w.year && !r.built.includes(k) && (!S.regionOnly || S.region === r.region));
+  // their own region's famous sights come first; copying others is rarer
+  const home = ready.filter(([, S]) => S.region === r.region);
+  const pool = home.length ? home : rng() < 0.35 ? ready : [];
+  if (!pool.length) return;
+  const k = pool[Math.floor(rng() * pool.length)][0];
+  const S = STRUCTS[k];
+  r.built.push(k);
+  w.lmBuilt = w.lmBuilt || [];
+  const first = w.lmBuilt.find((x) => x.type === k);
+  if (!first) w.lmBuilt.push({ type: k, name: S.name, by: r.mayor, region: r.regionName, year: w.year });
+  const copy = first && first.by !== r.mayor;
+  r.m.rep += copy ? -2 : 4;
+  r.m.finance -= 5;
+  r.notes.push({ year: w.year, text: copy ? `opened a copy of ${S.name}` : `opened ${S.name}, a first for Singapore`, tone: copy ? "neutral" : "good", innov: !copy });
+  out.push({ rival: r, type: k, copy, copiedYou: copy && first.by === "you" });
+}
+
 export function stepRivals(w, rng) {
   const crisis = w.crisis ? CRISES[w.crisis.id] : null;
+  const opened = [];
   for (const r of w.rivals) {
+    rivalLandmark(w, r, rng, opened);
     const S = STYLES[r.style];
     for (const M of METRICS) {
       const k = M.k;
@@ -111,6 +137,7 @@ export function stepRivals(w, rng) {
     r.hist.push({ year: w.year, score: mayorScore(r.m) });
     if (r.hist.length > 300) r.hist.shift();
   }
+  return opened;
 }
 
 // Build the report for the decade that just ended
