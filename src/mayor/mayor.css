@@ -1,0 +1,13 @@
+/* Extras for Lion City Mayor on top of the shared Lion City styles */
+@keyframes city-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.city-pulse {
+  animation: city-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .city-pulse {
+    animation: none;
+  }
+}

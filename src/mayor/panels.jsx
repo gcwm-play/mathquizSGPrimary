@@ -1,0 +1,422 @@
+import React, { useState } from "react";
+import { Panel } from "../city/panels.jsx";
+import { NEEDS, TERM_YEARS, diffOf } from "./defs.js";
+import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS } from "./sim.js";
+
+export { Panel };
+
+const color = (v) => (v >= 65 ? "#2fbf71" : v >= 45 ? "#ffb020" : "#ff5a5a");
+const face = (v) => (v >= 65 ? "😄" : v >= 50 ? "🙂" : v >= 38 ? "😐" : "😟");
+
+function Bar({ value, max = 100, c, mark }) {
+  const pct = Math.max(0, Math.min(100, (value / Math.max(1e-6, max)) * 100));
+  return (
+    <div className="relative h-3 w-full overflow-hidden rounded-full bg-[var(--soft)]">
+      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: c || color(value) }} />
+      {mark != null && <div className="absolute inset-y-0 w-0.5 bg-[var(--ink)]" style={{ left: `${mark}%` }} />}
+    </div>
+  );
+}
+
+export const yearsMonths = (m) => {
+  const y = Math.floor(m / 12);
+  const mm = m % 12;
+  return y ? `${y}y ${mm}m` : `${mm} months`;
+};
+
+export function TownsPanel({ world: w, onClose, onShow }) {
+  const D = diffOf(w);
+  return (
+    <Panel title="🏘️ Your towns" onClose={onClose}>
+      <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+        <Stat label="Region happiness" value={`${face(w.approval)} ${Math.round(w.approval)}%`} />
+        <Stat label="Trust in you" value={`${Math.round(w.trust)}`} />
+        <Stat label="Waiting for a flat" value={fmtNum(w.waitlist)} tone={w.waitlist > (w.stats.pop || 1) * 0.15 ? "bad" : null} />
+      </div>
+      <div className="space-y-3">
+        {w.towns.map((t, i) => {
+          const sup = townSupport(w, i);
+          return (
+            <div key={t.name} className="rounded-2xl border-2 border-[var(--ink)]/10 p-3">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-lg font-bold leading-tight">{t.name}</div>
+                  <div className="text-[13px] text-[var(--muted)]">
+                    👥 {fmtNum(t.pop || 0)} residents{t.kpop ? ` · 🛖 ${fmtNum(t.kpop)} in kampongs` : ""}
+                    {t.old ? ` · 🏚️ ${t.old} ageing blocks` : ""}
+                  </div>
+                </div>
+                <button onClick={() => onShow(t)} className="city-btn rounded-full bg-[var(--soft)] px-3 py-1.5 text-sm font-bold">
+                  📍 Show
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-3 text-[13px]">
+                <div>
+                  <div className="flex justify-between">
+                    <span>Happiness</span>
+                    <b>{Math.round(t.approval)}%</b>
+                  </div>
+                  <Bar value={t.approval} />
+                </div>
+                <div>
+                  <div className="flex justify-between">
+                    <span>Would vote for you</span>
+                    <b>{Math.round(sup)}%</b>
+                  </div>
+                  <Bar value={sup} c={sup >= 50 ? "#2fbf71" : "#ff5a5a"} mark={50} />
+                </div>
+              </div>
+              <ul className="mt-2 space-y-1">
+                {(t.feedback || []).map((f, k) => (
+                  <li key={k} className="rounded-xl bg-[var(--soft)] px-2.5 py-1.5 text-[14px] leading-snug">
+                    <span className="mr-1">{f.need ? NEEDS[f.need]?.icon : "💬"}</span>“{f.text}”
+                  </li>
+                ))}
+                {!t.feedback?.length && <li className="text-[13px] text-[var(--muted)]">No one lives here yet.</li>}
+              </ul>
+              {t.anger > 0.6 && <div className="mt-1 text-[13px] text-[var(--bad)]">😠 Still upset about recent demolitions and resettlement.</div>}
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-[13px] text-[var(--muted)]">
+        Elections come every {TERM_YEARS} years. {D.voteMin ? "Win more than half the votes across your towns to stay mayor." : "On Easy you can't be voted out, but residents still tell you what they think."}
+      </p>
+    </Panel>
+  );
+}
+
+function Stat({ label, value, tone }) {
+  return (
+    <div className={`rounded-2xl border-2 border-[var(--ink)]/10 px-2 py-1.5 ${tone === "bad" ? "bg-[var(--bad-bg)] text-[var(--bad)]" : "bg-[var(--soft)]"}`}>
+      <div className="text-[11px] font-semibold uppercase tracking-wide opacity-70">{label}</div>
+      <div className="text-base font-bold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+export function ElectionPanel({ world: w, onClose, onChange, toast }) {
+  const season = inSeason(w);
+  const months = monthsToElection(w);
+  const open = (w.pledges || []).filter((p) => p.status === "open");
+  const thisTerm = open.filter((p) => p.term === w.election.next);
+  const done = (w.pledges || []).filter((p) => p.status !== "open").slice(-6).reverse();
+  const tp = w.towns.reduce((a, t) => a + (t.pop || 0), 0);
+  const overall = tp ? w.towns.reduce((a, t, i) => a + townSupport(w, i) * (t.pop || 0), 0) / tp : 50;
+  const taken = new Set(thisTerm.map((p) => p.kind));
+  return (
+    <Panel title="🗳️ Elections" onClose={onClose}>
+      <div className={`rounded-2xl p-3 ${season ? "bg-[var(--bad-bg)]" : "bg-[var(--soft)]"}`}>
+        <div className="text-[12px] font-bold uppercase tracking-wide text-[var(--brand)]">{season ? "Election season!" : "Next election"}</div>
+        <div className="text-xl font-bold">
+          Polling day {tToDate(w, w.election.next)} · in {yearsMonths(months)}
+        </div>
+        <div className="mt-1 text-[14px]">
+          If the vote were today you'd get about <b>{Math.round(overall)}%</b> {overall >= 50 ? "✅" : "⚠️"}
+        </div>
+        <Bar value={overall} c={overall >= 50 ? "#2fbf71" : "#ff5a5a"} mark={50} />
+      </div>
+
+      <h3 className="mb-1 mt-3 font-bold">Town by town</h3>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {w.towns.map((t, i) => {
+          const s = townSupport(w, i);
+          return (
+            <div key={t.name} className="text-[14px]">
+              <div className="flex justify-between">
+                <span>{t.name}</span>
+                <b>{Math.round(s)}%</b>
+              </div>
+              <Bar value={s} c={s >= 50 ? "#2fbf71" : "#ff5a5a"} mark={50} />
+            </div>
+          );
+        })}
+      </div>
+
+      <h3 className="mb-1 mt-4 font-bold">📣 Pledges</h3>
+      {season ? (
+        <>
+          <p className="text-[13px] text-[var(--muted)]">Promise up to 3 things to win votes now. Keep them by the deadline and trust rises; break them and you'll pay for it next time.</p>
+          <div className="mt-2 space-y-2">
+            {(w.election.offers || []).map((o, k) => {
+              const made = taken.has(o.kind);
+              return (
+                <div key={k} className="flex items-center gap-2 rounded-2xl border-2 border-[var(--ink)]/10 p-2">
+                  <span className="text-2xl">{o.icon}</span>
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <div className="font-bold">{o.text}</div>
+                    <div className="text-[12px] text-[var(--muted)]">
+                      +{o.boost}% support {o.all ? "everywhere" : `in ${w.towns[o.town]?.name}`} · deliver within {o.years} years
+                    </div>
+                  </div>
+                  <button
+                    disabled={made || thisTerm.length >= 3}
+                    onClick={() => {
+                      const r = makePledge(w, o);
+                      if (!r.ok) toast(r.msg);
+                      onChange();
+                    }}
+                    className="city-btn shrink-0 rounded-full bg-[var(--brand)] px-3 py-2 text-sm font-bold text-white disabled:bg-[var(--muted)]"
+                  >
+                    {made ? "Pledged" : "Pledge"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <p className="text-[13px] text-[var(--muted)]">Pledges open 6 months before polling day ({tToDate(w, w.election.next - 6)}).</p>
+      )}
+
+      {open.length > 0 && (
+        <>
+          <h3 className="mb-1 mt-4 font-bold">Promises to keep</h3>
+          <ul className="space-y-1 text-[14px]">
+            {open.map((p) => (
+              <li key={p.id} className="rounded-xl bg-[var(--warn-bg)] px-2.5 py-1.5">
+                {p.icon} {p.text} <span className="text-[12px] text-[var(--muted)]">· by {tToDate(w, p.deadline)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {done.length > 0 && (
+        <>
+          <h3 className="mb-1 mt-4 font-bold">Past promises</h3>
+          <ul className="space-y-1 text-[14px]">
+            {done.map((p) => (
+              <li key={p.id} className={p.status === "kept" ? "text-[var(--good)]" : "text-[var(--bad)]"}>
+                {p.status === "kept" ? "✅" : "💔"} {p.text}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {w.election.history.length > 0 && (
+        <>
+          <h3 className="mb-1 mt-4 font-bold">Past elections</h3>
+          <ul className="space-y-1 text-[14px]">
+            {[...w.election.history].reverse().map((e) => (
+              <li key={e.year}>
+                {e.won ? "🏆" : "❌"} {e.year}: {e.share}% · {e.results.map((r) => `${r.name} ${r.pct}%`).join(", ")}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function Slider({ id, label, value, min, max, step = 1, suffix = "%", onChange, hint }) {
+  return (
+    <div className="py-1.5">
+      <label htmlFor={id} className="flex items-center justify-between text-[15px]">
+        <span className="font-semibold">{label}</span>
+        <span className="font-bold tabular-nums text-[var(--brand)]">
+          {value}
+          {suffix}
+        </span>
+      </label>
+      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="city-range w-full" />
+      {hint && <div className="text-[13px] leading-snug text-[var(--muted)]">{hint}</div>}
+    </div>
+  );
+}
+
+export function BudgetPanel({ world: w, analysis: A, onChange, onClose }) {
+  const B = A ? monthlyBudget(w, A) : { rev: {}, exp: {} };
+  const tot = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+  const net = tot(B.rev) - tot(B.exp);
+  const bars = (obj, labels, c) => {
+    const rows = Object.entries(labels)
+      .map(([k, l]) => [l, obj[k] || 0])
+      .filter(([, v]) => v > 0.5)
+      .sort((a, b) => b[1] - a[1]);
+    const max = Math.max(1, ...rows.map((r) => r[1]));
+    return rows.length ? (
+      rows.map(([l, v]) => (
+        <div key={l} className="py-0.5 text-[14px]">
+          <div className="flex justify-between">
+            <span>{l}</span>
+            <b className="tabular-nums">{fmtMoney(v)}</b>
+          </div>
+          <Bar value={v} max={max} c={c} />
+        </div>
+      ))
+    ) : (
+      <div className="text-sm text-[var(--muted)]">Nothing yet.</div>
+    );
+  };
+  const set = (fn) => {
+    fn();
+    onChange();
+  };
+  return (
+    <Panel title="💰 Town budget" onClose={onClose}>
+      <div className="grid grid-cols-2 gap-2">
+        <Stat label="Treasury" value={fmtMoney(w.cash)} tone={w.cash < 0 ? "bad" : null} />
+        <Stat label="Each month" value={(net >= 0 ? "+" : "") + fmtMoney(net)} tone={net < 0 ? "bad" : null} />
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <h3 className="mb-1 font-bold">Money in</h3>
+          {bars(B.rev, REV_LABELS, "#2fbf71")}
+        </div>
+        <div>
+          <h3 className="mb-1 font-bold">Money out</h3>
+          {bars(B.exp, EXP_LABELS, "#ff6b6b")}
+        </div>
+      </div>
+      <h3 className="mb-1 mt-4 font-bold">Your choices</h3>
+      <Slider id="m-tax" label="🏠 Property tax" value={w.taxes.property} min={0} max={20} onChange={(v) => set(() => (w.taxes.property = v))} hint="More money, but above 8% residents feel the pinch." />
+      <Slider id="m-grant" label="🔑 HDB grant" value={w.hdbGrant} min={0} max={100} step={5} onChange={(v) => set(() => (w.hdbGrant = v))} hint="Bigger grants make flats cheaper for families but bring in less from flat sales." />
+      <Slider id="m-fund" label="🛠️ Services funding" value={w.funding} min={40} max={120} step={5} onChange={(v) => set(() => (w.funding = v))} hint="Less funding saves money but services reach fewer homes." />
+    </Panel>
+  );
+}
+
+export function RenewSheet({ target, options, world: w, onPick, onClose }) {
+  return (
+    <Panel title={`🏗️ ${target.title}`} onClose={onClose}>
+      {target.lines?.length > 0 && (
+        <ul className="mb-3 space-y-0.5 text-[14px] text-[var(--muted)]">
+          {target.lines.map((l, i) => (
+            <li key={i}>{l}</li>
+          ))}
+        </ul>
+      )}
+      {!options.length && <p className="text-[var(--muted)]">Nothing to renew here.</p>}
+      <div className="space-y-2">
+        {options.map((o) => (
+          <div key={o.id} className={`rounded-2xl border-2 p-3 ${o.ok ? "border-[var(--ink)]/15" : "border-[var(--ink)]/5 opacity-60"}`}>
+            <div className="flex items-start gap-2">
+              <span className="text-3xl leading-none">{o.icon}</span>
+              <div className="min-w-0 flex-1">
+                <div className="font-bold">{o.name}</div>
+                <div className="text-[14px] leading-snug text-[var(--muted)]">{o.desc}</div>
+                {o.ok && (
+                  <div className="mt-1 text-[13px] font-semibold">
+                    💰 {fmtMoney(o.cost)} · ⏳ {o.months} months{o.effect ? ` · ${o.effect}` : ""}
+                  </div>
+                )}
+                {!o.ok && o.why && <div className="mt-1 text-[13px] font-semibold text-[var(--bad)]">{o.why}</div>}
+              </div>
+            </div>
+            {o.ok && (
+              <button
+                onClick={() => onPick(o.id)}
+                disabled={!w.sandbox && o.cost > w.cash}
+                className="city-btn city-sticker mt-2 w-full rounded-2xl bg-[var(--brand)] py-2 font-bold text-white disabled:bg-[var(--muted)]"
+              >
+                {!w.sandbox && o.cost > w.cash ? "Not enough money" : `${o.name} · ${fmtMoney(o.cost)}`}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+export function NewsPanel({ world, onClose }) {
+  return (
+    <Panel title="📰 Town news" onClose={onClose}>
+      {world.news.length === 0 && <p className="text-[var(--muted)]">No news yet.</p>}
+      <ul className="space-y-2">
+        {world.news.map((n, i) => (
+          <li key={i} className="rounded-2xl bg-[var(--soft)] px-3 py-2 text-[15px]">
+            <div className="text-[12px] font-bold text-[var(--brand)]">{n.date}</div>
+            {n.text}
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+export function GoalsPanel({ world: w, onClose }) {
+  return (
+    <Panel title="🎯 Goals" onClose={onClose}>
+      <ul className="space-y-1.5 text-[15px]">
+        {GOALS.map((g) => (
+          <li key={g.id} className={w.goalsDone[g.id] ? "text-[var(--good)]" : ""}>
+            {w.goalsDone[g.id] ? "✅" : "⬜"} {g.text}
+            {!w.goalsDone[g.id] && <div className="pl-7 text-[13px] leading-snug text-[var(--muted)]">{g.hint}</div>}
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+export function HelpPanel({ onClose }) {
+  const tips = [
+    ["👆 Move around", "Drag with one finger. Pinch with two fingers to zoom."],
+    ["🛣️ Curvy roads", "Tap where a road starts, then where it ends. Drag the yellow ↔ handle to bend it, or drag A and B to move the ends. Press ✓ Build."],
+    ["🏘️ Paint zones", "Lots appear along both sides of every road. Pick a zone and paint over them with one finger (two fingers move the map)."],
+    ["🏗️ Things take time", "New blocks are built over months. Watch the cranes, then families move in."],
+    ["🕰️ Housing grows up", "Each decade brings better flats: emergency flats, slab blocks, point blocks, New Generation, modern estates, then BTO towers. Old estates age, so upgrade or rebuild them with 🏗️ Renew."],
+    ["🛖 Kampongs", "Improve them with water and power, or resettle them to free land. Resettling costs money and upsets residents for a while."],
+    ["🏘️ Listen to your towns", "Tap 🏘️ to see each town's happiness and what residents are saying."],
+    ["🗳️ Elections every 6 years", "In the 6 months before polling day you can make pledges. Keep them and trust grows."],
+  ];
+  return (
+    <Panel title="❓ How to be mayor" onClose={onClose}>
+      <p className="mb-3 text-[15px] leading-snug">
+        It's 1965 and you're the mayor of one region of a brand-new nation. Families are crowded into kampongs and waiting for homes. Plan roads, estates and services, renew old buildings as the decades pass, and keep your towns happy enough to win every election.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {tips.map(([t, d]) => (
+          <div key={t} className="rounded-2xl border-2 border-[var(--ink)]/10 p-2.5">
+            <div className="font-bold">{t}</div>
+            <div className="text-[14px] text-[var(--muted)]">{d}</div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[13px] text-[var(--muted)]">A game, not a real planning model. Singapore doesn't elect mayors this way; the regions, history and agencies are real, but the numbers are simplified for fun.</p>
+    </Panel>
+  );
+}
+
+function Toggle({ id, label, hint, checked, onChange }) {
+  return (
+    <label htmlFor={id} className="flex cursor-pointer items-start gap-3 rounded-2xl bg-[var(--soft)] p-3">
+      <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-1 h-5 w-5 accent-[var(--brand)]" />
+      <span>
+        <span className="block font-bold">{label}</span>
+        <span className="block text-[13px] leading-snug text-[var(--muted)]">{hint}</span>
+      </span>
+    </label>
+  );
+}
+
+export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHelp, onGoals, onQuit, saved }) {
+  const set = (k, v) => setSettings({ ...settings, [k]: v });
+  return (
+    <Panel title="☰ Menu" onClose={onClose}>
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          ["💾", saved ? "Saved!" : "Save now", onSave],
+          ["🎯", "Goals", onGoals],
+          ["❓", "How to play", onHelp],
+          ["🏠", "Title screen", onQuit],
+        ].map(([i, l, f]) => (
+          <button key={l} onClick={f} className="city-btn flex items-center gap-2 rounded-2xl bg-[var(--soft)] px-3 py-3 text-left font-bold">
+            <span className="text-2xl">{i}</span>
+            {l}
+          </button>
+        ))}
+      </div>
+      <h3 className="mb-2 mt-4 font-bold">Settings</h3>
+      <div className="space-y-2">
+        <Toggle id="ms-large" label="Bigger text and buttons" hint="Easier to read and tap." checked={settings.large} onChange={(v) => set("large", v)} />
+        <Toggle id="ms-motion" label="Moving cars, trains, boats and clouds" hint="Turn off to save battery or reduce motion." checked={settings.motion} onChange={(v) => set("motion", v)} />
+      </div>
+      <p className="mt-3 text-[13px] text-[var(--muted)]">
+        {world.name} · {diffOf(world).label}. Saves itself on this device every month and after every change.
+      </p>
+    </Panel>
+  );
+}
