@@ -620,6 +620,7 @@ function finishReports(w) {
 export function stepMonth(w, rng = Math.random) {
   if (w.gameOver) return null;
   ensureWorld(w);
+  w.election.justHeld = null; // results were shown last month
   if (w.decision) return null; // waiting for the mayor to decide
   const D = diffOf(w);
   const nT = w.towns.length;
