@@ -2,7 +2,7 @@
 import React, { useRef, useState } from "react";
 import { Panel } from "../city/panels.jsx";
 import { fmtMoney, fmtNum, projectFinance, REV_LABELS, EXP_LABELS, tToDate, wearRate, dateLabel, sentosaState } from "./sim.js";
-import { STRUCTS, PURPOSES } from "./defs.js";
+import { STRUCTS, PURPOSES, MALL_NAMES, ALL_TOOLS as ALL_TOOLS_REF } from "./defs.js";
 import { setPurpose } from "./world.js";
 import { CRISES, getDecision } from "./events.js";
 import { objectiveProgress } from "./objectives.js";
@@ -854,6 +854,126 @@ export function PlanPanel({ world: w, onDone, onChange, toast }) {
       </div>
       <button onClick={onDone} className="city-btn city-sticker mt-3 w-full rounded-2xl bg-[var(--brand)] py-2.5 text-lg font-bold text-white">
         Start as mayor
+      </button>
+    </Panel>
+  );
+}
+
+// ---------------- landmark & mall projects ----------------
+const COVER_NAME = { food: "food", school: "primary schooling", school2: "secondary schooling", school3: "higher education", health: "healthcare", safety: "policing", fire: "fire cover", community: "community", green: "greenery", transport: "transport", mrt: "MRT" };
+function benefits(S) {
+  const out = [];
+  if (S.tourism) out.push(`📸 Tourism +${fmtMoney(S.tourism * 0.5)}/month (grows with your population)`);
+  if (S.jobs) out.push(`💼 ${fmtNum(S.jobs)} jobs`);
+  if (S.trade) out.push(`⚓ Trade +${fmtMoney(S.trade * 0.4)}/month`);
+  if (S.cover) out.push(`🗺️ ${COVER_NAME[S.cover] || S.cover} for homes within ${S.r * 50} m`);
+  if (S.alsoCover) out.push(`🗺️ ${COVER_NAME[S.alsoCover]} too`);
+  if (S.sentosaAppeal) out.push("🏝️ Draws visitors to Sentosa");
+  if (S.sentosaLink) out.push("🚡 Easier to reach Sentosa");
+  if (S.poll) out.push(`🏭 Pollution nearby (${S.poll})`);
+  return out;
+}
+
+export function ProjectPanel({ world: w, toolId, onChoose, onClose }) {
+  const T = ALL_TOOLS_REF[toolId];
+  const isMall = T?.group === "mall";
+  const variants = isMall ? Object.entries(STRUCTS).filter(([, S]) => S.group === T.group) : [[T.struct, STRUCTS[T.struct]]];
+  const [type, setType] = useState(() => {
+    const ok = variants.filter(([, S]) => w.year >= S.year);
+    return (ok[0] || variants[0])[0];
+  });
+  const S = STRUCTS[type];
+  const town = w.towns.reduce((a, t) => ((t.pop || 0) > (a.pop || 0) ? t : a), w.towns[0]);
+  const ideas = isMall ? MALL_NAMES[w.region] || [] : [S.name, `${town.name} ${S.name.replace(/^Singapore /, "")}`];
+  const [name, setName] = useState(ideas[0] || S.name);
+  const first = !isMall && (w.lmBuilt || []).find((x) => x.type === type);
+  const mine = !isMall && w.structs.some((s) => s.type === type);
+  const locked = w.year < S.year;
+  const inDebt = w.cash < 0 && !w.sandbox;
+  const debt = S.cost > w.cash && !w.sandbox && !inDebt;
+  return (
+    <Panel title={`${S.icon} ${isMall ? "New shopping mall" : S.name}`} onClose={onClose}>
+      {isMall && (
+        <>
+          <h3 className="mb-1 font-bold">1. What kind of mall?</h3>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {variants.map(([k, V]) => {
+              const lock = w.year < V.year;
+              return (
+                <button key={k} disabled={lock} onClick={() => setType(k)} aria-pressed={type === k} className={`city-btn flex flex-col rounded-2xl border-2 p-2.5 text-left disabled:opacity-50 ${type === k ? "border-[var(--brand)] bg-[var(--bad-bg)]" : "border-[var(--ink)]/10 bg-[var(--card)]"}`}>
+                  <span className="font-bold leading-tight">
+                    {V.icon} {V.kind}
+                  </span>
+                  <span className="mt-1 flex flex-wrap gap-1 text-[12px] font-bold tabular-nums">
+                    <span className="rounded-full bg-[var(--bad-bg)] px-2 py-0.5 text-[var(--bad)]">{fmtMoney(V.cost)}</span>
+                    <span className="rounded-full bg-[var(--soft)] px-2 py-0.5">⏳ {V.build} months</span>
+                    <span className="rounded-full bg-[var(--soft)] px-2 py-0.5">🛠️ {fmtMoney(V.upkeep)}/mo</span>
+                  </span>
+                  <ul className="mt-1 space-y-0.5 text-[12.5px] leading-snug">
+                    {V.pros.map((p) => (
+                      <li key={p}>✅ {p}</li>
+                    ))}
+                    {V.cons.map((p) => (
+                      <li key={p} className="text-[var(--muted)]">
+                        ⚠️ {p}
+                      </li>
+                    ))}
+                  </ul>
+                  {lock && <span className="mt-1 text-[12px] font-bold">🔒 From {V.year}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+      {!isMall && (
+        <div className="rounded-2xl bg-[var(--soft)] p-3 text-[14px] leading-snug">
+          <div>{S.tip}</div>
+          <div className="mt-1 flex flex-wrap gap-1 text-[12px] font-bold tabular-nums">
+            <span className="rounded-full bg-[var(--bad-bg)] px-2 py-0.5 text-[var(--bad)]">{fmtMoney(S.cost)}</span>
+            <span className="rounded-full bg-[var(--card)] px-2 py-0.5">⏳ {S.build || 0} months to build</span>
+            {S.upkeep ? <span className="rounded-full bg-[var(--card)] px-2 py-0.5">🛠️ {fmtMoney(S.upkeep)}/mo upkeep</span> : null}
+          </div>
+          <ul className="mt-1 space-y-0.5">
+            {benefits(S).map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {!isMall && (
+        <div className="mt-2 rounded-2xl p-2.5 text-[14px] leading-snug" style={{ background: first && first.by !== "you" ? "var(--warn-bg)" : "rgba(47,191,113,0.14)" }}>
+          {mine
+            ? "🏛️ You already have one. A second won't add much prestige."
+            : first && first.by !== "you"
+              ? `🪞 ${first.by} already opened one in ${first.region} (${first.year}). Yours would look like a copycat: about 40% fewer tourists, reputation −4 and some grumbling.`
+              : "🥇 No one in Singapore has built this yet. Be first for +4 reputation and full tourism."}
+        </div>
+      )}
+      <h3 className="mb-1 mt-3 font-bold">{isMall ? "2. " : ""}Name it</h3>
+      <div className="flex flex-wrap gap-1.5">
+        {ideas.map((n) => (
+          <button key={n} onClick={() => setName(n)} className={`city-btn rounded-full px-3 py-1.5 text-[13px] font-bold ${name === n ? "bg-[var(--brand)] text-white" : "bg-[var(--soft)]"}`}>
+            {n}
+          </button>
+        ))}
+      </div>
+      <label className="mt-2 block text-[13px] font-semibold" htmlFor="proj-name">
+        Or type your own
+      </label>
+      <input id="proj-name" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded-xl border-2 border-[var(--ink)]/15 bg-[var(--card)] px-3 py-2 text-[15px]" />
+      {debt && !locked && (
+        <p className="mt-2 rounded-xl bg-[var(--bad-bg)] p-2 text-[13px] font-semibold text-[var(--bad)]">
+          💸 This costs {fmtMoney(S.cost)} and you have {fmtMoney(w.cash)}. You can still go ahead, but you'll be in debt: you'll pay interest and can't zone or build services until your balance is positive again.
+        </p>
+      )}
+      {inDebt && (
+        <p className="mt-2 rounded-xl bg-[var(--bad-bg)] p-2 text-[13px] font-semibold text-[var(--bad)]">
+          🚫 You're already in debt ({fmtMoney(w.cash)}). Get your balance back above zero before starting another big project.
+        </p>
+      )}
+      <button disabled={locked || inDebt || !name.trim()} onClick={() => onChoose(type, name.trim())} className="city-btn city-sticker mt-3 w-full rounded-2xl bg-[var(--brand)] py-2.5 text-lg font-bold text-white disabled:bg-[var(--muted)]">
+        {locked ? `🔒 Available from ${S.year}` : `📍 Choose a spot for ${name.trim() || "it"}`}
       </button>
     </Panel>
   );

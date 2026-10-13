@@ -626,6 +626,15 @@ function drawEntry(ctx, R, w, A, e, time, motion, badges, cam) {
     case "struct": {
       const s = e.o;
       const H = structHeight(s.type) + 30;
+      if (s.state === "build") {
+        const S0 = STRUCTS[s.type];
+        const prog = Math.max(0, Math.min(1, 1 - (s.until - w.t) / (S0.build || 12)));
+        const bucket = Math.min(3, Math.floor(prog * 4));
+        const bd = quadBounds(s.q, H);
+        blit(ctx, sprite(R, `sb${s.id}:${s.x}:${bucket}`, bd.left, bd.top, bd.w, bd.h, (g) => drawConstruction(g, s.q, "office", (bucket + 0.5) / 4, 0)));
+        badges.push({ ch: "🏗️", x: PX(s.x, s.y), y: PY(s.x, s.y) - 40, bg: "#ffe066" });
+        return;
+      }
       if (ANIMATED.has(s.type)) {
         inkStyle(ctx);
         drawStruct(ctx, s.q, s.type, motion ? time : 0);

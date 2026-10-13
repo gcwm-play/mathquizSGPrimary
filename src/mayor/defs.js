@@ -77,27 +77,32 @@ export const STRUCTS = {
   tampinesHub: { name: "Our Tampines Hub", icon: "🏟️", cost: 6000, upkeep: 30, w: 4, d: 3.4, year: 2017, landmark: true, cover: "community", r: 16, tourism: 60, region: "east", tip: "A giant community hub." },
   birdPark: { name: "Jurong Bird Park", icon: "🦜", cost: 4000, upkeep: 20, w: 4.5, d: 3.6, year: 1971, landmark: true, cover: "green", r: 8, tourism: 300, region: "west", tip: "A big tourist draw." },
   scienceCentre: { name: "Science Centre", icon: "🔬", cost: 3500, upkeep: 18, w: 3.4, d: 2.6, year: 1977, landmark: true, cover: "school", r: 14, tourism: 150, region: "west", tip: "Counts as school cover for a wide area." },
-  jurongIsland: { name: "Jurong Island petrochemicals", icon: "🛢️", cost: 18000, upkeep: 50, w: 7, d: 4, year: 2000, landmark: true, jobs: 2000, poll: 45, trade: 700, needIsland: true, region: "west", tip: "Must be built on the southern islands." },
+  jurongIsland: { regionOnly: true, name: "Jurong Island petrochemicals", icon: "🛢️", cost: 18000, upkeep: 50, w: 7, d: 4, year: 2000, landmark: true, jobs: 2000, poll: 45, trade: 700, needIsland: true, region: "west", tip: "Must be built on the southern islands." },
   tuasPort: { name: "Tuas Mega Port", icon: "⚓", cost: 22000, upkeep: 60, w: 8, d: 3.5, year: 2021, coastal: true, landmark: true, jobs: 1800, trade: 900, poll: 20, region: "west", tip: "Must touch the sea." },
   merlion: { name: "Merlion", icon: "🦁", cost: 1500, upkeep: 3, w: 1.6, d: 1.6, year: 1972, landmark: true, coastal: true, tourism: 260, region: "central", tip: "Must touch the water." },
   esplanade: { name: "Esplanade", icon: "🎭", cost: 6000, upkeep: 25, w: 4, d: 3, year: 2002, landmark: true, tourism: 300, cover: "community", r: 14, region: "central", tip: "Arts centre. Locals call it the durian." },
   marinaBaySands: { name: "Marina Bay Sands", icon: "🎰", cost: 22000, upkeep: 50, w: 5, d: 3.4, year: 2010, landmark: true, tourism: 1200, jobs: 1500, region: "central", tip: "Three towers and a sky park." },
   gardensBay: { name: "Gardens by the Bay", icon: "🌺", cost: 12000, upkeep: 50, w: 6, d: 5, year: 2012, landmark: true, cover: "green", r: 14, tourism: 500, region: "central", tip: "Supertrees!" },
-  checkpoint: { name: "Woodlands Checkpoint", icon: "🛂", cost: 9000, upkeep: 40, w: 5, d: 3, year: 1999, landmark: true, coastal: true, jobs: 900, trade: 500, region: "north", tip: "Must touch the Strait. Causeway trade income." },
-  causewayPoint: { name: "Causeway Point", icon: "🛍️", cost: 5000, upkeep: 15, w: 3.6, d: 3, year: 1998, landmark: true, jobs: 800, cover: "food", r: 10, tourism: 80, region: "north", tip: "A big mall that shoppers from JB visit too." },
+  checkpoint: { regionOnly: true, name: "Woodlands Checkpoint", icon: "🛂", cost: 9000, upkeep: 40, w: 5, d: 3, year: 1999, landmark: true, coastal: true, jobs: 900, trade: 500, region: "north", tip: "Must touch the Strait. Causeway trade income." },
+  causewayPoint: { hidden: true, name: "Causeway Point", icon: "🛍️", cost: 5000, upkeep: 15, w: 3.6, d: 3, year: 1998, landmark: true, jobs: 800, cover: "food", r: 10, tourism: 80, region: "north", tip: "A big mall that shoppers from JB visit too." },
   sungeiBuloh: { name: "Sungei Buloh Wetlands", icon: "🦀", cost: 2000, upkeep: 6, w: 5, d: 4, year: 1993, landmark: true, coastal: true, cover: "green", r: 12, tourism: 140, region: "north", tip: "Must touch the sea. Protects the mangroves." },
-  rtsLink: { name: "RTS Link to JB", icon: "🚝", cost: 15000, upkeep: 30, w: 3.4, d: 2, year: 2026, landmark: true, coastal: true, cover: "mrt", r: 10, trade: 400, tourism: 200, region: "north", tip: "Must touch the Strait. Trains to Johor Bahru." },
+  rtsLink: { regionOnly: true, name: "RTS Link to JB", icon: "🚝", cost: 15000, upkeep: 30, w: 3.4, d: 2, year: 2026, landmark: true, coastal: true, cover: "mrt", r: 10, trade: 400, tourism: 200, region: "north", tip: "Must touch the Strait. Trains to Johor Bahru." },
 
-  secondLink: { name: "Tuas Second Link", icon: "🌉", cost: 12000, upkeep: 35, w: 4, d: 2.4, year: 1998, landmark: true, coastal: true, facesJohor: true, jobs: 400, trade: 450, tourism: 120, region: "west", tip: "Must be on the western shore facing Johor. A second crossing to Malaysia: trade and visitors." },
+  secondLink: { regionOnly: true, name: "Tuas Second Link", icon: "🌉", cost: 12000, upkeep: 35, w: 4, d: 2.4, year: 1998, landmark: true, coastal: true, facesJohor: true, jobs: 400, trade: 450, tourism: 120, region: "west", tip: "Must be on the western shore facing Johor. A second crossing to Malaysia: trade and visitors." },
   mountFaber: { name: "Mount Faber Park", icon: "⛰️", cost: 1200, upkeep: 4, w: 4, d: 3.4, year: 1965, landmark: true, cover: "green", r: 12, tourism: 60, region: "south", tip: "A hilltop park with harbour views." },
   keppelPort: { name: "Keppel container port", icon: "⚓", cost: 9000, upkeep: 35, w: 7, d: 3, year: 1972, coastal: true, landmark: true, jobs: 1400, trade: 550, poll: 18, region: "south", notResort: true, tip: "Must touch the sea (not on Sentosa). Trade and jobs." },
-  cableCar: { name: "Singapore Cable Car", icon: "🚡", cost: 2500, upkeep: 10, w: 2, d: 2, year: 1974, landmark: true, coastal: true, tourism: 120, sentosaLink: 0.3, sentosaAppeal: 0.3, region: "south", tip: "Must touch the sea. Carries visitors over the harbour to Sentosa." },
-  sentosaBeach: { name: "Siloso Beach resort", icon: "🏖️", cost: 1800, upkeep: 8, w: 5, d: 1.8, year: 1975, landmark: true, coastal: true, onResort: true, cover: "green", r: 8, sentosaAppeal: 0.4, sentosaCap: 1, region: "south", tip: "On Sentosa, touching the sea. Beaches draw visitors." },
-  underwaterWorld: { name: "Underwater World", icon: "🐠", cost: 4000, upkeep: 18, w: 3.4, d: 2.6, year: 1991, landmark: true, onResort: true, sentosaAppeal: 0.5, sentosaCap: 1, region: "south", tip: "On Sentosa. An oceanarium with a moving walkway tunnel." },
-  sentosaBridge: { name: "Sentosa road bridge", icon: "🌉", cost: 3500, upkeep: 10, w: 2.4, d: 2, year: 1992, landmark: true, coastal: true, notResort: true, sentosaLink: 0.35, region: "south", tip: "On the mainland shore facing Sentosa. Cars and buses onto the island." },
-  vivoCity: { name: "VivoCity", icon: "🛍️", cost: 7000, upkeep: 20, w: 4.4, d: 3.2, year: 2006, landmark: true, notResort: true, jobs: 1200, cover: "food", r: 12, tourism: 180, region: "south", tip: "Singapore's biggest mall, at the gateway to Sentosa." },
-  sentosaExpress: { name: "Sentosa Express", icon: "🚝", cost: 6000, upkeep: 18, w: 3.4, d: 1.8, year: 2007, landmark: true, coastal: true, cover: "mrt", r: 10, sentosaLink: 0.4, region: "south", tip: "Must touch the sea. A monorail from VivoCity onto the island." },
-  resortsWorld: { name: "Resorts World Sentosa", icon: "🎢", cost: 20000, upkeep: 45, w: 5, d: 4, year: 2010, landmark: true, onResort: true, jobs: 1500, sentosaAppeal: 1.6, sentosaCap: 3, region: "south", tip: "On Sentosa. Casino, hotels and Universal Studios: a huge visitor magnet." },
+  cableCar: { regionOnly: true, name: "Singapore Cable Car", icon: "🚡", cost: 2500, upkeep: 10, w: 2, d: 2, year: 1974, landmark: true, coastal: true, tourism: 120, sentosaLink: 0.3, sentosaAppeal: 0.3, region: "south", tip: "Must touch the sea. Carries visitors over the harbour to Sentosa." },
+  sentosaBeach: { regionOnly: true, name: "Siloso Beach resort", icon: "🏖️", cost: 1800, upkeep: 8, w: 5, d: 1.8, year: 1975, landmark: true, coastal: true, onResort: true, cover: "green", r: 8, sentosaAppeal: 0.4, sentosaCap: 1, region: "south", tip: "On Sentosa, touching the sea. Beaches draw visitors." },
+  underwaterWorld: { regionOnly: true, name: "Underwater World", icon: "🐠", cost: 4000, upkeep: 18, w: 3.4, d: 2.6, year: 1991, landmark: true, onResort: true, sentosaAppeal: 0.5, sentosaCap: 1, region: "south", tip: "On Sentosa. An oceanarium with a moving walkway tunnel." },
+  sentosaBridge: { regionOnly: true, name: "Sentosa road bridge", icon: "🌉", cost: 3500, upkeep: 10, w: 2.4, d: 2, year: 1992, landmark: true, coastal: true, notResort: true, sentosaLink: 0.35, region: "south", tip: "On the mainland shore facing Sentosa. Cars and buses onto the island." },
+  vivoCity: { hidden: true, name: "VivoCity", icon: "🛍️", cost: 7000, upkeep: 20, w: 4.4, d: 3.2, year: 2006, landmark: true, notResort: true, jobs: 1200, cover: "food", r: 12, tourism: 180, region: "south", tip: "Singapore's biggest mall, at the gateway to Sentosa." },
+  sentosaExpress: { regionOnly: true, name: "Sentosa Express", icon: "🚝", cost: 6000, upkeep: 18, w: 3.4, d: 1.8, year: 2007, landmark: true, coastal: true, cover: "mrt", r: 10, sentosaLink: 0.4, region: "south", tip: "Must touch the sea. A monorail from VivoCity onto the island." },
+  resortsWorld: { regionOnly: true, name: "Resorts World Sentosa", icon: "🎢", cost: 20000, upkeep: 45, w: 5, d: 4, year: 2010, landmark: true, onResort: true, jobs: 1500, sentosaAppeal: 1.6, sentosaCap: 3, region: "south", tip: "On Sentosa. Casino, hotels and Universal Studios: a huge visitor magnet." },
+
+  // shopping malls: one project, three kinds (chosen in the project screen)
+  mallHood: { group: "mall", name: "Neighbourhood mall", kind: "Integrated neighbourhood mall (open-air)", icon: "🛍️", cost: 3500, build: 12, upkeep: 4, w: 3.4, d: 2.8, year: 1972, landmark: true, cover: "food", r: 10, alsoCover: "community", jobs: 450, tourism: 15, pros: ["Cheap and quick to build", "Food and a community space for nearby homes", "Popular with residents"], cons: ["Few tourists", "Modest tax income"] },
+  mallCentre: { group: "mall", name: "Shopping centre", kind: "Shopping centre", icon: "🛍️", cost: 7500, build: 20, upkeep: 8, w: 3.8, d: 3, year: 1974, landmark: true, cover: "food", r: 12, jobs: 1000, tourism: 90, poll: 5, pros: ["Lots of jobs and business tax", "Food court for a wide area", "Some visitors"], cons: ["Traffic and noise nearby", "Takes nearly 2 years"] },
+  mallLux: { group: "mall", name: "High-end mall", kind: "High-end luxury mall", icon: "💎", cost: 15000, build: 30, upkeep: 14, w: 4.2, d: 3.2, year: 1985, landmark: true, cover: "food", r: 6, jobs: 1300, tourism: 330, prestige: 3, pricey: true, pros: ["Big tourist draw", "Raises land value and reputation"], cons: ["Very expensive, 2½ years to build", "Locals find it pricey: cost of living −6 in its town for 10 years", "Little everyday food"] },
 
   // fixed scenery at the start
   fortSiloso: { name: "Fort Siloso", icon: "🏰", w: 3, d: 2.4, fixed: true, jobs: 150, sentosaAppeal: 0.2 },
@@ -107,6 +112,21 @@ export const STRUCTS = {
 
 // running a service costs real money: upkeep is per month in $K
 for (const S of Object.values(STRUCTS)) if (S.upkeep) S.upkeep = Math.round(S.upkeep * 1.6);
+// landmarks are big-ticket projects that take years to build
+for (const S of Object.values(STRUCTS)) {
+  if (!S.landmark || S.group) continue;
+  S.cost = Math.max(4000, Math.round((S.cost * 1.6) / 100) * 100);
+  S.build = S.build ?? Math.max(8, Math.min(48, Math.round(6 + S.cost / 1500)));
+}
+
+// name ideas for malls in each region (players can type their own)
+export const MALL_NAMES = {
+  east: ["Tampines Mall", "Century Square", "Bedok Mall", "White Sands", "Changi City Point", "Loyang Point"],
+  west: ["Jurong Point", "JEM", "Westgate", "IMM", "Boon Lay Place", "Pioneer Mall"],
+  central: ["Plaza Singapura", "ION Orchard", "Raffles City", "Bugis Junction", "Lucky Plaza", "People's Park Complex"],
+  south: ["VivoCity", "HarbourFront Centre", "Alexandra Retail Centre", "Tiong Bahru Plaza", "Queensway Shopping Centre"],
+  north: ["Causeway Point", "Sembawang Shopping Centre", "Northpoint", "Sun Plaza", "Woodlands Mart", "Canberra Plaza"],
+};
 
 export const ROAD_TYPES = {
   road: { name: "Road", half: 0.3, cost: 30, lots: true },
@@ -177,9 +197,13 @@ export function toolGroups(regionId) {
     g.id === "landmarks"
       ? {
           ...g,
-          tools: Object.entries(STRUCTS)
-            .filter(([, s]) => s.landmark && s.region === regionId)
-            .map(([k, s]) => ({ id: `s:${k}`, mode: "place", struct: k, icon: s.icon, name: s.name, cost: s.cost, year: s.year, tip: s.tip })),
+          tools: [
+            { id: "proj:mall", mode: "project", group: "mall", icon: "🛍️", name: "Shopping mall", cost: STRUCTS.mallHood.cost, year: STRUCTS.mallHood.year, tip: "Choose a name and the kind of mall." },
+            ...Object.entries(STRUCTS)
+              .filter(([, s]) => s.landmark && !s.group && !s.hidden && (s.region === regionId || !s.regionOnly))
+              .sort((a, b) => (b[1].region === regionId) - (a[1].region === regionId) || a[1].year - b[1].year)
+              .map(([k, s]) => ({ id: `s:${k}`, mode: "place", struct: k, icon: s.icon, name: s.name, cost: s.cost, year: s.year, tip: s.tip, landmark: true, home: s.region === regionId })),
+          ],
         }
       : g
   );
@@ -187,7 +211,8 @@ export function toolGroups(regionId) {
 
 export const ALL_TOOLS = {};
 for (const g of TOOL_GROUPS) for (const t of g.tools) ALL_TOOLS[t.id] = t;
-for (const [k, s] of Object.entries(STRUCTS)) if (s.landmark) ALL_TOOLS[`s:${k}`] = { id: `s:${k}`, mode: "place", struct: k, icon: s.icon, name: s.name, cost: s.cost, year: s.year, tip: s.tip };
+for (const [k, s] of Object.entries(STRUCTS)) if (s.landmark) ALL_TOOLS[`s:${k}`] = { id: `s:${k}`, mode: "place", struct: k, icon: s.icon, name: s.name, cost: s.cost, year: s.year, tip: s.tip, landmark: true };
+ALL_TOOLS["proj:mall"] = { id: "proj:mall", mode: "project", group: "mall", icon: "🛍️", name: "Shopping mall", cost: STRUCTS.mallHood.cost, year: STRUCTS.mallHood.year };
 
 // What a town is planned for. growth: how readily each zone builds there
 // (0 = not allowed); weight: how much residents care about each need

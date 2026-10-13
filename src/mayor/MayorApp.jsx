@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MapView, { zoomAt, lookAt } from "./MapView.jsx";
 import { TownsPanel, ElectionPanel, RenewSheet, NewsPanel, GoalsPanel, HelpPanel, MenuPanel, Panel, yearsMonths } from "./panels.jsx";
-import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel } from "./panels2.jsx";
+import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel, ProjectPanel } from "./panels2.jsx";
 import { decide, CRISES } from "./events.js";
 import { REGIONS, REGION_ORDER } from "./regions.js";
 import { DIFFICULTY, ALL_TOOLS, STRUCTS, ROAD_TYPES, toolGroups } from "./defs.js";
@@ -10,7 +10,7 @@ import {
   newWorld, planRoad, commitRoad, snapPoint, planStruct, commitStruct, removeRoad, nearestSeg, segPts, paintZone, plantTrees,
   bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, saveInfo, clearPreview,
 } from "./world.js";
-import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES } from "./sim.js";
+import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit } from "./sim.js";
 import { OVERLAYS, ZONE_TINT } from "./render.js";
 import { inQuad, dist } from "./geom.js";
 
@@ -207,6 +207,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const undoRef = useRef([]);
   const pendingRef = useRef(null);
   const strokeRef = useRef(null);
+  const projRef = useRef(null); // chosen landmark type and name
   const [, setV] = useState(0);
   const [tool, setTool] = useState("look");
   const [tray, setTray] = useState(null);
@@ -344,9 +345,24 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
     const world = worldRef.current;
     if (!p) return;
     const cost = p.kind === "reclaim" ? p.circles.filter((c) => c.ok).length * 120 : p.plan?.cost ?? p.cost ?? 0;
-    if (!world.sandbox && cost > world.cash) {
-      toast(`🚫 Not enough money: this costs ${fmtMoney(cost)}.`);
+    const bigProject = p.kind === "struct" && STRUCTS[p.type].landmark;
+    if (!world.sandbox && cost > 0 && world.cash < 0) {
+      toast("🚫 You're in debt: roads, zoning, services and landmarks are frozen until your balance is positive again.");
       return;
+    }
+    if (!world.sandbox && cost > world.cash) {
+      if (!bigProject) {
+        toast(`🚫 Not enough money: this costs ${fmtMoney(cost)}.`);
+        return;
+      }
+      if (world.cash - cost < -debtLimit(world) * 0.8) {
+        toast(`🏦 Even the bank won't lend that much. Save up first (you can borrow up to about ${fmtMoney(debtLimit(world) * 0.8)}).`);
+        return;
+      }
+      if (!p.debtOk) {
+        setPanel({ id: "debt", cost });
+        return;
+      }
     }
     if (p.kind === "road" && p.plan?.ok) {
       remember(ALL_TOOLS[`road:${p.type}`].name);
@@ -355,9 +371,15 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       pendingRef.current = { kind: "road", type: p.type, stage: "start", a: { x: p.plan.sb.x, y: p.plan.sb.y } };
     } else if (p.kind === "struct" && p.plan?.ok) {
       remember(STRUCTS[p.type].name);
-      commitStruct(world, p.plan);
-      toast(`${STRUCTS[p.type].icon} ${STRUCTS[p.type].name} built for ${fmtMoney(p.plan.cost)}`);
+      const name = projRef.current?.type === p.type ? projRef.current.name : null;
+      const st = commitStruct(world, p.plan, { name });
+      const nm = st.name || STRUCTS[p.type].name;
+      toast(st.state === "build" ? `🏗️ Work starts on ${nm}: opens ${tToDate(world, st.until)} (${fmtMoney(p.plan.cost)})` : `${STRUCTS[p.type].icon} ${nm} built for ${fmtMoney(p.plan.cost)}`);
       pendingRef.current = null;
+      if (STRUCTS[p.type].landmark) {
+        projRef.current = null;
+        pickTool("look");
+      }
     } else if (p.kind === "unroad") {
       remember("Remove road");
       removeRoad(world, p.seg);
@@ -446,6 +468,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         dirtyRef.current = true;
         return;
       }
+      if (phase === "start" && world.cash < 0 && !world.sandbox && (tool.startsWith("zone:") || tool === "trees" || tool === "reclaim")) {
+        toast("🚫 You're in debt: zoning and building are frozen until your balance is positive again.");
+        strokeRef.current = null;
+        return;
+      }
       if (phase === "start") {
         const keep = (tool === "bulldoze" && pendingRef.current?.kind === "select") || (tool === "reclaim" && pendingRef.current?.kind === "reclaim");
         strokeRef.current = { snap: snapshot(world), n: 0, cost: 0, skipped: 0, last: null };
@@ -513,7 +540,14 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
     toast(`↶ Undid ${u.label}`);
   };
 
-  const pickTool = (id) => {
+  const pickTool = (id, direct) => {
+    const T0 = ALL_TOOLS[id];
+    // landmarks and malls start with a project screen: name, kind, cost
+    if (!direct && (T0?.mode === "project" || T0?.landmark)) {
+      setTray(null);
+      setPanel({ id: "project", tool: id });
+      return;
+    }
     setTool(id);
     setTray(null);
     setInspect(null);
@@ -848,6 +882,46 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         </Panel>
       )}
       {panel?.id === "finance" && <FinancePanel world={w} analysis={A} onChange={afterChange} onClose={() => setPanel(null)} />}
+      {panel?.id === "project" && (
+        <ProjectPanel
+          world={w}
+          toolId={panel.tool}
+          onClose={() => setPanel(null)}
+          onChoose={(type, name) => {
+            projRef.current = { type, name };
+            setPanel(null);
+            pickTool(`s:${type}`, true);
+            toast(`📍 Tap beside a road to place ${name}`);
+          }}
+        />
+      )}
+      {panel?.id === "debt" && (
+        <Panel title="💸 Go into debt?" onClose={() => setPanel(null)}>
+          <p className="text-[15px] leading-snug">
+            This costs <b>{fmtMoney(panel.cost)}</b> but you only have <b>{fmtMoney(w.cash)}</b>. If you go ahead your balance will be <b className="text-[var(--bad)]">{fmtMoney(w.cash - panel.cost)}</b>.
+          </p>
+          <ul className="mt-2 space-y-1 text-[14px]">
+            <li>🏦 You'll pay about {fmtMoney(Math.max(0, panel.cost - w.cash) * 0.006)} a month in interest.</li>
+            <li>🚫 Roads, zoning, services and other landmarks are frozen until your balance is positive.</li>
+            <li>⚠️ If debt passes {fmtMoney(-debtLimit(w))}, the government replaces you (Normal and Hard).</li>
+          </ul>
+          <div className="mt-3 flex gap-2">
+            <button onClick={() => setPanel(null)} className="city-btn flex-1 rounded-2xl bg-[var(--soft)] py-2 font-bold">
+              Not now
+            </button>
+            <button
+              onClick={() => {
+                if (pendingRef.current) pendingRef.current.debtOk = true;
+                setPanel(null);
+                confirm();
+              }}
+              className="city-btn city-sticker flex-1 rounded-2xl bg-[var(--brand)] py-2 font-bold text-white"
+            >
+              Borrow and build
+            </button>
+          </div>
+        </Panel>
+      )}
       {panel?.id === "decision" && w.decision && (
         <DecisionPanel
           world={w}
@@ -1041,7 +1115,10 @@ function Tray({ world, group, tool, onPick }) {
           >
             <span className="text-3xl leading-none">{t.icon}</span>
             <span className="mt-1 text-[13px] font-bold leading-tight">{t.name}</span>
-            <span className={`text-[12px] font-bold tabular-nums ${poor ? "text-[var(--bad)]" : "text-[var(--muted)]"}`}>{locked ? `🔒 ${t.year}` : t.cost ? fmtMoney(t.cost) : ""}</span>
+            <span className={`text-[12px] font-bold tabular-nums ${poor ? "text-[var(--bad)]" : "text-[var(--muted)]"}`}>
+              {locked ? `🔒 ${t.year}` : t.cost ? `${t.mode === "project" ? "from " : ""}${fmtMoney(t.cost)}` : ""}
+            </span>
+            {t.landmark && (world.lmBuilt || []).some((x) => x.type === t.struct && x.by !== "you") && <span className="text-[11px] font-semibold text-[var(--muted)]">🪞 built elsewhere</span>}
           </button>
         );
       })}
