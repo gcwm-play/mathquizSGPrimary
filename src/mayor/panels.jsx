@@ -3,7 +3,8 @@ import { Panel } from "../city/panels.jsx";
 import { NEEDS, TERM_YEARS, diffOf } from "./defs.js";
 import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS, modeOf } from "./sim.js";
 import { housingByTown } from "./housing.js";
-import { ImpactBox, ObjectiveRow } from "./panels2.jsx";
+import { ImpactBox, ObjectiveRow, PurposePicker } from "./panels2.jsx";
+import { setPurpose, purposeCost } from "./world.js";
 
 export { Panel };
 
@@ -26,7 +27,7 @@ export const yearsMonths = (m) => {
   return y ? `${y}y ${mm}m` : `${mm} months`;
 };
 
-export function TownsPanel({ world: w, onClose, onShow }) {
+export function TownsPanel({ world: w, onClose, onShow, onChange, toast }) {
   const D = diffOf(w);
   const H = housingByTown(w);
   const vacant = H.reduce((a, h) => a + h.vacant, 0);
@@ -38,8 +39,8 @@ export function TownsPanel({ world: w, onClose, onShow }) {
         <Stat label="Trust in you" value={`${Math.round(w.trust)}`} />
         <Stat label="Reputation" value={`⭐ ${Math.round(w.rep ?? 50)}`} />
         <Stat label="Housing queue" value={fmtNum(w.waitlist)} tone={w.waitlist > (w.stats.pop || 1) * 0.15 ? "bad" : null} />
-        <Stat label="Births/woman" value={`👶 ${(w.stats.tfr ?? 0).toFixed(2)}`} />
-        <Stat label="Life expect." value={`🩺 ${(w.stats.life ?? 0).toFixed(1)}`} />
+        <Stat label="Births/woman" value={w.stats.tfr ? `👶 ${w.stats.tfr.toFixed(2)}` : "—"} />
+        <Stat label="Life expect." value={w.stats.life ? `🩺 ${w.stats.life.toFixed(1)}` : "—"} />
       </div>
       <p className="-mt-1 mb-3 text-[13px] leading-snug text-[var(--muted)]">
         🏠 {fmtNum(vacant)} empty homes ready · 🏗️ {fmtNum(building)} homes being built · ⏳ {fmtNum(w.waitlist)} families waiting
@@ -58,7 +59,7 @@ export function TownsPanel({ world: w, onClose, onShow }) {
                     {t.old ? ` · 🏚️ ${t.old} ageing blocks` : ""}
                     <br />
                     🏠 {fmtNum(H[i].occ)}/{fmtNum(H[i].cap)} homes filled{H[i].vacant ? ` · ${fmtNum(H[i].vacant)} empty` : ""}
-                    {H[i].building ? ` · ${fmtNum(H[i].building)} being built` : ""} · 👶 {(t.tfr ?? 0).toFixed(2)} · 🩺 {(t.life ?? 0).toFixed(1)}y
+                    {H[i].building ? ` · ${fmtNum(H[i].building)} being built` : ""}{t.tfr ? ` · 👶 ${t.tfr.toFixed(2)} · 🩺 ${t.life.toFixed(1)}y` : ""}
                     {(t.maint ?? 100) !== 100 || (t.scc ?? 100) !== 100 ? ` · 🧽 ${t.maint ?? 100}% · 🧹 ${t.scc ?? 100}%` : ""}
                   </div>
                 </div>
@@ -66,6 +67,17 @@ export function TownsPanel({ world: w, onClose, onShow }) {
                   📍 Show
                 </button>
               </div>
+              <PurposePicker
+                world={w}
+                index={i}
+                cost={purposeCost(w)}
+                onPick={(k) => {
+                  const r = setPurpose(w, i, k);
+                  if (!r.ok) toast?.(r.msg);
+                  else toast?.(`📐 ${t.name} is now planned as ${k}${r.cost ? ` (${fmtMoney(r.cost)})` : ""}.`);
+                  onChange?.();
+                }}
+              />
               <div className="mt-2 grid grid-cols-2 gap-3 text-[13px]">
                 <div>
                   <div className="flex justify-between">
@@ -404,6 +416,8 @@ export function HelpPanel({ onClose }) {
     ["🚚 Where do people go?", "New flats fill gradually. When you clear homes, residents take empty flats first, then join the queue, and some leave. 🏗️ Renew shows the estimate before you commit."],
     ["💰 Finances", "Each term the government gives a fixed block grant. Tap 💰 for charts of money in and out, with projections, and set tax, S&CC and estate maintenance per town."],
     ["⚠️ Crises & decisions", "Real crises (oil shock, SARS, COVID…) arrive on their real dates, and random dilemmas pop up. Your choices and what you've built decide how hard they hit."],
+    ["📐 Town purposes", "In 🏘️ Towns, plan each town as residential, commercial, industrial, heritage or mixed. It decides what grows there and what residents expect (no one asks for a wet market in a CBD)."],
+    ["🏝️ Sentosa (South)", "The island is run for visitors: build links (cable car, bridge, monorail) and attractions, set the entry fee and marketing, and watch crowding."],
     ["📊 Mayors' league", "AI mayors run the other regions. Every 10 years you get a report card comparing happiness, housing, health, births, money and reputation."],
   ];
   return (

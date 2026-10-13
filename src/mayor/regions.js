@@ -50,6 +50,7 @@ export const REGIONS = {
     oldTown: [{ e: -18, s: 5, r: 4, zone: "com" }],
     structs: [{ type: "airbase", e: 26, s: 6, ang: -0.78 }],
     landmarks: ["changiAirport", "eastCoastPark", "tampinesHub"],
+    purposes: { Bedok: "residential", Tampines: "residential", "Pasir Ris": "residential", Changi: "mixed" },
     events: [
       { year: 1966, month: 2, text: "🏖️ The East Coast reclamation begins. Use 🏝️ Reclaim along the southern shore." },
       { year: 1971, month: 9, text: "🇬🇧 British forces leave the Changi base. The land is now yours to plan." },
@@ -66,11 +67,13 @@ export const REGIONS = {
     tip: "Industry-focused: balance jobs against pollution.",
     land: (e, s, n) => {
       const south = 17 + wave(e, 3, 0.18) + Math.max(0, -e - 18) * 0.35 - s;
-      const west = e + 38 - wave(s, 2, 0.2);
+      const west = e + 30 - wave(s, 2, 0.2);
       let v = Math.min(south, west);
       for (const [ie, is, r] of [[-12, 27, 3], [-4, 30, 3.4], [5, 28, 2.6], [12, 31, 2.2], [-19, 25, 2]]) v = Math.max(v, r - Math.hypot(e - ie, s - is));
       return v + n * 2;
     },
+    // Johor across the western Strait (the Second Link crosses it from Tuas)
+    foreign: (e, s, n) => -36.5 - e + wave(s, 1.2, 0.17, 1) + n * 1.2,
     fresh: [
       { kind: "lake", e: 12, s: -4, rx: 4.5, ry: 2.6 },
       { kind: "river", w: 0.8, path: [[12, -2], [10, 3], [8, 8], [7, 12]] },
@@ -80,25 +83,27 @@ export const REGIONS = {
       { name: "Jurong East", e: 18, s: -10 },
       { name: "Jurong West", e: -6, s: -10 },
       { name: "Boon Lay", e: -8, s: 3 },
-      { name: "Tuas", e: -28, s: 0 },
+      { name: "Tuas", e: -22, s: 0 },
     ],
     kampongs: [
       { name: "Kampong Ulu Jurong", e: -4, s: -14, r: 3.4, pop: 550 },
       { name: "Kampong Tebing Terjun", e: -14, s: 5, r: 3, pop: 420 },
-      { name: "Kampong Tuas", e: -30, s: 4, r: 3, pop: 380 },
+      { name: "Kampong Tuas", e: -24, s: 5, r: 2.8, pop: 380 },
       { name: "Kampong Jurong", e: 6, s: 4, r: 2.8, pop: 400 },
     ],
     roads: [
-      [[44, -8], [10, -9], [-34, -2]],
+      [[44, -8], [10, -9], [-26, -2]],
       [[2, -9], [0, 0], [-2, 8]],
     ],
     oldTown: [{ e: 6, s: -9, r: 3, zone: "com" }],
     structs: [],
-    landmarks: ["birdPark", "scienceCentre", "jurongIsland", "tuasPort"],
+    landmarks: ["birdPark", "scienceCentre", "secondLink", "jurongIsland", "tuasPort"],
+    purposes: { "Jurong East": "mixed", "Jurong West": "residential", "Boon Lay": "industrial", Tuas: "industrial" },
     events: [
       { year: 1968, month: 5, text: "🏭 JTC is formed to run the Jurong Industrial Estate. Factories want to come west." },
       { year: 1971, month: 0, text: "🦜 Jurong Bird Park can now be built." },
       { year: 1995, month: 0, text: "🏝️ Plans begin to merge the southern islands into Jurong Island. Reclaim between them." },
+      { year: 1998, month: 0, text: "🌉 The Tuas Second Link to Johor can now be built on the western shore. More trade, and an easier crossing than the Causeway." },
     ],
     indBoost: 0.35,
   },
@@ -145,6 +150,7 @@ export const REGIONS = {
     ],
     structs: [],
     landmarks: ["merlion", "esplanade", "marinaBaySands", "gardensBay"],
+    purposes: { Orchard: "commercial", Chinatown: "heritage", Downtown: "commercial", Kallang: "residential" },
     events: [
       { year: 1977, month: 0, text: "🛶 The Singapore River clean-up begins. Parks along the river now raise land value more." },
       { year: 1989, month: 0, text: "🏮 Conservation starts: old shophouses you keep now earn tourism money." },
@@ -191,6 +197,7 @@ export const REGIONS = {
     oldTown: [{ e: -6, s: -5, r: 2.5, zone: "com" }],
     structs: [{ type: "navalBase", e: 26, s: -4, ang: -0.78 }],
     landmarks: ["checkpoint", "causewayPoint", "sungeiBuloh", "rtsLink"],
+    purposes: { Kranji: "industrial", Woodlands: "mixed", Sembawang: "residential", Yishun: "residential" },
     events: [
       { year: 1971, month: 9, text: "⚓ The British leave Sembawang naval base. It becomes a shipyard." },
       { year: 1980, month: 0, text: "🏙️ Woodlands is planned as a new town. HDB demand rises in the north." },
@@ -199,6 +206,53 @@ export const REGIONS = {
     ],
     causewayTrade: 120,
   },
+  south: {
+    id: "south",
+    name: "Telok Blangah / Sentosa",
+    short: "South",
+    icon: "🏝️",
+    blurb: "Keppel Harbour, the hills of Mount Faber and the old fortress island of Blakang Mati. Build homes on the mainland, a port at HarbourFront, and turn the island into Sentosa, a resort run on visitors.",
+    tip: "Tourism region: Sentosa has its own visitor economy.",
+    land: (e, s, n) => {
+      let v = 6 + wave(e, 1.6, 0.21) + Math.max(0, e - 22) * 0.25 - s; // mainland coast
+      v = Math.max(v, (1 - Math.hypot((e + 2) / 15, (s - 19) / 4.6)) * 4.6); // Sentosa
+      v = Math.max(v, 2.2 - Math.hypot(e - 16, s - 12)); // Pulau Brani
+      return v + n * 1.6;
+    },
+    fresh: [{ kind: "river", w: 0.7, path: [[-24, -30], [-21, -16], [-19, -6], [-19, 4]] }],
+    towns: [
+      { name: "Bukit Merah", e: -12, s: -14 },
+      { name: "Telok Blangah", e: -2, s: -3 },
+      { name: "HarbourFront", e: 14, s: -2 },
+      { name: "Sentosa", e: -2, s: 19, resort: true },
+    ],
+    kampongs: [
+      { name: "Kampong Henderson", e: -9, s: -6, r: 3, pop: 520 },
+      { name: "Kampong Radin Mas", e: 6, s: -10, r: 2.8, pop: 460 },
+      { name: "Kampong Bukit Merah", e: -18, s: -18, r: 3, pop: 480 },
+      { name: "Kampong Serapong", e: 8, s: 19, r: 2, pop: 200 },
+    ],
+    roads: [
+      [[-44, 2], [-6, 1], [30, 2]],
+      [[-6, 1], [-9, -12], [-12, -34]],
+      [[-15, 18], [-3, 14.6], [10, 17.5]],
+      [[10, 17.5], [-1, 23.5], [-15, 18]],
+    ],
+    oldTown: [{ e: 2, s: -2, r: 3, zone: "com" }],
+    structs: [{ type: "fortSiloso", e: -14, s: 19.5, ang: -0.78 }],
+    landmarks: ["mountFaber", "keppelPort", "cableCar", "sentosaBeach", "underwaterWorld", "sentosaBridge", "vivoCity", "sentosaExpress", "resortsWorld"],
+    purposes: { "Bukit Merah": "residential", "Telok Blangah": "mixed", HarbourFront: "commercial", Sentosa: "resort" },
+    events: [
+      { year: 1967, month: 6, text: "🏰 The British are handing back Pulau Blakang Mati. Its forts and beaches could become a resort." },
+      { year: 1972, month: 8, text: "🏝️ Blakang Mati is renamed Sentosa ('peace and tranquillity'). The Sentosa Development Corporation is yours to run: tap 🏝️ to manage visitors." },
+      { year: 1974, month: 0, text: "🚡 The Singapore Cable Car can now be built: the first easy way onto Sentosa." },
+      { year: 1992, month: 0, text: "🌉 A road bridge to Sentosa can now be built." },
+      { year: 2006, month: 0, text: "🛍️ VivoCity can now be built at HarbourFront." },
+      { year: 2010, month: 0, text: "🎢 Resorts World Sentosa (casino, Universal Studios) can now be built on the island." },
+    ],
+    sentosa: true,
+    indBoost: 0.1,
+  },
 };
 
-export const REGION_ORDER = ["east", "west", "central", "north"];
+export const REGION_ORDER = ["east", "west", "central", "south", "north"];

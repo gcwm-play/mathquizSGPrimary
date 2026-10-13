@@ -1,7 +1,8 @@
 // Panels for finances, decisions, crises, objectives and the mayors' league.
 import React, { useRef, useState } from "react";
 import { Panel } from "../city/panels.jsx";
-import { fmtMoney, fmtNum, projectFinance, REV_LABELS, EXP_LABELS, tToDate, wearRate, dateLabel } from "./sim.js";
+import { fmtMoney, fmtNum, projectFinance, REV_LABELS, EXP_LABELS, tToDate, wearRate, dateLabel, sentosaState } from "./sim.js";
+import { STRUCTS, PURPOSES } from "./defs.js";
 import { CRISES, getDecision } from "./events.js";
 import { objectiveProgress } from "./objectives.js";
 import { STYLES } from "./rivals.js";
@@ -331,6 +332,15 @@ export function DecisionPanel({ world: w, onPick }) {
                 {o.monthly < 0 && <span className="rounded-full px-2 py-0.5 text-[var(--good)]" style={{ background: "rgba(47,191,113,0.15)" }}>+{fmtMoney(-o.monthly)}/month</span>}
                 {o.chance != null && <span className="rounded-full bg-[var(--soft)] px-2 py-0.5">🎲 {Math.round(o.chance * 100)}% chance</span>}
               </span>
+              {o.effects?.length > 0 && (
+                <span className="mt-1 flex flex-wrap gap-1 text-[11.5px] font-semibold leading-tight">
+                  {o.effects.map((e, i) => (
+                    <span key={i} className="rounded-md border px-1.5 py-0.5" style={{ borderColor: e.good ? "rgba(47,191,113,0.5)" : "rgba(255,90,90,0.45)", color: e.good ? "var(--good)" : "var(--bad)" }}>
+                      {e.t}
+                    </span>
+                  ))}
+                </span>
+              )}
               <ul className="mt-1 space-y-0.5 text-[13px] leading-snug">
                 {(o.pros || []).map((p) => (
                   <li key={p}>
@@ -681,6 +691,118 @@ export function ImpactBox({ impact, town, gain, months }) {
       {gain > 0 && (
         <div className={impact ? "mt-1" : ""}>
           🏗️ +{fmtNum(gain)} more homes once rebuilt ({months} months)
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ---------------- Sentosa ----------------
+const SENTOSA_PARTS = ["cableCar", "sentosaBeach", "underwaterWorld", "sentosaBridge", "sentosaExpress", "resortsWorld"];
+export function SentosaPanel({ world: w, analysis: A, onChange, onClose }) {
+  const S0 = w.sentosa;
+  if (!S0) return null;
+  const st = sentosaState(w, A);
+  const set = (fn) => {
+    fn();
+    onChange();
+  };
+  const ti = w.towns.findIndex((t) => t.purpose === "resort");
+  const town = w.towns[ti];
+  const income = (S0.last?.tickets || 0) + (S0.last?.spending || 0);
+  const cost = (S0.last?.upkeep || 0) + S0.marketing;
+  const built = new Set(w.structs.map((s) => s.type));
+  return (
+    <Panel title="🏝️ Sentosa Development Corporation" onClose={onClose}>
+      <p className="text-[14px] leading-snug text-[var(--muted)]">Sentosa is run for visitors, not residents. No HDB flats or factories: hotels, beaches and attractions bring people, and getting there matters. Visitors pay entry and spend money; crowds and high prices put them off.</p>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Visitors / month" value={fmtNum(S0.visitors)} />
+        <Stat label="Visitor happiness" value={`${Math.round(S0.sat)}%`} tone={S0.sat < 45 ? "bad" : null} sub={st.crowd > 1.1 ? "Overcrowded! Add hotels or attractions" : st.crowd < 0.5 ? "Plenty of room" : "Busy"} />
+        <Stat label="Island income" value={fmtMoney(income)} sub="per month" />
+        <Stat label="Island costs" value={fmtMoney(cost)} sub={`net ${income - cost >= 0 ? "+" : ""}${fmtMoney(income - cost)}`} tone={income - cost < 0 ? "bad" : null} />
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-[13px]">
+        {[
+          ["🚡 Getting there", st.link / 1.25],
+          ["🎢 Attractions", Math.min(1, (st.appeal - 0.35) / 3)],
+        ].map(([l, v]) => (
+          <div key={l}>
+            <div className="flex justify-between">
+              <span>{l}</span>
+              <b>{Math.round(v * 100)}%</b>
+            </div>
+            <Bar value={v * 100} c={v > 0.6 ? "var(--good)" : v > 0.3 ? "var(--warn)" : "var(--bad)"} />
+          </div>
+        ))}
+        <div>
+          <div className="flex justify-between">
+            <span>🏨 Crowding</span>
+            <b>{Math.round(st.crowd * 100)}% full</b>
+          </div>
+          <Bar value={Math.min(100, st.crowd * 66)} c={st.crowd < 0.85 ? "var(--good)" : st.crowd < 1.1 ? "var(--warn)" : "var(--bad)"} mark={66} />
+        </div>
+      </div>
+      <h3 className="mb-1 mt-3 font-bold">🎚️ Your choices</h3>
+      <Slider id="s-fee" label="🎟️ Entry fee" value={S0.fee} min={0} max={30} suffix="" onChange={(v) => set(() => (S0.fee = v))} hint={`$${S0.fee} per visitor. Higher fees earn more per head but fewer people come${S0.fee > 10 ? ", and visitors grumble about the price" : ""}.`} />
+      <Slider id="s-mk" label="📣 Marketing" value={S0.marketing} min={0} max={120} step={5} suffix="K" onChange={(v) => set(() => (S0.marketing = v))} hint="Overseas ads and events. Up to +45% visitors, with diminishing returns." />
+      {town && <Slider id="s-maint" label="🧹 Island upkeep" value={town.maint ?? 100} min={40} max={150} step={10} onChange={(v) => set(() => (town.maint = v))} hint="Clean beaches and well-kept paths keep visitors happy." />}
+      <h3 className="mb-1 mt-3 font-bold">🗺️ Attractions & links</h3>
+      <ul className="grid gap-1 text-[14px] sm:grid-cols-2">
+        {SENTOSA_PARTS.map((k) => {
+          const S = STRUCTS[k];
+          const has = built.has(k);
+          return (
+            <li key={k} className={has ? "text-[var(--good)]" : w.year < S.year ? "text-[var(--muted)]" : ""}>
+              {has ? "✅" : w.year < S.year ? "🔒" : "⬜"} {S.icon} {S.name} {!has && (w.year < S.year ? `· from ${S.year}` : `· ${fmtMoney(S.cost)} in 🌟 Landmarks`)}
+            </li>
+          );
+        })}
+        <li>
+          🏨 {st.hotels} hotel & shop lots · 🏡 {st.homes} resort homes <span className="text-[var(--muted)]">(zone Commercial / Private on the island)</span>
+        </li>
+      </ul>
+    </Panel>
+  );
+}
+
+// ---------------- town purposes ----------------
+export function PurposePicker({ world: w, index, cost, onPick }) {
+  const t = w.towns[index];
+  const cur = PURPOSES[t.purpose] || PURPOSES.mixed;
+  const [open, setOpen] = useState(false);
+  if (cur.fixed)
+    return (
+      <div className="mt-2 rounded-xl bg-[var(--soft)] px-2.5 py-1.5 text-[13px]">
+        {cur.icon} <b>{cur.name}</b> · {cur.desc}
+      </div>
+    );
+  return (
+    <div className="mt-2">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="city-btn w-full rounded-xl bg-[var(--soft)] px-2.5 py-1.5 text-left text-[13px]">
+        {cur.icon} Planned as: <b>{cur.name}</b> <span className="text-[var(--muted)]">· change ▾</span>
+      </button>
+      {open && (
+        <div className="mt-1 grid gap-1 sm:grid-cols-2">
+          {Object.entries(PURPOSES)
+            .filter(([, P]) => !P.fixed)
+            .map(([k, P]) => (
+              <button
+                key={k}
+                disabled={k === t.purpose}
+                onClick={() => {
+                  setOpen(false);
+                  onPick(k);
+                }}
+                className={`city-btn rounded-xl border-2 p-2 text-left text-[12.5px] leading-snug ${k === t.purpose ? "border-[var(--brand)]" : "border-[var(--ink)]/10"}`}
+              >
+                <b>
+                  {P.icon} {P.name}
+                </b>
+                <span className="block text-[var(--muted)]">{P.desc}</span>
+              </button>
+            ))}
+          <div className="text-[12px] text-[var(--muted)] sm:col-span-2">{cost ? `Re-planning costs ${fmtMoney(cost)} and upsets residents a little.` : "Free to change for now."} Existing buildings stay; new growth follows the plan.</div>
         </div>
       )}
     </div>
