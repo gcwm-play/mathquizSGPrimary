@@ -4,11 +4,14 @@
 export const N = 56; // map is N x N tiles
 export const START_YEAR = 1965;
 
+// reviewMin: approval below this at a 5-yearly review ends the game (0 = never).
+// fire: chance multiplier for fires. income/growth: multipliers on tax income and building growth.
 export const DIFFICULTY = {
-  easy: { label: "Easy", cash: 60000, reserves: 80000, waitlist: 6000 },
-  normal: { label: "Normal", cash: 35000, reserves: 50000, waitlist: 9000 },
-  hard: { label: "Hard", cash: 18000, reserves: 25000, waitlist: 14000 },
+  easy: { label: "Easy", desc: "Lots of money, no game over", cash: 90000, reserves: 100000, waitlist: 5000, reviewMin: 0, fire: 0, income: 1.4, growth: 1.5 },
+  normal: { label: "Normal", desc: "Relaxed, with a few challenges", cash: 55000, reserves: 60000, waitlist: 7000, reviewMin: 20, fire: 0.35, income: 1.2, growth: 1.25 },
+  hard: { label: "Hard", desc: "Tight budget, tough reviews", cash: 22000, reserves: 25000, waitlist: 14000, reviewMin: 30, fire: 1, income: 1, growth: 1 },
 };
+export const diffOf = (w) => DIFFICULTY[w.difficulty] || DIFFICULTY.normal;
 
 // Residential zones hold residents, the others hold jobs. Index = development level (0 = empty lot).
 export const ZONES = {
@@ -63,17 +66,17 @@ export const DEPTS = {
 
 // cover: which coverage map the building feeds. radius in tiles.
 export const BUILDINGS = {
-  hawker: { name: "Hawker Centre", icon: "🍜", cost: 450, upkeep: 4, size: 1, dept: "community", cover: "food", radius: 6, power: 1, water: 2, year: 1965, color: "#fb923c", h: 14, tip: "Cheap, good food nearby makes residents happy." },
-  school: { name: "Primary School", icon: "🏫", cost: 900, upkeep: 9, size: 1, dept: "education", cover: "school", radius: 7, power: 1, water: 1, year: 1965, color: "#facc15", h: 18, tip: "Families want a school near home." },
-  clinic: { name: "Polyclinic", icon: "🩺", cost: 1000, upkeep: 10, size: 1, dept: "health", cover: "health", radius: 7, power: 1, water: 1, year: 1965, color: "#f1f5f9", h: 16, tip: "Everyday healthcare for a neighbourhood." },
+  hawker: { name: "Hawker Centre", icon: "🍜", cost: 450, upkeep: 4, size: 1, dept: "community", cover: "food", radius: 7, power: 1, water: 2, year: 1965, color: "#fb923c", h: 14, tip: "Cheap, good food nearby makes residents happy." },
+  school: { name: "Primary School", icon: "🏫", cost: 900, upkeep: 9, size: 1, dept: "education", cover: "school", radius: 8, power: 1, water: 1, year: 1965, color: "#facc15", h: 18, tip: "Families want a school near home." },
+  clinic: { name: "Polyclinic", icon: "🩺", cost: 1000, upkeep: 10, size: 1, dept: "health", cover: "health", radius: 8, power: 1, water: 1, year: 1965, color: "#f1f5f9", h: 16, tip: "Everyday healthcare for a neighbourhood." },
   hospital: { name: "Hospital", icon: "🏥", cost: 4500, upkeep: 40, size: 2, dept: "health", cover: "health", radius: 15, power: 4, water: 4, year: 1965, color: "#e2e8f0", h: 40, tip: "Covers a huge area and raises land value." },
-  police: { name: "Neighbourhood Police Post", icon: "👮", cost: 550, upkeep: 5, size: 1, dept: "safety", cover: "safety", radius: 8, power: 1, water: 1, year: 1965, color: "#1e3a8a", h: 14, tip: "Keeps crime low so land value stays up." },
-  fire: { name: "Fire Station", icon: "🚒", cost: 650, upkeep: 6, size: 1, dept: "safety", cover: "fire", radius: 9, power: 1, water: 2, year: 1965, color: "#dc2626", h: 16, tip: "SCDF fire cover. Buildings without it can burn down." },
-  cc: { name: "Community Club", icon: "🏓", cost: 700, upkeep: 6, size: 1, dept: "community", cover: "community", radius: 7, power: 1, water: 1, year: 1965, color: "#a78bfa", h: 14, tip: "Kampong spirit for a new estate." },
-  park: { name: "Park", icon: "🌳", cost: 80, upkeep: 0.6, size: 1, dept: "community", cover: "green", radius: 4, power: 0, water: 0, year: 1965, color: "#16a34a", h: 0, tip: "City in a Garden: raises land value and cuts pollution." },
-  bus: { name: "Bus Interchange", icon: "🚌", cost: 600, upkeep: 6, size: 1, dept: "transport", cover: "bus", radius: 7, power: 1, water: 0, year: 1965, color: "#94a3b8", h: 10, tip: "Feeder buses shorten commutes." },
-  mrt: { name: "MRT Station", icon: "🚇", cost: 1800, upkeep: 14, size: 1, dept: "transport", cover: "mrt", radius: 7, power: 3, water: 0, year: 1987, color: "#ef4444", h: 14, tip: "Must touch an MRT track. Needs at least 2 linked stations to run." },
-  power: { name: "Gas Power Station", icon: "⚡", cost: 4200, upkeep: 30, size: 2, dept: "utilities", supply: { power: 260 }, power: 0, water: 2, year: 1965, color: "#64748b", h: 26, pollution: 45, tip: "Supplies 260 power units. Pollutes." },
+  police: { name: "Neighbourhood Police Post", icon: "👮", cost: 550, upkeep: 5, size: 1, dept: "safety", cover: "safety", radius: 9, power: 1, water: 1, year: 1965, color: "#1e3a8a", h: 14, tip: "Keeps crime low so land value stays up." },
+  fire: { name: "Fire Station", icon: "🚒", cost: 650, upkeep: 6, size: 1, dept: "safety", cover: "fire", radius: 10, power: 1, water: 2, year: 1965, color: "#dc2626", h: 16, tip: "SCDF fire cover. Buildings without it can burn down." },
+  cc: { name: "Community Club", icon: "🏓", cost: 700, upkeep: 6, size: 1, dept: "community", cover: "community", radius: 8, power: 1, water: 1, year: 1965, color: "#a78bfa", h: 14, tip: "Kampong spirit for a new estate." },
+  park: { name: "Park", icon: "🌳", cost: 80, upkeep: 0.6, size: 1, dept: "community", cover: "green", radius: 5, power: 0, water: 0, year: 1965, color: "#16a34a", h: 0, tip: "City in a Garden: raises land value and cuts pollution." },
+  bus: { name: "Bus Interchange", icon: "🚌", cost: 600, upkeep: 6, size: 1, dept: "transport", cover: "bus", radius: 8, power: 1, water: 0, year: 1965, color: "#94a3b8", h: 10, tip: "Feeder buses shorten commutes." },
+  mrt: { name: "MRT Station", icon: "🚇", cost: 1800, upkeep: 14, size: 1, dept: "transport", cover: "mrt", radius: 8, power: 3, water: 0, year: 1987, color: "#ef4444", h: 14, tip: "Must touch an MRT track. Needs at least 2 linked stations to run." },
+  power: { name: "Gas Power Station", icon: "⚡", cost: 4200, upkeep: 30, size: 2, dept: "utilities", supply: { power: 400 }, power: 0, water: 2, year: 1965, color: "#64748b", h: 26, pollution: 45, tip: "Supplies 400 power units. Pollutes, so keep it away from homes." },
   solar: { name: "Solar Farm", icon: "☀️", cost: 500, upkeep: 2, size: 1, dept: "utilities", supply: { power: 14 }, power: 0, water: 0, year: 2008, color: "#1d4ed8", h: 0, tip: "Clean, but needs lots of land for 14 power units." },
   newater: { name: "NEWater Plant", icon: "💧", cost: 3200, upkeep: 26, size: 2, dept: "utilities", supply: { water: 230 }, power: 12, water: 0, year: 2003, color: "#0ea5e9", h: 12, tip: "Recycles used water into 230 water units." },
   desal: { name: "Desalination Plant", icon: "🌊", cost: 3800, upkeep: 32, size: 2, dept: "utilities", supply: { water: 260 }, power: 25, water: 0, year: 2005, coastal: true, color: "#38bdf8", h: 12, tip: "Turns seawater into 260 water units. Must touch the sea. Power hungry." },
@@ -90,7 +93,7 @@ export const TOOL_GROUPS = [
   {
     id: "zone",
     icon: "🏘️",
-    name: "Zone",
+    name: "Zones",
     tools: [
       { id: "zone:hdb", icon: "🏢", name: "HDB Flats", mode: "rect", cost: 5, tip: "Public housing. Most Singaporeans live in HDB." },
       { id: "zone:pte", icon: "🏡", name: "Private Housing", mode: "rect", cost: 5, tip: "Landed & condos. Land sales earn money, but too much hurts affordability." },
@@ -104,7 +107,7 @@ export const TOOL_GROUPS = [
     icon: "🛣️",
     name: "Transport",
     tools: [
-      { id: "road", icon: "🛣️", name: "Road", mode: "line", cost: 20, tip: "Zones and amenities need a road within 2 tiles." },
+      { id: "road", icon: "🛣️", name: "Road", mode: "line", cost: 20, tip: "Zones and amenities need a road within 3 tiles." },
       { id: "rail", icon: "🛤️", name: "MRT Track", mode: "line", cost: 120, year: 1987, tip: "Elevated track. Can run over roads." },
       { id: "b:mrt", icon: "🚇", name: "MRT Station", mode: "place" },
       { id: "b:bus", icon: "🚌", name: "Bus Interchange", mode: "place" },
@@ -115,7 +118,7 @@ export const TOOL_GROUPS = [
   {
     id: "amenity",
     icon: "🍜",
-    name: "Amenities",
+    name: "Services",
     tools: [
       { id: "b:hawker", mode: "place" },
       { id: "b:school", mode: "place" },
@@ -179,7 +182,7 @@ export const ALL_TOOLS = Object.fromEntries(TOOL_GROUPS.flatMap((g) => g.tools.m
 
 // Things that matter to residents. weight = share of approval.
 export const NEEDS = {
-  housing: { name: "Housing", icon: "🏠", weight: 1.6 },
+  housing: { name: "Housing", icon: "🏠", weight: 1.1 },
   jobs: { name: "Jobs", icon: "💼", weight: 1.3 },
   cost: { name: "Cost of living", icon: "🧾", weight: 1.2 },
   food: { name: "Hawker food", icon: "🍜", weight: 0.9 },
@@ -196,7 +199,7 @@ export const NEEDS = {
 // Era milestones shown as news.
 export const MILESTONES = [
   { year: 1965, month: 7, text: "🇸🇬 9 Aug 1965: Singapore is independent! Thousands live in crowded kampongs and need homes. Zone HDB flats next to roads." },
-  { year: 1970, month: 0, text: "📋 First ministerial review this year. Keep approval above 30%." },
+  { year: 1970, month: 0, text: "📋 First ministerial review this year. Check approval in 📊 and keep residents happy." },
   { year: 1972, month: 0, text: "⚓ Container ports can now be built on the coast." },
   { year: 1981, month: 0, text: "✈️ Changi Airport can now be built. Needs a big 4×4 site." },
   { year: 1987, month: 0, text: "🚇 MRT technology arrives! Lay track, then put stations next to it." },

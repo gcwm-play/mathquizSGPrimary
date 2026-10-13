@@ -1,6 +1,6 @@
 // Simulation core for Lion City Planner. Pure functions on a plain "world" object
 // so it can be saved to localStorage and tested outside the browser.
-import { N, START_YEAR, DIFFICULTY, ZONES, BUILDINGS, ALL_TOOLS, NEEDS, DEPTS, MILESTONES, EVENTS, MONTHS } from "./defs.js";
+import { N, START_YEAR, DIFFICULTY, diffOf, ZONES, BUILDINGS, ALL_TOOLS, NEEDS, DEPTS, MILESTONES, EVENTS, MONTHS } from "./defs.js";
 
 export const idx = (x, y) => y * N + x;
 export const inMap = (x, y) => x >= 0 && y >= 0 && x < N && y < N;
@@ -95,9 +95,9 @@ export function generateMap(seed) {
 
 // ---------- World ----------
 
-export function newWorld({ difficulty = "normal", sandbox = false, seed = Math.floor(Math.random() * 1e9), name = "Lion City" } = {}) {
+export function newWorld({ difficulty = "normal", sandbox = false, seed = Math.floor(Math.random() * 1e9), name = "Lion City", starter = true } = {}) {
   const d = DIFFICULTY[difficulty] || DIFFICULTY.normal;
-  return {
+  const w = {
     version: 1,
     name,
     seed,
@@ -130,7 +130,59 @@ export function newWorld({ difficulty = "normal", sandbox = false, seed = Math.f
     demand: { r: 0.8, c: 0, i: 0 },
     goalsDone: {},
     roadCount: 0,
+    focus: null,
   };
+  if (starter) seedStarterTown(w);
+  checkGoals(w);
+  return w;
+}
+
+// A small ready-made town (roads, zones, power, a hawker centre and a school)
+// near the south of the island, so a new player sees the city working at once.
+export function seedStarterTown(w) {
+  const S = 13;
+  let best = null;
+  for (let y = 2; y < N - S - 2; y++) {
+    for (let x = 2; x < N - S - 2; x++) {
+      let ok = true;
+      for (let yy = y; yy < y + S && ok; yy++) for (let xx = x; xx < x + S && ok; xx++) if (w.tiles[idx(xx, yy)].t !== "land") ok = false;
+      if (!ok) continue;
+      const cx = x + S / 2;
+      const cy = y + S / 2;
+      const score = Math.hypot((cx - cy) / N, (cx + cy - N) / N - 0.15);
+      if (!best || score < best.score) best = { x, y, score };
+    }
+  }
+  if (!best) return;
+  const { x, y } = best;
+  const wasSandbox = w.sandbox;
+  w.sandbox = true;
+  const T = (tool, a, b = a) => applyTool(w, tool, a, b);
+  for (const k of [0, 6, 12]) {
+    T("road", { x, y: y + k }, { x: x + 12, y: y + k });
+    T("road", { x: x + k, y }, { x: x + k, y: y + 12 });
+  }
+  T("b:hawker", { x: x + 5, y: y + 5 });
+  T("b:school", { x: x + 7, y: y + 5 });
+  T("b:clinic", { x: x + 5, y: y + 7 });
+  T("zone:hdb", { x: x + 1, y: y + 1 }, { x: x + 5, y: y + 5 });
+  T("zone:hdb", { x: x + 7, y: y + 1 }, { x: x + 11, y: y + 5 });
+  T("zone:com", { x: x + 1, y: y + 7 }, { x: x + 5, y: y + 11 });
+  T("zone:ind", { x: x + 7, y: y + 7 }, { x: x + 11, y: y + 11 });
+  // Power station just outside town, beside a road stub
+  outer: for (let r = 1; r < 10; r++) {
+    for (const [px, py] of [[x + S + r, y + 8], [x + 8, y + S + r], [x - 2 - r, y + 8], [x + 8, y - 2 - r]]) {
+      if (previewTool(w, "b:power", { x: px, y: py }, { x: px, y: py }).ok) {
+        T("b:power", { x: px, y: py });
+        const road = px > x + S ? [{ x: x + 12, y: y + 9 }, { x: px - 1, y: y + 9 }] : py > y + S ? [{ x: x + 9, y: y + 12 }, { x: x + 9, y: py - 1 }] : null;
+        if (road) T("road", road[0], road[1]);
+        break outer;
+      }
+    }
+  }
+  w.sandbox = wasSandbox;
+  w.monthAcc = null;
+  w.focus = { x: x + 6, y: y + 6 };
 }
 
 function emptyLedger() {
@@ -341,7 +393,9 @@ export function applyTool(w, toolId, a, b) {
   const tool = ALL_TOOLS[toolId];
   const p = previewTool(w, toolId, a, b);
   if (!p.ok) return { ok: false, msg: p.msg || "Can't build there" };
-  if (!w.sandbox && p.cost > w.cash) return { ok: false, msg: "Not enough money! Check the budget." };
+  if (!w.sandbox && p.cost > w.cash) return { ok: false, msg: `Not enough money: this costs ${fmtMoney(p.cost)}. Open the budget to raise income.` };
+  const before = w.tiles.map((t) => ({ ...t }));
+  const waitBefore = w.waitlist;
 
   if (tool.mode === "place") {
     const { x: ox, y: oy } = p.origin;
@@ -402,7 +456,21 @@ export function applyTool(w, toolId, a, b) {
   }
   if (!w.sandbox) w.cash -= p.cost;
   addLedger(w, "exp", "construction", p.cost);
-  return { ok: true, cost: p.cost };
+  const changed = [];
+  for (let i = 0; i < w.tiles.length; i++) {
+    const t = w.tiles[i];
+    const o = before[i];
+    if (t.t !== o.t || t.tr !== o.tr || t.z !== o.z || t.lv !== o.lv || t.b !== o.b || t.o !== o.o || t.road !== o.road || t.rail !== o.rail) changed.push([i, o]);
+  }
+  return { ok: true, cost: p.cost, undo: { toolId, tiles: changed, cost: p.cost, waitDelta: w.waitlist - waitBefore } };
+}
+
+// Reverse one build: restore the tiles it touched and refund what it cost.
+export function undoAction(w, u) {
+  for (const [i, o] of u.tiles) Object.assign(w.tiles[i], o);
+  if (!w.sandbox) w.cash += u.cost;
+  addLedger(w, "exp", "construction", -u.cost);
+  w.waitlist = Math.max(0, w.waitlist - u.waitDelta);
 }
 
 function addLedger(w, side, key, amount) {
@@ -441,7 +509,7 @@ export function analyze(w) {
     if (tl.rail) railCount++;
     if (!tl.road) continue;
     roadCount++;
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (inMap(x + dx, y + dy)) roadNear[idx(x + dx, y + dy)] = 1;
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (inMap(x + dx, y + dy)) roadNear[idx(x + dx, y + dy)] = 1;
   }
 
   // Buildings (origins only)
@@ -685,8 +753,8 @@ export function analyze(w) {
     ta += nd.weight * needs[k];
   }
   // Early on, residents give a new nation's planner some benefit of the doubt.
-  const grace = Math.min(1, pop / 20000);
-  const approvalTarget = 58 * (1 - grace) + (ta / tw) * grace;
+  const grace = Math.min(1, pop / 40000);
+  const approvalTarget = 62 * (1 - grace) + (ta / tw) * grace;
 
   return {
     roadNear, roadCount, railCount, builds, pw, wt, powerSupply, powerDemand, waterSupply, waterDemand, powerRatio, waterRatio, waterSources,
@@ -711,10 +779,11 @@ export function monthlyBudget(w, A) {
   }
   corpTax += A.bigJobs * 0.003;
   const popScale = Math.min(1, A.pop / 120000);
+  const inc = diffOf(w).income;
   const rev = {
-    property: resTax * (w.taxes.property / 10),
-    corporate: corpTax * (w.taxes.corporate / 17) * effectMult(w, "corpTax"),
-    gst: A.pop * 0.0016 * w.taxes.gst * (0.55 + 0.45 * Math.min(1, A.comJobs / Math.max(1, A.pop * 0.24))),
+    property: resTax * (w.taxes.property / 10) * inc,
+    corporate: corpTax * (w.taxes.corporate / 17) * effectMult(w, "corpTax") * inc,
+    gst: A.pop * 0.0016 * w.taxes.gst * (0.55 + 0.45 * Math.min(1, A.comJobs / Math.max(1, A.pop * 0.24))) * inc,
     tourism: A.tourism * popScale * effectMult(w, "tourism") * 0.5,
     trade: A.trade * Math.min(1, A.indJobs / 6000) * 0.5,
     landSales: w.pendingLandSales,
@@ -798,12 +867,13 @@ export function stepMonth(w, rng = Math.random) {
   let grown = 0;
   const maxGrow = 24 + Math.floor(order.length / 25);
   const grant = w.hdbGrant / 100;
+  const D = diffOf(w);
   for (const k of order) {
     const tl = w.tiles[k];
     const zd = ZONES[tl.z];
     const ok = A.roadNear[k] && A.pw[k] && A.wt[k];
     if (tl.lv > 0 && (!A.pw[k] || !A.wt[k])) {
-      if (rng() < 0.06) downgrade(w, tl);
+      if (rng() < 0.02) downgrade(w, tl);
       continue;
     }
     if (!ok) continue;
@@ -819,7 +889,7 @@ export function stepMonth(w, rng = Math.random) {
     if (zd.pop) {
       const delta = zd.pop[tl.lv + 1] - zd.pop[tl.lv];
       if (w.waitlist < delta * 0.4) continue;
-      p = 0.08 + 0.22 * w.demand.r;
+      p = (0.08 + 0.22 * w.demand.r) * D.growth;
       p *= tl.z === "hdb" ? 0.6 + grant * 0.7 : 0.25 + A.landValue[k] / 120 + Math.max(0, w.demand.c) * 0.2;
       if (rng() >= p) continue;
       w.waitlist = Math.max(0, w.waitlist - delta);
@@ -830,7 +900,7 @@ export function stepMonth(w, rng = Math.random) {
     } else {
       const dem = tl.z === "com" ? w.demand.c : w.demand.i;
       if (dem <= 0.02) continue;
-      p = 0.06 + 0.3 * dem;
+      p = (0.06 + 0.3 * dem) * D.growth;
       if (rng() >= p) continue;
       const delta = zd.jobs[tl.lv + 1] - zd.jobs[tl.lv];
       w.pendingLandSales += delta * (tl.z === "com" ? A.landValue[k] * 0.008 : 0.25);
@@ -858,7 +928,7 @@ export function stepMonth(w, rng = Math.random) {
   for (const k of order) {
     const tl = w.tiles[k];
     if (tl.lv === 0) continue;
-    const chance = A.cover.fire[k] > 0 ? 0.00004 : 0.0007;
+    const chance = (A.cover.fire[k] > 0 ? 0.00004 : 0.0007) * D.fire;
     if (rng() < chance) {
       downgrade(w, tl, true);
       if (tl.lv > 0) downgrade(w, tl, true);
@@ -937,11 +1007,11 @@ export function stepMonth(w, rng = Math.random) {
   if (w.month === 0 && w.year >= 1970 && (w.year - START_YEAR) % 5 === 0) {
     w.reserveDrawn = false;
     const a = Math.round(w.approval);
-    if (!w.sandbox && a < 30) {
+    if (!w.sandbox && a < D.reviewMin) {
       w.gameOver = { reason: "review", text: `At the ${w.year} ministerial review, approval was only ${a}%. You've been reassigned to a desk job at the Ministry of Paperwork.` };
     } else pushNews(w, `📋 ${w.year} ministerial review passed with ${a}% approval.${a < 45 ? " Residents are restless though!" : ""}`);
   }
-  if (!w.sandbox && w.cash < -15000 && w.negativeMonths > 6) {
+  if (!w.sandbox && D.reviewMin > 0 && w.cash < -15000 && w.negativeMonths > 6) {
     w.gameOver = { reason: "broke", text: "The treasury ran dry for too long. The Ministry of Finance has taken over planning." };
   }
 
@@ -974,22 +1044,25 @@ export function drawReserves(w) {
 // ---------- Goals ----------
 
 export const GOALS = [
-  { id: "road", text: "Build a road", test: (w) => w.roadCount > 0 },
-  { id: "hdb", text: "Zone HDB flats beside the road", test: (w) => w.tiles.some((t) => t.z === "hdb") },
-  { id: "power", text: "Build a power station", test: (w) => w.tiles.some((t) => t.b === "power" || t.b === "solar") },
-  { id: "pop1k", text: "House 1,000 residents", test: (w) => w.stats.pop >= 1000 },
-  { id: "jobs", text: "Zone commercial & industrial for jobs", test: (w) => w.stats.jobs >= 500 },
-  { id: "hawker", text: "Open a hawker centre", test: (w) => w.tiles.some((t) => t.b === "hawker") },
-  { id: "school", text: "Open a primary school", test: (w) => w.tiles.some((t) => t.b === "school") },
-  { id: "water", text: "Build waterworks near the reservoirs", test: (w) => w.tiles.some((t) => t.b === "waterworks") },
-  { id: "pop25k", text: "Reach 25,000 residents", test: (w) => w.stats.pop >= 25000 },
-  { id: "pop100k", text: "Reach 100,000 residents", test: (w) => w.stats.pop >= 100000 },
-  { id: "mrt", text: "Run an MRT line (2 stations)", test: (w) => w.mrtRunning },
-  { id: "pop300k", text: "Reach 300,000 residents", test: (w) => w.stats.pop >= 300000 },
-  { id: "approval70", text: "Get approval to 70%", test: (w) => w.approval >= 70 },
+  { id: "road", text: "Build a road", hint: "Open 🛣️ Transport, pick Road, tap where it starts and where it ends, then press ✓ Build.", test: (w) => w.tiles.some((t) => t.road) },
+  { id: "hdb", text: "Zone HDB flats beside a road", hint: "Open 🏘️ Zones, pick HDB Flats, tap two corners of a rectangle next to a road, then ✓.", test: (w) => w.tiles.some((t) => t.z === "hdb") },
+  { id: "power", text: "Build a power station", hint: "Open ⚡ Utilities and place a Gas Power Station near a road, away from homes.", test: (w) => w.tiles.some((t) => t.b === "power" || t.b === "solar") },
+  { id: "pop1k", text: "House 1,000 residents", hint: "Press ▶ to let time pass. Flats appear on HDB land that has a road and power.", test: (w) => w.stats.pop >= 1000 },
+  { id: "jobs", text: "Zone commercial & industrial for jobs", hint: "Residents need work. Zone 🏬 Commercial and 🏭 Industrial land (factories away from homes).", test: (w) => w.stats.jobs >= 500 },
+  { id: "hawker", text: "Open a hawker centre", hint: "Open 🍜 Services and place a Hawker Centre among the flats.", test: (w) => w.tiles.some((t) => t.b === "hawker") },
+  { id: "school", text: "Open a primary school", hint: "Open 🍜 Services and place a Primary School near homes.", test: (w) => w.tiles.some((t) => t.b === "school") },
+  { id: "pop5k", text: "Reach 5,000 residents", hint: "Zone more HDB land beside roads. Watch the R bar: tall green means people want homes.", test: (w) => w.stats.pop >= 5000 },
+  { id: "water", text: "Build waterworks near the reservoirs", hint: "Imported water won't last forever. Place 🚰 Waterworks near the lakes in the middle of the island.", test: (w) => w.tiles.some((t) => t.b === "waterworks") },
+  { id: "pop25k", text: "Reach 25,000 residents", hint: "Add polyclinics, police posts and parks so blocks grow taller. Tap any block with 👆 Look to see what it needs.", test: (w) => w.stats.pop >= 25000 },
+  { id: "pop100k", text: "Reach 100,000 residents", hint: "Spread out with new towns. Each needs roads, a hawker centre, a school and a clinic.", test: (w) => w.stats.pop >= 100000 },
+  { id: "mrt", text: "Run an MRT line (2 stations)", hint: "From 1987: lay 🛤️ MRT Track, then place a station beside the track at each end.", test: (w) => w.mrtRunning },
+  { id: "pop300k", text: "Reach 300,000 residents", hint: "MRT stations raise land value a lot, so blocks near them grow into towers.", test: (w) => w.stats.pop >= 300000 },
+  { id: "approval70", text: "Get approval to 70%", hint: "Open the 📊 report to see which needs are lowest.", test: (w) => w.approval >= 70 },
 ];
 
-function checkGoals(w) {
+export const nextGoal = (w) => GOALS.find((g) => !w.goalsDone[g.id]) || null;
+
+export function checkGoals(w) {
   for (const g of GOALS) {
     if (!w.goalsDone[g.id] && g.test(w)) {
       w.goalsDone[g.id] = true;
@@ -1048,7 +1121,7 @@ export function describeTile(w, A, x, y) {
     icon = zd.icon;
     if (zd.pop) lines.push(`👥 ${fmtNum(zd.pop[tl.lv])} residents`);
     else lines.push(`💼 ${fmtNum(zd.jobs[tl.lv])} jobs`);
-    if (!A.roadNear[i]) lines.push("⚠️ Needs a road within 2 tiles");
+    if (!A.roadNear[i]) lines.push("⚠️ Needs a road within 3 tiles");
     else if (!A.pw[i]) lines.push("⚠️ No power! Build more power stations");
     else if (!A.wt[i]) lines.push("⚠️ No water! Build more water supply");
     else if (tl.lv < 3) {
