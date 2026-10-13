@@ -3,6 +3,7 @@ import React, { useRef, useState } from "react";
 import { Panel } from "../city/panels.jsx";
 import { fmtMoney, fmtNum, projectFinance, REV_LABELS, EXP_LABELS, tToDate, wearRate, dateLabel, sentosaState } from "./sim.js";
 import { STRUCTS, PURPOSES } from "./defs.js";
+import { setPurpose } from "./world.js";
 import { CRISES, getDecision } from "./events.js";
 import { objectiveProgress } from "./objectives.js";
 import { STYLES } from "./rivals.js";
@@ -809,3 +810,51 @@ export function PurposePicker({ world: w, index, cost, onPick }) {
   );
 }
 
+
+// ---------------- the first thing a new mayor does ----------------
+export function PlanPanel({ world: w, onDone, onChange, toast }) {
+  return (
+    <Panel title="📐 Plan your towns" onClose={onDone}>
+      <p className="text-[15px] leading-snug">
+        Before you start, decide what each town in {w.name} is for. It sets what grows there and what residents expect: a CBD won't ask for wet markets, an industrial town cares more about jobs than parks. We've suggested a plan; change any of them. You can re-plan later in 🏘️ Towns (free for the first 3 years).
+      </p>
+      <div className="mt-3 space-y-2">
+        {w.towns.map((t, i) => (
+          <div key={t.name} className="rounded-2xl border-2 border-[var(--ink)]/10 p-2">
+            <div className="font-bold">{t.name}</div>
+            {PURPOSES[t.purpose]?.fixed ? (
+              <div className="text-[13px]">
+                {PURPOSES[t.purpose].icon} <b>{PURPOSES[t.purpose].name}</b> · {PURPOSES[t.purpose].desc}
+              </div>
+            ) : (
+              <div className="mt-1 flex flex-wrap gap-1.5" role="radiogroup" aria-label={`${t.name} purpose`}>
+                {Object.entries(PURPOSES)
+                  .filter(([, P]) => !P.fixed)
+                  .map(([k, P]) => (
+                    <button
+                      key={k}
+                      role="radio"
+                      aria-checked={t.purpose === k}
+                      title={P.desc}
+                      onClick={() => {
+                        const r = setPurpose(w, i, k);
+                        if (!r.ok) toast(r.msg);
+                        onChange();
+                      }}
+                      className={`city-btn rounded-full px-3 py-1.5 text-[13px] font-bold ${t.purpose === k ? "bg-[var(--brand)] text-white" : "bg-[var(--soft)]"}`}
+                    >
+                      {P.icon} {P.name}
+                    </button>
+                  ))}
+              </div>
+            )}
+            {!PURPOSES[t.purpose]?.fixed && <div className="mt-1 text-[12px] text-[var(--muted)]">{PURPOSES[t.purpose]?.desc}</div>}
+          </div>
+        ))}
+      </div>
+      <button onClick={onDone} className="city-btn city-sticker mt-3 w-full rounded-2xl bg-[var(--brand)] py-2.5 text-lg font-bold text-white">
+        Start as mayor
+      </button>
+    </Panel>
+  );
+}

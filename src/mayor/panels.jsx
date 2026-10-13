@@ -43,6 +43,8 @@ export function TownsPanel({ world: w, onClose, onShow, onChange, toast }) {
         <Stat label="Life expect." value={w.stats.life ? `🩺 ${w.stats.life.toFixed(1)}` : "—"} />
       </div>
       <p className="-mt-1 mb-3 text-[13px] leading-snug text-[var(--muted)]">
+        👶 Births per woman rise with good homes, a short housing queue, schools and community centres nearby, and happy residents (baby-bonus and childcare decisions help too), on top of Singapore's national trend, which falls over the decades.
+        <br />
         🏠 {fmtNum(vacant)} empty homes ready · 🏗️ {fmtNum(building)} homes being built · ⏳ {fmtNum(w.waitlist)} families waiting
         {w.leftRegion ? ` · ✈️ ${fmtNum(w.leftRegion)} have left the region so far` : ""}. Families move into empty homes over a few months; people moved out by demolitions take empty homes first.
       </p>

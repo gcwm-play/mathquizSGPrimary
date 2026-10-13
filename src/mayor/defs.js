@@ -120,7 +120,7 @@ export const TOOL_GROUPS = [
     name: "Roads",
     tools: [
       { id: "road:road", icon: "🛣️", name: "Road", mode: "road", tip: "Curvy roads. Lots appear along both sides." },
-      { id: "road:avenue", icon: "🛤️", name: "Avenue", mode: "road", tip: "Wider and faster. Better transport." },
+      { id: "road:avenue", icon: "🛤️", name: "Avenue", mode: "road", tip: "A wide main road: homes beside it get better transport and land value. Use for town centres; normal roads are fine for side streets." },
       { id: "road:rail", icon: "🚆", name: "MRT track", mode: "road", year: 1987, tip: "Elevated track for MRT stations." },
       { id: "unroad", icon: "✂️", name: "Remove road", mode: "pick", tip: "Tap a road to remove it and its lots." },
     ],

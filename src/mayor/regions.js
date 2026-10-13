@@ -215,7 +215,7 @@ export const REGIONS = {
     tip: "Tourism region: Sentosa has its own visitor economy.",
     land: (e, s, n) => {
       let v = 6 + wave(e, 1.6, 0.21) + Math.max(0, e - 22) * 0.25 - s; // mainland coast
-      v = Math.max(v, (1 - Math.hypot((e + 2) / 15, (s - 19) / 4.6)) * 4.6); // Sentosa
+      v = Math.max(v, (1 - Math.hypot((e + 1.5) / 16.5, (s - 20.5) / 6.8)) * 6.8); // Sentosa
       v = Math.max(v, 2.2 - Math.hypot(e - 16, s - 12)); // Pulau Brani
       return v + n * 1.6;
     },
@@ -224,22 +224,28 @@ export const REGIONS = {
       { name: "Bukit Merah", e: -12, s: -14 },
       { name: "Telok Blangah", e: -2, s: -3 },
       { name: "HarbourFront", e: 14, s: -2 },
-      { name: "Sentosa", e: -2, s: 19, resort: true },
+      { name: "Sentosa", e: -1.5, s: 20.5, resort: true },
     ],
     kampongs: [
       { name: "Kampong Henderson", e: -9, s: -6, r: 3, pop: 520 },
       { name: "Kampong Radin Mas", e: 6, s: -10, r: 2.8, pop: 460 },
       { name: "Kampong Bukit Merah", e: -18, s: -18, r: 3, pop: 480 },
-      { name: "Kampong Serapong", e: 8, s: 19, r: 2, pop: 200 },
+      { name: "Kampong Serapong", e: 8, s: 23.5, r: 1.8, pop: 200 },
     ],
     roads: [
       [[-44, 2], [-6, 1], [30, 2]],
       [[-6, 1], [-9, -12], [-12, -34]],
-      [[-15, 18], [-3, 14.6], [10, 17.5]],
-      [[10, 17.5], [-1, 23.5], [-15, 18]],
+      // Sentosa: a ring road with a spine and cross streets
+      [[-14, 18], [-2, 15], [11, 18]],
+      [[11, 23], [-1, 26.5], [-14, 23]],
+      [[-14, 18], [-17, 20.5], [-14, 23]],
+      [[11, 18], [14, 20.5], [11, 23]],
+      [[-15.5, 20.5], [-1.5, 20.5], [12.5, 20.5]],
+      [[-7, 16.4], [-7, 20.5], [-7, 25]],
+      [[4, 16.4], [4, 20.5], [4, 25.4]],
     ],
     oldTown: [{ e: 2, s: -2, r: 3, zone: "com" }],
-    structs: [{ type: "fortSiloso", e: -14, s: 19.5, ang: -0.78 }],
+    structs: [{ type: "fortSiloso", e: -16.5, s: 17, ang: -0.78 }],
     landmarks: ["mountFaber", "keppelPort", "cableCar", "sentosaBeach", "underwaterWorld", "sentosaBridge", "vivoCity", "sentosaExpress", "resortsWorld"],
     purposes: { "Bukit Merah": "residential", "Telok Blangah": "mixed", HarbourFront: "commercial", Sentosa: "resort" },
     events: [
