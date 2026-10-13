@@ -698,7 +698,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             <button onClick={() => setPanel({ id: "towns" })} aria-label="Towns" className="city-btn city-sticker flex h-11 w-11 items-center justify-center rounded-full bg-[var(--card)] text-xl">
               🏘️
             </button>
-            <button onClick={() => setPanel({ id: "layers" })} aria-label="Map layers" className={`city-btn city-sticker flex h-11 w-11 items-center justify-center rounded-full text-xl ${overlay !== "none" ? "bg-[var(--brand)]" : "bg-[var(--card)]"}`}>
+            <button onClick={() => (overlay !== "none" ? setOverlay("none") : setPanel({ id: "layers" }))} aria-label={overlay !== "none" ? "Back to normal map" : "Map layers"} title={overlay !== "none" ? "Back to normal map" : "Map layers"} className={`city-btn city-sticker flex h-11 w-11 items-center justify-center rounded-full text-xl ${overlay !== "none" ? "bg-[var(--brand)]" : "bg-[var(--card)]"}`}>
               🗺️
             </button>
             <button onClick={() => setPanel({ id: "news" })} aria-label="News" className="city-btn city-sticker hidden h-11 w-11 items-center justify-center rounded-full bg-[var(--card)] text-xl sm:flex">
@@ -717,19 +717,6 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         </div>
       </div>
 
-      {overlay !== "none" && (
-        <div className="city-sticker absolute bottom-[4.75rem] left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-[var(--card)] py-1 pl-3 pr-1 text-[13px] font-bold">
-          {OVERLAYS[overlay].icon} {OVERLAYS[overlay].name}
-          {overlay !== "towns" && (
-            <>
-              : <span className="text-[var(--bad)]">poor</span>→<span className="text-[var(--good)]">good</span>
-            </>
-          )}
-          <button onClick={() => setOverlay("none")} aria-label="Hide map layer" className="city-btn h-7 w-7 rounded-full bg-[var(--soft)]">
-            ✕
-          </button>
-        </div>
-      )}
       {toastMsg && (
         <div role="status" className="pointer-events-none absolute left-1/2 top-[3.75rem] z-30 w-max max-w-[min(26rem,70vw)] -translate-x-1/2 rounded-2xl bg-[var(--ink)] px-3 py-2 text-center text-[14px] font-semibold text-white shadow-lg">
           {toastMsg}
@@ -737,6 +724,19 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       )}
 
       <div className="city-hud-bottom pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2">
+        {overlay !== "none" && (
+            <div className="city-sticker pointer-events-auto flex max-w-full items-center gap-2 whitespace-nowrap rounded-full bg-[var(--card)] py-1 pl-3 pr-1 text-[13px] font-bold">
+              {OVERLAYS[overlay].icon} {OVERLAYS[overlay].name}
+              {overlay !== "towns" && (
+                <>
+                  : <span className="text-[var(--bad)]">poor</span>→<span className="text-[var(--good)]">good</span>
+                </>
+              )}
+              <button onClick={() => setOverlay("none")} aria-label="Hide map layer" className="city-btn h-7 rounded-full bg-[var(--soft)] px-2.5">
+                ✕ Normal map
+              </button>
+            </div>
+          )}
         {tray && <Tray world={w} group={groups.find((g) => g.id === tray)} tool={tool} onPick={pickTool} />}
         {!tray && (
           <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 px-2">
