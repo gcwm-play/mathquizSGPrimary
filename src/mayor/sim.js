@@ -6,7 +6,7 @@ import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteIm
 import { dist, clamp, polyLength, nearestOnPoly, makeRng } from "./geom.js";
 import { residents, housingByTown, displace } from "./housing.js";
 import { townTfr, townLife, baseTfr, lifeIndex, tfrIndex, financeIndex } from "./society.js";
-import { stepEvents, EFFECT_ADD, autoDecide } from "./events.js";
+import { stepEvents, EFFECT_ADD, autoDecide, rollOutcome, rollIn, fmtRange } from "./events.js";
 import { stepObjectives } from "./objectives.js";
 import { initRivals, stepRivals, decadeReport, finalReport } from "./rivals.js";
 
@@ -378,6 +378,8 @@ export function monthlyBudget(w, A, ov = null) {
     }
   }
   const biz = effect(w, "business");
+  // where property and business tax come from, by zone
+  const SUB = { propHdb: z(), propPte: z(), propCom: z(), bizCom: z(), bizInd: z() };
   const hdbOcc = z();
   const hdbCap = z();
   for (const l of w.lots) {
@@ -386,13 +388,19 @@ export function monthlyBudget(w, A, ov = null) {
     const lv = 0.5 + (A.info.get(l.id)?.lv || 30) / 100;
     if (Ty.cap) {
       const occ = residents(l.b);
-      T.property[l.town] += occ * lv * (Ty.zone === "pte" ? 0.012 : 0.003) * (taxP / 10) * D.income;
+      const pt = occ * lv * (Ty.zone === "pte" ? 0.012 : 0.003) * (taxP / 10) * D.income;
+      T.property[l.town] += pt;
+      SUB[Ty.zone === "hdb" ? "propHdb" : Ty.zone === "pte" ? "propPte" : "propCom"][l.town] += pt;
       if (Ty.zone === "hdb") {
         hdbOcc[l.town] += occ;
         hdbCap[l.town] += Ty.cap;
       }
     }
-    if (Ty.jobs) T.business[l.town] += Ty.jobs * lv * 0.004 * D.income * biz;
+    if (Ty.jobs) {
+      const bt = Ty.jobs * lv * 0.004 * D.income * biz;
+      T.business[l.town] += bt;
+      SUB[Ty.zone === "ind" ? "bizInd" : "bizCom"][l.town] += bt;
+    }
   }
   const pops = A.towns.map((t) => t.pop + t.kpop);
   const tp = pops.reduce((a, b) => a + b, 0);
@@ -429,8 +437,9 @@ export function monthlyBudget(w, A, ov = null) {
   const towns = w.towns.map((_, i) => ({
     rev: Object.fromEntries(Object.entries(T).map(([k, v]) => [k, v[i]])),
     exp: Object.fromEntries(Object.entries(X).map(([k, v]) => [k, v[i]])),
+    sub: Object.fromEntries(Object.entries(SUB).map(([k, v]) => [k, v[i]])),
   }));
-  return { rev, exp, towns };
+  return { rev, exp, towns, sub: sum(SUB) };
 }
 const LUMPY_REV = ["landSales", "hdbSales"];
 const LUMPY_EXP = ["hdbBuild", "construction"];
@@ -490,6 +499,11 @@ export function projectFinance(w, A, ov = null, months = 72) {
   return { region: out, towns, budget: B };
 }
 
+// what makes up a revenue line, shown indented under it
+export const REV_SUB = {
+  property: { propHdb: "🏢 HDB flats", propPte: "🏡 Private homes", propCom: "🏬 Homes above shops" },
+  business: { bizCom: "🏬 Commercial (shops, offices)", bizInd: "🏭 Industrial (factories, parks)" },
+};
 export const REV_LABELS = {
   property: "🏠 Property tax",
   scc: "🧹 S&CC charges",
@@ -525,7 +539,25 @@ export const PLEDGE_KINDS = {
   park: { icon: "🌳", text: () => "A new park in every town", need: "green", boost: 3, years: 4, all: true, check: (w, p) => w.towns.every((_, i) => hasNewStruct(w, p, ["park", "sports", "gardensBay", "eastCoastPark", "sungeiBuloh", "birdPark"], i)) },
   taxfreeze: { icon: "🧾", text: () => "No property tax rise this term", need: "cost", boost: 3, years: 6, all: true, keepUntilDeadline: true, broken: (w, p) => w.taxes.property > p.base },
   nokampong: { icon: "🏚️", text: (t) => `No more kampong resettlement in ${t} this term`, need: null, boost: 4, years: 6, keepUntilDeadline: true, broken: (w, p) => (w.resettledThisTerm || []).includes(p.town) },
+  police: { icon: "👮", text: (t) => `A police post for ${t}`, need: "safety", boost: 4, years: 3, check: (w, p) => hasNewStruct(w, p, ["police"], p.town) },
+  parkTown: { icon: "🌳", text: (t) => `A new park or sports complex in ${t}`, need: "green", boost: 3, years: 3, check: (w, p) => hasNewStruct(w, p, ["park", "sports", "gardensBay", "eastCoastPark", "sungeiBuloh", "birdPark", "mountFaber", "sentosaBeach"], p.town) },
+  raise: { icon: "📈", text: (t, n, p) => `Raise ${NEEDS[p.need]?.name.toLowerCase() || p.need} in ${t} to ${p.target}/100`, need: null, boost: 4, years: 4, check: (w, p) => (w.towns[p.town].needs?.[p.need] ?? 0) >= p.target },
 };
+
+// the pledge that fixes a need directly, if there is one
+function actionFor(w, i, need) {
+  const t = w.towns[i];
+  if (need === "housing") {
+    if (w.year >= 1989 && (t.old || 0) >= 3) return "upgrade";
+    return purposeOf(t).growth.hdb ? "homes" : null;
+  }
+  if (need === "jobs" || need === "environment" || need === "cost") return null;
+  return { health: "clinic", food: "food", school: "school", community: "cc", transport: "transport", safety: "police", green: "parkTown" }[need] || null;
+}
+// how far below a comfortable 60 a need is: bigger gaps win more votes and cost more if broken
+const gapOf = (v) => clamp(60 - (v ?? 50), 4, 55);
+const pledgeBoost = (gap) => 2 + gap * 0.12;
+const pledgePenalty = (gap) => ({ trust: 5 + gap * 0.22, anger: 0.6 + gap * 0.04 });
 
 // How far along an open promise is, for the elections panel.
 export function pledgeProgress(w, p) {
@@ -534,50 +566,74 @@ export function pledgeProgress(w, p) {
     return { towns: w.towns.map((t, i) => ({ name: t.name, done: hasNewStruct(w, p, types, i) })) };
   }
   if (p.kind === "homes") return { text: `${fmtNum(Math.max(0, (w.towns[p.town].pop || 0) - p.base))} of ${fmtNum(p.n)} more residents so far` };
+  if (p.kind === "raise") return { text: `Now ${Math.round(w.towns[p.town].needs?.[p.need] ?? 0)} of ${p.target} needed` };
   if (p.kind === "upgrade") return { text: `${w.lots.filter((l) => l.town === p.town && l.b && ((l.b.up && l.b.up >= p.made) || (l.b.renewed && l.b.built >= p.made))).length} of 3 blocks done` };
   const K = PLEDGE_KINDS[p.kind];
   if (K.check && p.town != null) return { text: K.check(w, p) ? "Done!" : `Not yet: build it inside ${w.towns[p.town].name}'s borders (dashed lines on the map)` };
   return null;
 }
 
+// Pledges answer what each town is short of: at least two per town, with the
+// towns least likely to vote for you first.
 export function pledgeOffers(w, A) {
   const offers = [];
-  const towns = A.towns.map((t, i) => ({ i, t })).filter((x) => x.t.pop > 0);
-  for (const [kind, K] of Object.entries(PLEDGE_KINDS)) {
-    if (K.minYear && w.year < K.minYear) continue;
-    if (kind === "nokampong") {
-      for (const k of w.kampongs) if (!offers.some((o) => o.kind === kind)) offers.push({ kind, town: k.town, score: 30 });
-      continue;
+  const towns = A.towns
+    .map((t, i) => ({ i, t, sup: townSupport(w, i) }))
+    .filter((x) => x.t.pop > 0)
+    .sort((a, b) => a.sup - b.sup);
+  for (const { i, t, sup } of towns) {
+    const needs = Object.entries(t.needs)
+      .filter(([k]) => !t.minor?.includes(k))
+      .map(([k, v]) => ({ k, v, gap: gapOf(v), score: (60 - v) * (NEEDS[k]?.weight || 1) }))
+      .sort((a, b) => b.score - a.score);
+    const mine = [];
+    for (const n of needs) {
+      if (mine.length >= 2) break;
+      let kind = actionFor(w, i, n.k);
+      if (kind && PLEDGE_KINDS[kind].minYear && w.year < PLEDGE_KINDS[kind].minYear) kind = null;
+      if (!kind) kind = "raise";
+      if (mine.some((m) => m.kind === kind && kind !== "raise")) continue;
+      mine.push({ kind, town: i, need: n.k, cur: Math.round(n.v), gap: n.gap, support: sup, target: Math.min(90, Math.round(n.v + Math.max(8, n.gap * 0.5))) });
     }
-    if (K.all) {
-      offers.push({ kind, town: null, score: K.need ? 100 - A.towns.reduce((a, t) => a + t.needs[K.need], 0) / A.towns.length : 30 });
-      continue;
-    }
-    for (const { i, t } of towns) {
-      if (t.minor?.includes(K.need) || (kind === "homes" && !purposeOf(w.towns[i]).growth.hdb)) continue;
-      offers.push({ kind, town: i, score: 100 - (t.needs[K.need] ?? 50) + (kind === "homes" ? 10 : 0) });
-    }
+    offers.push(...mine);
   }
-  offers.sort((a, b) => b.score - a.score);
-  const picked = [];
-  for (const o of offers) {
-    if (picked.length >= 6) break;
-    if (picked.some((p) => p.kind === o.kind)) continue;
-    picked.push(o);
-  }
-  return picked.map((o) => describePledge(w, A, o));
+  // region-wide promises
+  const costGap = gapOf(A.towns.reduce((a, t) => a + (t.needs.cost ?? 50), 0) / Math.max(1, A.towns.length));
+  offers.push({ kind: "taxfreeze", town: null, need: "cost", gap: costGap });
+  const k = w.kampongs.find(Boolean);
+  if (k) offers.push({ kind: "nokampong", town: k.town, need: null, gap: 15 });
+  return offers.map((o) => describePledge(w, A, o));
 }
 
 function describePledge(w, A, o) {
   const K = PLEDGE_KINDS[o.kind];
   const tname = o.town != null ? w.towns[o.town].name : "every town";
   const n = o.kind === "homes" ? Math.max(1000, Math.round(((A.towns[o.town]?.pop || 2000) * 0.4) / 500) * 500) : 0;
-  return { kind: o.kind, town: o.town, n, icon: K.icon, text: K.text(tname, n), boost: K.boost, years: K.years, all: !!K.all };
+  const boost = pledgeBoost(o.gap);
+  const pen = pledgePenalty(o.gap);
+  return {
+    kind: o.kind,
+    town: o.town,
+    n,
+    need: o.need,
+    cur: o.cur,
+    target: o.target,
+    gap: o.gap,
+    support: o.support,
+    icon: o.kind === "raise" ? NEEDS[o.need]?.icon || K.icon : K.icon,
+    text: K.text(tname, n, o),
+    boost,
+    boostText: fmtRange(boost, { unit: "%" }),
+    penText: `trust ${fmtRange(-pen.trust)}${o.town != null ? `, anger in ${tname}` : ", anger everywhere"}`,
+    years: K.years,
+    all: !!K.all || o.town == null,
+  };
 }
 
 export function makePledge(w, offer) {
   if ((w.pledges || []).filter((p) => p.status === "open" && p.term === w.election.next).length >= 3) return { ok: false, msg: "You can make up to 3 pledges per election." };
   const K = PLEDGE_KINDS[offer.kind];
+  const gap = offer.gap ?? 20;
   const p = {
     id: (w.nextId = (w.nextId || 1) + 1),
     kind: offer.kind,
@@ -585,7 +641,10 @@ export function makePledge(w, offer) {
     n: offer.n,
     text: offer.text,
     icon: offer.icon,
-    boost: offer.boost,
+    boost: Math.round(rollIn(offer.boost ?? pledgeBoost(gap)) * 10) / 10,
+    gap,
+    need: offer.need,
+    target: offer.target,
     made: w.t,
     deadline: w.t + K.years * 12,
     base: offer.kind === "homes" ? w.towns[offer.town].pop : offer.kind === "taxfreeze" ? w.taxes.property : 0,
@@ -602,31 +661,37 @@ function checkPledges(w) {
     if (p.status !== "open") continue;
     const K = PLEDGE_KINDS[p.kind];
     const towns = p.town != null ? [p.town] : w.towns.map((_, i) => i);
-    if (K.broken && K.broken(w, p)) {
+    const gap = p.gap ?? 20;
+    const breakIt = (why) => {
+      // the worse the town was doing, the angrier it is when you let it down
+      const pen = pledgePenalty(gap);
+      const dt = rollIn(pen.trust);
+      const da = rollIn(pen.anger);
       p.status = "broken";
-      w.trust = clamp(w.trust - 12, 0, 100);
-      for (const i of towns) w.towns[i].anger += 1.2;
-      pushNews(w, `💔 Broken promise: "${p.text}". Voters remember!`);
+      w.trust = clamp(w.trust - dt, 0, 100);
+      for (const i of towns) w.towns[i].anger += da;
+      const where = p.town != null ? w.towns[p.town].name : "every town";
+      pushNews(w, `💔 ${why}: "${p.text}". Trust −${Math.round(dt)}, and ${where} ${gap >= 30 ? "is furious" : "is unhappy"}.`);
+    };
+    if (K.broken && K.broken(w, p)) {
+      breakIt("Broken promise");
       continue;
     }
     if (!K.keepUntilDeadline && K.check(w, p)) {
+      const dt = rollIn(4 + gap * 0.1);
       p.status = "kept";
-      w.trust = clamp(w.trust + 6, 0, 100);
-      for (const i of towns) w.towns[i].anger = Math.max(0, w.towns[i].anger - 0.8);
-      pushNews(w, `✅ Promise kept: "${p.text}". Trust in you rises.`);
+      w.trust = clamp(w.trust + dt, 0, 100);
+      for (const i of towns) w.towns[i].anger = Math.max(0, w.towns[i].anger - (0.4 + gap * 0.02));
+      pushNews(w, `✅ Promise kept: "${p.text}". Trust +${Math.round(dt)}.`);
       continue;
     }
     if (w.t >= p.deadline) {
       if (K.keepUntilDeadline) {
+        const dt = rollIn(4 + gap * 0.05);
         p.status = "kept";
-        w.trust = clamp(w.trust + 5, 0, 100);
-        pushNews(w, `✅ Promise kept: "${p.text}".`);
-      } else {
-        p.status = "broken";
-        w.trust = clamp(w.trust - 12, 0, 100);
-        for (const i of towns) w.towns[i].anger += 1.2;
-        pushNews(w, `💔 Deadline missed: "${p.text}". Trust in you falls.`);
-      }
+        w.trust = clamp(w.trust + dt, 0, 100);
+        pushNews(w, `✅ Promise kept: "${p.text}". Trust +${Math.round(dt)}.`);
+      } else breakIt("Deadline missed");
     }
   }
 }
@@ -845,7 +910,7 @@ export function stepMonth(w, rng = Math.random) {
       w.log.push({ year: w.year, text: `opened ${name}, a first for Singapore`, tone: "good" });
     }
     if (S.prestige) w.rep = clamp((w.rep ?? 50) + S.prestige, 0, 100);
-    if (S.pricey) w.boosts.push({ town: ti, need: "cost", v: -6, until: w.t + 120 });
+    if (S.pricey) w.boosts.push({ town: ti, need: "cost", v: -rollIn(6, rng), until: w.t + 120 });
     push(`🎉 ${name} opens in ${w.towns[ti].name}!${note}`);
     noteImpactSim(w, `${name} opened`, ti, S.cover === "food" ? "food" : S.cover === "green" ? "green" : S.cover === "community" ? "community" : null);
     w.rev = (w.rev || 0) + 1;
@@ -1008,8 +1073,9 @@ export function stepMonth(w, rng = Math.random) {
         w.rev++;
         refillLots(w, k.x, k.y, k.r);
       } else {
-        if (ev.months) w.effects.push({ id: ev.id, until: w.t + ev.months, effect: ev.effect || {} });
-        if (ev.cost) w.cash -= ev.cost;
+        // how bad (or good) it is varies each time
+        if (ev.months) w.effects.push({ id: ev.id, until: w.t + ev.months, effect: rollOutcome({ effect: ev.effect || {} }, rng).effect });
+        if (ev.cost) w.cash -= Math.round(rollIn(ev.cost, rng));
         pushNews(w, ev.text);
       }
       break;

@@ -2,7 +2,7 @@
 // generated from whatever the region needs most right now.
 import { NEEDS, LOT_TYPES } from "./defs.js";
 import { clamp } from "./geom.js";
-import { scaleOf } from "./events.js";
+import { scaleOf, rollIn, SPREAD } from "./events.js";
 import { townOf } from "./world.js";
 
 const fmt = (n) => Math.round(n).toLocaleString("en-SG");
@@ -206,12 +206,14 @@ export function stepObjectives(w, A, push) {
     o.cur = P.cur;
     if (P.done) {
       o.status = "done";
-      const R = REWARD(w, o);
+      const R0 = o.reward || REWARD(w, o);
+      // the bonus varies: the panel shows the range
+      const R = { cash: Math.round(rollIn(R0.cash)), trust: rollIn(R0.trust), rep: rollIn(R0.rep) };
       w.cash += R.cash;
       w.trust = clamp(w.trust + R.trust, 0, 100);
       w.rep = clamp((w.rep ?? 50) + R.rep, 0, 100);
       w.objCool[o.key] = w.t + 36;
-      push(`🎯 Objective complete: ${o.text}! Bonus grant of $${fmt(R.cash)}K and trust rises.`);
+      push(`🎯 Objective complete: ${o.text}! Bonus grant of $${fmt(R.cash)}K, trust +${Math.round(R.trust)}, reputation +${Math.round(R.rep)}.`);
       w.log.push({ year: w.year, text: o.text.toLowerCase(), tone: "good" });
     } else if (w.t >= o.deadline || P.fail) {
       o.status = "missed";

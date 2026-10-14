@@ -1,10 +1,10 @@
 // Panels for finances, decisions, crises, objectives and the mayors' league.
 import React, { useRef, useState } from "react";
 import { Panel } from "../city/panels.jsx";
-import { fmtMoney, fmtNum, projectFinance, REV_LABELS, EXP_LABELS, tToDate, wearRate, dateLabel, sentosaState } from "./sim.js";
+import { fmtMoney, fmtNum, projectFinance, REV_LABELS, REV_SUB, EXP_LABELS, tToDate, wearRate, dateLabel, sentosaState } from "./sim.js";
 import { STRUCTS, PURPOSES, MALL_NAMES, ALL_TOOLS as ALL_TOOLS_REF } from "./defs.js";
 import { setPurpose } from "./world.js";
-import { CRISES, getDecision } from "./events.js";
+import { CRISES, getDecision, SPREAD } from "./events.js";
 import { situation, setFantasy } from "./fantasy.js";
 import { objectiveProgress } from "./objectives.js";
 import { STYLES } from "./rivals.js";
@@ -112,7 +112,7 @@ export function FinancePanel({ world: w, analysis: A, onChange, onClose }) {
   const town = ti != null ? w.towns[ti] : null;
   const rows = (obj, labels) =>
     Object.entries(labels)
-      .map(([k, l]) => [l, obj[k] || 0])
+      .map(([k, l]) => [l, obj[k] || 0, k])
       .filter(([, v]) => Math.abs(v) > 0.5)
       .sort((a, b) => b[1] - a[1]);
   const revRows = rows(B.rev, REV_LABELS);
@@ -252,13 +252,26 @@ export function FinancePanel({ world: w, analysis: A, onChange, onClose }) {
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: IN }} />
             Money in this month
           </h3>
-          {revRows.map(([l, v]) => (
+          {revRows.map(([l, v, k]) => (
             <div key={l} className="py-0.5 text-[14px]">
               <div className="flex justify-between">
                 <span>{l}</span>
                 <b className="tabular-nums">{fmtMoney(v)}</b>
               </div>
               <Bar value={v} max={maxRow} c={IN} />
+              {REV_SUB[k] && B.sub &&
+                Object.entries(REV_SUB[k])
+                  .map(([sk, sl]) => [sl, B.sub[sk] || 0])
+                  .filter(([, sv]) => sv > 0.5)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([sl, sv]) => (
+                    <div key={sl} className="flex justify-between pl-4 text-[12.5px] text-[var(--muted)]">
+                      <span>{sl}</span>
+                      <span className="tabular-nums">
+                        {fmtMoney(sv)} · {Math.round((sv / Math.max(1e-9, v)) * 100)}%
+                      </span>
+                    </div>
+                  ))}
             </div>
           ))}
         </div>
@@ -330,7 +343,7 @@ export function DecisionPanel({ world: w, onPick }) {
               <span className="font-bold leading-tight">{o.label}</span>
               <span className="mt-1 flex flex-wrap gap-1 text-[12px] font-bold tabular-nums">
                 {o.cost > 0 && <span className="rounded-full bg-[var(--bad-bg)] px-2 py-0.5 text-[var(--bad)]">−{fmtMoney(o.cost)}</span>}
-                {o.gain > 0 && <span className="rounded-full px-2 py-0.5 text-[var(--good)]" style={{ background: "rgba(47,191,113,0.15)" }}>+{fmtMoney(o.gain)}</span>}
+                {o.gain > 0 && <span className="rounded-full px-2 py-0.5 text-[var(--good)]" style={{ background: "rgba(47,191,113,0.15)" }}>+{fmtMoney(o.gain * (1 - SPREAD))}–{fmtMoney(o.gain * (1 + SPREAD))}</span>}
                 {o.monthly > 0 && <span className="rounded-full bg-[var(--bad-bg)] px-2 py-0.5 text-[var(--bad)]">−{fmtMoney(o.monthly)}/month</span>}
                 {o.monthly < 0 && <span className="rounded-full px-2 py-0.5 text-[var(--good)]" style={{ background: "rgba(47,191,113,0.15)" }}>+{fmtMoney(-o.monthly)}/month</span>}
                 {o.chance != null && <span className="rounded-full bg-[var(--soft)] px-2 py-0.5">🎲 {Math.round(o.chance * 100)}% chance</span>}
@@ -455,7 +468,7 @@ export function ObjectiveRow({ world: w, analysis: A, o }) {
         </div>
       )}
       <div className="mt-1 text-[12px] font-semibold text-[var(--muted)]">
-        Reward: +{fmtMoney(o.reward?.cash || 0)} grant · +trust · +reputation
+        Reward: +{fmtMoney((o.reward?.cash || 0) * (1 - SPREAD))}–{fmtMoney((o.reward?.cash || 0) * (1 + SPREAD))} grant · +trust · +reputation
       </div>
     </li>
   );

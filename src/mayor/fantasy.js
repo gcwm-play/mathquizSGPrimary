@@ -9,7 +9,7 @@ import { STRUCTS, LOT_TYPES, KAMPONG } from "./defs.js";
 import { dist, clamp } from "./geom.js";
 import { terrainAt, townOf, segPts, splitSeg, removeRoad, clearLots, planStruct, commitStruct, refillLots } from "./world.js";
 import { residents, displace } from "./housing.js";
-import { applyOutcome, optionCost, describeEffects } from "./events.js";
+import { applyOutcome, optionCost, describeEffects, rollOutcome, fmtRange } from "./events.js";
 
 export const FANTASY_YEAR = 2027;
 const ZLV = ["", "Outbreak", "Epidemic", "Apocalypse"];
@@ -790,7 +790,7 @@ function fantasyChips(w, o) {
   if (o.coastHoles) out.push({ t: "🌊 Coastline washed away", good: false });
   if (o.island) out.push({ t: "🏝️ New island on the map", good: true });
   if (o.place) out.push({ t: `${STRUCTS[o.place]?.icon || "🏗️"} Builds ${STRUCTS[o.place]?.name || o.place}`, good: true });
-  if (o.kill) out.push({ t: `☠️ ${Math.round(o.kill * 100)}% of residents lost`, good: false });
+  if (o.kill) out.push({ t: `☠️ ${fmtRange(o.kill * 100, { unit: "%", dp: 1, exact: !!o.rolled }).slice(1)} of residents lost`, good: false });
   if (o.clearZones) out.push({ t: "✨ Clears the zones", good: true });
   if (o.clearRuins) out.push({ t: "🧹 Clears ruins", good: true });
   if (o.growZones) out.push({ t: o.growZones > 1 ? "🧟 Zones grow" : "🧟 Zones shrink", good: o.growZones < 1 });
@@ -936,9 +936,11 @@ export function decideFantasy(w, optId, push, rng = Math.random) {
   const o = SC?.scenes[d.scene || "start"].choices.find((c) => c.id === optId);
   if (!o) return;
   const ok = !o.odds || rng() < o.odds(ctx, w);
-  const out = ok ? resolve(o, ctx, w) : resolveFail(o, ctx, w);
-  if (!ok) push(`🎲 ${SC.title}: "${o.label}" didn't work out...`);
-  else push(`${SC.icon} ${SC.title}: you chose "${o.label}".`);
+  const out = rollOutcome(ok ? resolve(o, ctx, w) : resolveFail(o, ctx, w), rng);
+  const res = describeEffects(w, out, ctx.town).filter((e) => !e.t.startsWith("🎲") && !e.t.startsWith("⏳"));
+  const tail = res.length ? ` 🎲 ${res.map((e) => e.t).join(", ")}.` : "";
+  if (!ok) push(`🎲 ${SC.title}: "${o.label}" didn't work out...${tail}`);
+  else push(`${SC.icon} ${SC.title}: you chose "${o.label}".${tail}`);
   applyFantasy(w, out, ctx, push, rng);
 }
 
