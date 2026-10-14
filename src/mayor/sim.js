@@ -147,13 +147,15 @@ export function analyze(w) {
       if (!nearRail) continue;
       stations.push(s);
     }
-    if (S.cover) services.push({ x: s.x, y: s.y, cover: S.cover, r: S.r, f: fund, type: s.type });
-    if (s.type === "sports") services.push({ x: s.x, y: s.y, cover: "community", r: S.r, f: fund });
-    if (S.alsoCover) services.push({ x: s.x, y: s.y, cover: S.alsoCover, r: S.r, f: fund });
+    // each building turns out a little better or worse than average
+    const eff = s.eff ?? 1;
+    if (S.cover) services.push({ x: s.x, y: s.y, cover: S.cover, r: S.r, f: fund * eff, type: s.type });
+    if (s.type === "sports") services.push({ x: s.x, y: s.y, cover: "community", r: S.r, f: fund * eff });
+    if (S.alsoCover) services.push({ x: s.x, y: s.y, cover: S.alsoCover, r: S.r, f: fund * eff });
     // copies of someone else's landmark draw fewer visitors
-    if (S.tourism) tourism += S.tourism * (s.copy ? 0.6 : 1);
-    if (S.trade) trade += S.trade;
-    if (S.jobs) structJobs += S.jobs;
+    if (S.tourism) tourism += S.tourism * (s.copy ? 0.6 : 1) * eff;
+    if (S.trade) trade += S.trade * eff;
+    if (S.jobs) structJobs += S.jobs * eff;
     if (S.landmark) landmarks.push(s);
     if (S.poll) polluters.push({ x: s.x, y: s.y, p: S.poll, r: 8 });
   }
@@ -860,6 +862,113 @@ export function sentosaState(w, A) {
 }
 
 // How far into the red the region may go before the government steps in.
+// ---------- what a building or zone will do ----------
+export const EFF_LO = 0.75;
+export const EFF_HI = 1.25;
+const COVER_NAME = { food: "🍜 Food", school: "🏫 Primary schooling", school2: "🎒 Secondary schooling", school3: "🎓 Polytechnic / uni", health: "🩺 Healthcare", safety: "👮 Safety", fire: "🚒 Fire safety", community: "🏓 Community", green: "🌳 Greenery", transport: "🚌 Transport", mrt: "🚇 MRT transport" };
+const span2 = (a, b, f = (x) => Math.round(x)) => {
+  const lo = f(Math.min(a, b));
+  const hi = f(Math.max(a, b));
+  return lo === hi ? `${lo}` : `${lo}–${hi}`;
+};
+const moneySpan = (a, b) => {
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  const sg = (v) => (v >= 0 ? "+" : "−");
+  if (Math.round(lo) === Math.round(hi)) return `${sg(lo)}${fmtMoney(Math.abs(lo))}`;
+  if (lo >= 0 || hi <= 0) return `${sg(lo)}${fmtMoney(Math.abs(lo < 0 ? hi : lo))}–${fmtMoney(Math.abs(lo < 0 ? lo : hi))}`;
+  return `${fmtMoney(lo).replace("-", "−")} to +${fmtMoney(hi)}`;
+};
+const netOf = (B) => total(B.rev) - total(B.exp);
+
+// General facts about a tool, before you pick a spot.
+export function toolInfo(w, T) {
+  if (!T) return null;
+  const items = [];
+  const S = T.struct ? STRUCTS[T.struct] : null;
+  if (S) {
+    if (S.cover) items.push({ t: `${COVER_NAME[S.cover] || S.cover} for homes within ${S.r * 50} m (closer homes benefit more)`, good: true });
+    if (S.alsoCover) items.push({ t: `${COVER_NAME[S.alsoCover]} too`, good: true });
+    if (S.cover === "school" && T.struct === "scienceCentre") items.push({ t: "Counts as a primary school", good: true });
+    const tScale = 0.5 * Math.min(1, (w.stats?.pop || 0) / 40000 + 0.3) * effect(w, "tourism");
+    if (S.tourism) items.push({ t: `📸 Tourism ${moneySpan(S.tourism * tScale * EFF_LO, S.tourism * tScale * EFF_HI)}/month`, good: true });
+    if (S.trade) items.push({ t: `⚓ Trade ${moneySpan(S.trade * 0.4 * effect(w, "trade") * EFF_LO, S.trade * 0.4 * effect(w, "trade") * EFF_HI)}/month`, good: true });
+    if (S.jobs) items.push({ t: `💼 +${span2(S.jobs * EFF_LO, S.jobs * EFF_HI, (x) => Math.round(x / 10) * 10)} jobs`, good: true });
+    if (S.sentosaAppeal) items.push({ t: "🏝️ More visitors to Sentosa", good: true });
+    if (S.sentosaLink) items.push({ t: "🚡 Easier to reach Sentosa", good: true });
+    if (S.prestige) items.push({ t: `⭐ Reputation ${fmtRange(S.prestige)}`, good: true });
+    if (S.poll) items.push({ t: `🏭 Pollution: clean air −${span2(S.poll * 0.6 * 1.6 * 0.5, S.poll * 0.6 * 1.6)} next door`, good: false });
+    if (S.pricey) items.push({ t: "🧾 Cost of living −2 to −10 in its town for 10 years", good: false });
+    if (S.upkeep) items.push({ t: `🔧 Upkeep ${fmtMoney(S.upkeep)}/month`, good: false });
+    if (S.build) items.push({ t: `🏗️ Takes ${S.build} months to build`, good: false });
+    return { tip: S.tip || S.kind || "", items, note: "Each building turns out 75–125% as effective. Pick a spot to see what it does for that town." };
+  }
+  if (T.id?.startsWith("zone:") && T.id !== "zone:none") {
+    const zone = T.id.slice(5);
+    const types = ZONE_LINE[zone].map((id) => LOT_TYPES[id]).filter((L) => w.year >= L.from - 0 && (!L.until || w.year < L.until));
+    const caps = types.map((L) => L.cap || 0).filter(Boolean);
+    const jobs = types.map((L) => L.jobs || 0).filter(Boolean);
+    if (caps.length) items.push({ t: `🏠 Homes for ${span2(Math.min(...caps), Math.max(...caps))} residents per lot (better buildings need higher land value)`, good: true });
+    if (jobs.length) items.push({ t: `💼 ${span2(Math.min(...jobs), Math.max(...jobs))} jobs per lot`, good: true });
+    if (zone === "hdb") items.push({ t: "💰 Flat sales, S&CC charges and property tax", good: true });
+    if (zone === "pte") items.push({ t: "💰 Land sales and about 4× the property tax of HDB", good: true }, { t: "🧾 Cost of living falls if over 30% of homes are private", good: false });
+    if (zone === "com") items.push({ t: "📈 Land value of homes within ~200 m +1–16", good: true }, { t: "💰 Business tax", good: true });
+    if (zone === "ind") {
+      const pol = types.map((L) => L.poll || 0).filter(Boolean);
+      items.push({ t: "💰 Business tax", good: true });
+      if (pol.length) items.push({ t: `🌬️ Clean air −${span2(Math.min(...pol) * 0.5, Math.max(...pol))} for homes within ~250 m`, good: false });
+    }
+    const dem = w.demand?.[zone] ?? 0;
+    items.push({ t: dem > 0.1 ? "📊 Demand is there: lots will fill" : "📊 Little demand right now: lots may sit empty", good: dem > 0.1 });
+    return { tip: T.tip || "", items, note: "Buildings appear over months when there's demand. Town purpose speeds up or slows down each zone." };
+  }
+  return T.tip ? { tip: T.tip, items: [] } : null;
+}
+
+// What a building would do at this exact spot: shown as a range because each
+// building turns out 75–125% as effective.
+export function estimateStruct(w, plan) {
+  if (!plan?.ok) return null;
+  const ti = plan.town ?? townOf(w, plan.x, plan.y);
+  const A0 = analyze(w);
+  const run = (eff) => {
+    w.structs.push({ id: -1, type: plan.type, x: plan.x, y: plan.y, q: plan.q, ang: plan.ang, state: "live", eff, built: w.t });
+    try {
+      const A = analyze(w);
+      return { A, B: monthlyBudget(w, A) };
+    } finally {
+      w.structs.pop();
+    }
+  };
+  const lo = run(EFF_LO);
+  const hi = run(EFF_HI);
+  const B0 = monthlyBudget(w, A0);
+  const items = [];
+  const t0 = A0.towns[ti];
+  if (t0 && t0.pop + t0.kpop > 0) {
+    for (const [k, nd] of Object.entries(NEEDS)) {
+      if (t0.minor?.includes(k)) continue;
+      const v0 = t0.needs[k];
+      const a = lo.A.towns[ti].needs[k];
+      const b = hi.A.towns[ti].needs[k];
+      if (Math.max(Math.abs(a - v0), Math.abs(b - v0)) < 0.6) continue;
+      items.push({ t: `${nd.icon} ${nd.name} ${Math.round(v0)}→${span2(a, b)}`, good: b > v0 });
+    }
+    const h0 = t0.happy;
+    const ha = lo.A.towns[ti].happy;
+    const hb = hi.A.towns[ti].happy;
+    if (Math.max(Math.abs(ha - h0), Math.abs(hb - h0)) >= 0.3) items.push({ t: `😊 Happiness ${ha - h0 >= 0 ? "+" : "−"}${span2(Math.abs(ha - h0), Math.abs(hb - h0), (x) => Math.round(x * 10) / 10)}%`, good: hb > h0 });
+  } else items.push({ t: "Nobody lives near here yet", good: false });
+  const others = A0.towns
+    .map((t, i) => ({ i, d: Math.max(...Object.keys(NEEDS).map((k) => hi.A.towns[i].needs[k] - t.needs[k])) }))
+    .filter((x) => x.i !== ti && x.d >= 1)
+    .map((x) => w.towns[x.i].name);
+  if (others.length) items.push({ t: `🗺️ Also helps ${others.join(", ")}`, good: true });
+  const n0 = netOf(B0);
+  items.push({ t: `💰 Region's balance ${moneySpan(netOf(lo.B) - n0, netOf(hi.B) - n0)}/month`, good: netOf(hi.B) - n0 >= 0 });
+  return { town: w.towns[ti]?.name, items };
+}
+
 export const debtLimit = (w) => Math.max(15000, (w.term?.block || 150) * 48);
 
 // ---------- monthly step ----------
@@ -1055,7 +1164,7 @@ export function stepMonth(w, rng = Math.random) {
     for (const ev of RANDOM_EVENTS) {
       if (ev.minYear && w.year < ev.minYear) continue;
       if (ev.id === "recession" && w.crisis) continue;
-      let chance = ev.chance;
+      let chance = ev.chance * 0.6; // rarer, so the news stays readable
       if (ev.kampongFire) {
         if (!w.kampongs.length) continue;
         chance *= D.fire * Math.min(2, w.kampongs.length / 3);
@@ -1107,6 +1216,9 @@ export function stepMonth(w, rng = Math.random) {
     town.pop = t.pop + t.kpop;
     town.kpop = t.kpop;
     town.needs = t.needs;
+    town.minor = t.minor;
+    // monthly needs for the last half-year, to show which way things are going
+    town.nh = (town.nh || []).concat([Object.fromEntries(Object.entries(t.needs).map(([k, v]) => [k, Math.round(v)]))]).slice(-7);
     town.schools = t.schools;
     town.old = t.old;
     town.cap = t.cap;
@@ -1375,6 +1487,7 @@ export function describe(w, A, hit) {
     if (s.state === "build") lines.unshift(`🏗️ Under construction, opens ${tToDate(w, s.until)}`);
     if (s.copy) lines.push(`🪞 A copy of ${s.copy.region}'s (${s.copy.year}): fewer tourists come`);
     if (s.name) lines.push(`Based on: ${S.name}`);
+    if (s.eff && s.state !== "build") lines.push(`⚙️ Turned out ${Math.round(s.eff * 100)}% as effective as a typical one`);
     if (S.cover) lines.push(`Serves homes within ${S.r * 50} m`);
     if (s.type === "mrt" && A && !A.stations.includes(s)) lines.push("⚠️ Not beside an MRT track");
     else if (s.type === "mrt" && A && !A.mrtRunning) lines.push("⚠️ Needs a second station on the line");

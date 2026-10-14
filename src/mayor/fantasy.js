@@ -1112,7 +1112,7 @@ export function stepFantasy(w, A, rng, push) {
       return [id, wt];
     })
     .filter(Boolean);
-  F.nextAt = w.t + (rng() < 0.12 ? 2 + Math.floor(rng() * 3) : 8 + Math.floor(rng() * 22));
+  F.nextAt = w.t + (rng() < 0.08 ? 3 + Math.floor(rng() * 4) : 14 + Math.floor(rng() * 30));
   if (!pool.length) return;
   let r = rng() * pool.reduce((a, p) => a + p[1], 0);
   let id = pool[0][0];

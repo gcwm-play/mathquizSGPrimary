@@ -11,3 +11,17 @@
     animation: none;
   }
 }
+
+/* the news badge bounces when something new comes in */
+@keyframes city-badge-pop {
+  0% { transform: scale(0.4); }
+  45% { transform: scale(1.45); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+.city-badge-pop {
+  animation: city-badge-pop 0.6s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .city-badge-pop { animation: none; }
+}

@@ -110,6 +110,7 @@ export function TownsPanel({ world: w, onClose, onShow, onChange, toast }) {
                 {!t.feedback?.length && <li className="text-[13px] text-[var(--muted)]">No one lives here yet.</li>}
               </ul>
               {t.anger > 0.6 && <div className="mt-1 text-[13px] text-[var(--bad)]">😠 Still upset about recent demolitions and resettlement.</div>}
+              {t.needs && (t.pop || 0) > 0 && <NeedsCard town={t} />}
             </div>
           );
         })}
@@ -126,6 +127,67 @@ function Stat({ label, value, tone }) {
     <div className={`rounded-2xl border-2 border-[var(--ink)]/10 px-2 py-1.5 ${tone === "bad" ? "bg-[var(--bad-bg)] text-[var(--bad)]" : "bg-[var(--soft)]"}`}>
       <div className="text-[11px] font-semibold uppercase tracking-wide opacity-70">{label}</div>
       <div className="text-base font-bold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+// Every need for one town, out of 100, with the change over the last 6 months.
+function NeedsCard({ town: t }) {
+  const [open, setOpen] = useState(false);
+  const was = t.nh?.[0] || {};
+  const minor = t.minor || [];
+  const rows = Object.entries(NEEDS).map(([k, N]) => ({ k, N, v: Math.round(t.needs[k] ?? 0), d: was[k] != null ? Math.round(t.needs[k] ?? 0) - was[k] : 0, minor: minor.includes(k) }));
+  const color = (v) => (v >= 65 ? "#2fbf71" : v >= 45 ? "#f5a524" : "#ff5a5a");
+  const LV = ["Primary", "Secondary", "Polytechnic / uni"];
+  return (
+    <div className="mt-2">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="city-btn w-full rounded-xl bg-[var(--soft)] px-2.5 py-1.5 text-left text-[13px] font-bold">
+        📊 All needs {open ? "▲" : "▼"}
+        {!open && (
+          <span className="ml-1 font-semibold text-[var(--muted)]">
+            weakest: {rows.filter((r) => !r.minor).sort((a, b) => a.v - b.v).slice(0, 3).map((r) => `${r.N.icon} ${r.v}`).join(" · ")}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="mt-1.5 grid gap-x-4 gap-y-1 text-[13px] sm:grid-cols-2">
+          {rows.map((r) => (
+            <div key={r.k} className={r.minor ? "opacity-45" : ""}>
+              <div className="flex items-center justify-between gap-2">
+                <span>
+                  {r.N.icon} {r.N.name}
+                  {r.minor && <span className="text-[11px] text-[var(--muted)]"> · not expected here</span>}
+                </span>
+                <span className="tabular-nums">
+                  <b>{r.v}</b>
+                  {r.d !== 0 && (
+                    <span className={`ml-1 text-[11.5px] font-bold ${r.d > 0 ? "text-[var(--good)]" : "text-[var(--bad)]"}`}>
+                      {r.d > 0 ? "▲" : "▼"}
+                      {Math.abs(r.d)}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--soft)]">
+                <div className="h-full rounded-full" style={{ width: `${Math.max(2, r.v)}%`, background: color(r.v) }} />
+              </div>
+              {r.k === "school" && t.schools && (
+                <div className="mt-0.5 space-y-0.5 pl-4 text-[11.5px] text-[var(--muted)]">
+                  {t.schools.map((v, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span>{LV[i]} in reach</span>
+                      <span className="tabular-nums" style={{ color: color(v) }}>
+                        {Math.round(v)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          <p className="text-[11.5px] text-[var(--muted)] sm:col-span-2">Out of 100. ▲▼ = change over the last 6 months. Greyed needs don't count for this town's purpose. Use 🗺️ map layers to see where coverage is missing.</p>
+        </div>
+      )}
     </div>
   );
 }

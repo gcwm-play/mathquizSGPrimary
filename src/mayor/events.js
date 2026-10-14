@@ -888,8 +888,8 @@ export function stepEvents(w, A, rng, push) {
       }
       w.decision = { kind: "dilemma", id: d.id, town: pickTown(w, A, d.town, rng) };
     }
-    // the next one comes 1½ to 4 years later, sometimes with a longer lull
-    w.nextDilemma = w.t + 18 + Math.floor(rng() * 30) + (rng() < 0.25 ? 12 : 0) + (fantasyOn(w) ? 18 : 0);
+    // the next one comes 2½ to 5½ years later, sometimes with a longer lull
+    w.nextDilemma = w.t + 30 + Math.floor(rng() * 36) + (rng() < 0.25 ? 18 : 0) + (fantasyOn(w) ? 24 : 0);
   }
 }
 

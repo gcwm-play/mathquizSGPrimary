@@ -954,7 +954,8 @@ export function commitStruct(w, plan, opts = {}) {
   const q = plan.q;
   const S = STRUCTS[plan.type];
   const ti = townOf(w, plan.x, plan.y);
-  const st = { id: w.nextId++, type: plan.type, x: +plan.x.toFixed(3), y: +plan.y.toFixed(3), ang: +plan.ang.toFixed(3), q, built: w.t, state: "live" };
+  // how well it turns out: 75–125% as effective as a typical one
+  const st = { id: w.nextId++, type: plan.type, x: +plan.x.toFixed(3), y: +plan.y.toFixed(3), ang: +plan.ang.toFixed(3), q, built: w.t, state: "live", eff: +(0.75 + Math.random() * 0.5).toFixed(2) };
   if (opts.name && opts.name.trim() && opts.name.trim() !== S.name) st.name = opts.name.trim().slice(0, 40);
   // big projects take time: they open when finished
   if (S.landmark && S.build) {
