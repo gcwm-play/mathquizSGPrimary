@@ -192,7 +192,16 @@ function NeedsCard({ town: t }) {
   );
 }
 
+// "+0.4–1.6%" of the whole region's vote
+const fmtShare = (v) => {
+  const lo = v * 0.4;
+  const hi = v * 1.6;
+  const f = (x) => (x < 0.1 ? "<0.1" : x < 1 ? x.toFixed(1) : String(Math.round(x)));
+  return f(lo) === f(hi) ? `+${f(lo)}%` : `+${f(lo)}–${f(hi)}%`;
+};
+
 export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) {
+  const [sortBy, setSortBy] = useState("support");
   const season = inSeason(w);
   const months = monthsToElection(w);
   const open = (w.pledges || []).filter((p) => p.status === "open");
@@ -220,7 +229,9 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
           return (
             <div key={t.name} className="text-[14px]">
               <div className="flex justify-between">
-                <span>{t.name}</span>
+                <span>
+                  {t.name} <span className="text-[12px] text-[var(--muted)]">· {tp ? Math.round(((t.pop || 0) / tp) * 100) : 0}% of voters</span>
+                </span>
                 <b>{Math.round(s)}%</b>
               </div>
               <Bar value={s} c={s >= 50 ? "#2fbf71" : "#ff5a5a"} mark={50} />
@@ -238,6 +249,17 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
               🤨 Voters doubt your promises after the ones you broke: pledges win {Math.round((1 - pledgeCred(w)) * 100)}% fewer votes. Keep a promise to win their trust back.
             </p>
           )}
+          <div className="mt-2 flex items-center gap-1.5 text-[13px] font-bold">
+            <span className="text-[var(--muted)]">Sort:</span>
+            {[
+              ["support", "😟 Least support"],
+              ["size", "👥 Most voters"],
+            ].map(([k, l]) => (
+              <button key={k} onClick={() => setSortBy(k)} aria-pressed={sortBy === k} className={`city-btn rounded-full px-3 py-1 ${sortBy === k ? "bg-[var(--brand)] text-white" : "bg-[var(--soft)]"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
           <div className="mt-2 space-y-3">
             {(() => {
               const groups = [];
@@ -247,15 +269,20 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
                 if (!g) groups.push((g = { key, town: o.all ? null : o.town, items: [] }));
                 g.items.push(o);
               }
+              const share = (g) => (g.town == null ? 1 : tp ? (w.towns[g.town].pop || 0) / tp : 0);
+              const sup0 = (g) => (g.town == null ? 999 : townSupport(w, g.town));
+              groups.sort((a, b) => (a.town == null) - (b.town == null) || (sortBy === "size" ? share(b) - share(a) : sup0(a) - sup0(b)));
               return groups.map((g) => {
                 const sup = g.town != null ? townSupport(w, g.town) : null;
+                const sh = share(g);
                 return (
                   <div key={g.key}>
                     <div className="mb-1 flex items-center justify-between text-[13px] font-bold">
                       <span>{g.town != null ? w.towns[g.town].name : "🏙️ Region-wide"}</span>
                       {sup != null && (
                         <span className={sup < 50 ? "text-[var(--bad)]" : "text-[var(--good)]"}>
-                          {Math.round(sup)}% support {sup < 45 ? "· top priority" : sup < 52 ? "· swing town" : ""}
+                          {Math.round(sup)}% support · {Math.round(sh * 100)}% of voters
+                          {sh < 0.08 ? " · small town" : sup < 45 ? " · top priority" : sup < 52 ? " · swing town" : ""}
                         </span>
                       )}
                     </div>
@@ -273,7 +300,8 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
                                 </div>
                               )}
                               <div className="text-[12px] text-[var(--good)]">
-                                🗳️ {o.boostText} votes {o.all ? "everywhere" : `in ${w.towns[o.town]?.name}`} at this election · deliver within {o.years} years
+                                🗳️ {o.boostText} votes {o.all ? "everywhere" : `in ${w.towns[o.town]?.name}`}
+                                {!o.all && ` (about ${fmtShare(o.boost * pledgeCred(w) * sh)} of your total)`} · deliver within {o.years} years
                               </div>
                               <div className="text-[12px] text-[var(--good)]">✅ If kept: {o.keptText}</div>
                               <div className="text-[12px] text-[var(--bad)]">💔 If broken: {o.penText}</div>
