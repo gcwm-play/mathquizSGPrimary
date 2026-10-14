@@ -312,7 +312,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "roadPricing", icon: "🚗", title: "Traffic jams", from: 1975, to: 2100, town: "worst:transport",
+    id: "roadPricing", repeat: 30, icon: "🚗", title: "Traffic jams", from: 1975, to: 2100, town: "worst:transport",
     text: (c) => `Rush-hour traffic in ${c.town} is crawling. Planners suggest charging cars to enter the busiest roads.`,
     options: [
       { id: "charge", label: "Introduce road pricing", pros: ["Traffic flows", "New income"], cons: ["Drivers are furious"], gainMonthly: 25, anger: 0.8, needs: { transport: 10, months: 240, all: true }, log: "introduced road pricing" },
@@ -356,7 +356,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "dengue", icon: "🦟", title: "Dengue cluster", from: 1966, to: 2300, town: "random",
+    id: "dengue", repeat: 15, icon: "🦟", title: "Dengue cluster", from: 1966, to: 2300, town: "random",
     text: (c) => `A dengue cluster has broken out in ${c.town}. Mosquitoes are breeding in flower pots and drains.`,
     options: [
       { id: "fog", label: "Fogging & house-to-house checks", pros: ["Cluster ends fast"], cons: ["Costly", "Annoying"], cost: 200, anger: 0.2, needs: { health: 4, months: 12 } },
@@ -365,7 +365,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "haze", icon: "🌫️", title: "Haze", from: 1990, to: 2300,
+    id: "haze", repeat: 15, icon: "🌫️", title: "Haze", from: 1990, to: 2300,
     text: () => "Forest fires across the strait have blanketed your region in smoke. The air quality index is in the unhealthy range.",
     options: [
       { id: "masks", label: "Free masks & air purifiers for seniors", pros: ["Protects the vulnerable"], cons: ["Costly"], cost: 300, trust: 2, needs: { health: 3, months: 3, all: true } },
@@ -374,7 +374,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "floods", icon: "🌧️", title: "Flash floods", from: 1966, to: 2300, town: "random",
+    id: "floods", repeat: 15, icon: "🌧️", title: "Flash floods", from: 1966, to: 2300, town: "random",
     text: (c) => `A freak storm flooded shops and car parks in ${c.town}. The drains can't cope.`,
     options: [
       { id: "drain", label: "Rebuild the drains bigger", pros: ["Fewer floods for decades"], cons: ["Expensive"], cost: 600, needs: { safety: 4, months: 240 }, log: "rebuilt {town}'s drains after floods" },
@@ -440,7 +440,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "shipyard", icon: "🔥", title: "Industrial accident", from: 1970, to: 2100, cond: (w) => w.lots.some((l) => l.zone === "ind" && l.b),
+    id: "shipyard", repeat: 25, icon: "🔥", title: "Industrial accident", from: 1970, to: 2100, cond: (w) => w.lots.some((l) => l.zone === "ind" && l.b),
     text: () => "An explosion at a shipyard has injured workers. Unions demand tougher safety rules.",
     options: [
       { id: "rules", label: "Tougher safety rules", pros: ["Safer workplaces"], cons: ["Firms pay more"], effect: { indDemand: -0.1, months: 24 }, rep: 2, needs: { safety: 4, months: 240, all: true } },
@@ -456,7 +456,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "busStrike", icon: "🚌", title: "Bus drivers' strike", from: 1980, to: 2300,
+    id: "busStrike", repeat: 25, icon: "🚌", title: "Bus drivers' strike", from: 1980, to: 2300,
     text: () => "Bus drivers have walked off the job over pay and dormitory conditions.",
     options: [
       { id: "pay", label: "Raise their pay", pros: ["Buses back tomorrow"], cons: ["Ongoing cost"], costMonthly: 12, trust: 1 },
@@ -465,7 +465,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "festival", icon: "🏮", title: "Festival in the void deck", from: 1966, to: 2300, town: "random",
+    id: "festival", repeat: 20, icon: "🏮", title: "Festival in the void deck", from: 1966, to: 2300, town: "random",
     text: (c) => `Residents of ${c.town} want to hold a big getai and festival in the void decks. Some neighbours worry about the noise.`,
     options: [
       { id: "allow", label: "Allow it and help fund it", pros: ["Community spirit"], cons: ["Noise complaints"], cost: 60, needs: { community: 8, months: 12 }, mood: [1, 2] },
@@ -474,7 +474,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "trees", icon: "🌳", title: "Falling trees", from: 1970, to: 2300, town: "random",
+    id: "trees", repeat: 20, icon: "🌳", title: "Falling trees", from: 1970, to: 2300, town: "random",
     text: (c) => `A storm brought down old rain trees in ${c.town}, crushing cars. Should all big trees be pruned hard?`,
     options: [
       { id: "arborist", label: "Hire arborists to check every tree", pros: ["Safe and green"], cons: ["Costly"], cost: 250, needs: { safety: 3, months: 120 } },
@@ -499,7 +499,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "topup", icon: "🏛️", title: "Central government offer", from: 1966, to: 2300, cond: (w) => w.cash < 6000,
+    id: "topup", repeat: 12, icon: "🏛️", title: "Central government offer", from: 1966, to: 2300, cond: (w) => w.cash < 6000,
     text: () => "The Ministry offers your region an emergency top-up, but wants you to hand over control of some land in return.",
     options: [
       { id: "take", label: "Take the money", pros: ["Cash now"], cons: ["Less say over your land", "Looks weak"], gain: 2500, rep: -3, trust: -2 },
@@ -507,7 +507,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "scandal", icon: "📰", title: "Town council scandal", from: 1970, to: 2300, town: "random",
+    id: "scandal", repeat: 20, icon: "📰", title: "Town council scandal", from: 1970, to: 2300, town: "random",
     text: (c) => `The newspapers report that ${c.town}'s town council paid a contractor linked to an official. People expect you to act.`,
     options: [
       { id: "probe", label: "Independent investigation", pros: ["Clean government", "Trust rises"], cons: ["Embarrassing headlines"], cost: 100, trust: 4, rep: 2, mood: [-1, 3], log: "ordered an independent probe into a town council scandal" },
@@ -515,7 +515,7 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "cats", icon: "🐈", title: "Community cats", from: 2000, to: 2300, town: "random",
+    id: "cats", repeat: 25, icon: "🐈", title: "Community cats", from: 2000, to: 2300, town: "random",
     text: (c) => `Residents in ${c.town} are split over stray cats: some feed them, others complain about the mess.`,
     options: [
       { id: "tnr", label: "Sterilise & manage them", pros: ["Humane", "Fewer complaints over time"], cons: ["Small cost"], cost: 40, needs: { community: 3, months: 60 } },
@@ -787,6 +787,7 @@ export function stepEvents(w, A, rng, push) {
       w.crisesPast.push({ id: cr.id, year: Math.floor(cr.startYear), score: Math.round(score * 100), choice: cr.choice });
       w.effects = w.effects.filter((e) => e.id !== "crisis");
       w.crisis = null;
+      w.crisisEndT = w.t;
     }
     return;
   }
@@ -803,15 +804,38 @@ export function stepEvents(w, A, rng, push) {
     return startCrisis(w, id, rng, push);
   }
 
-  // random dilemmas
+  // random dilemmas: irregular gaps, never during a crisis or election season,
+  // most happen only once a game and recurring ones need years between them
   if (!w.decision && w.t >= w.nextDilemma) {
-    const recent = new Set(w.dilemmaLog.slice(-14).map((x) => x.id));
-    const pool = DILEMMAS.filter((d) => w.year >= d.from && w.year <= d.to && !recent.has(d.id) && (!d.region || d.region === w.region) && (!d.cond || d.cond(w, A)));
+    const quiet = w.crisis || (w.election && w.t >= w.election.next - 6 && w.t < w.election.next) || (w.crisesPast.length && w.t - (w.crisisEndT ?? -99) < 6);
+    if (quiet) {
+      w.nextDilemma = w.t + 6 + Math.floor(rng() * 6);
+      return;
+    }
+    const last = {};
+    for (const x of w.dilemmaLog) last[x.id] = x.t;
+    const pool = DILEMMAS.filter((d) => {
+      if (w.year < d.from || w.year > d.to) return false;
+      if (d.region && d.region !== w.region) return false;
+      if (last[d.id] != null && (!d.repeat || w.t - last[d.id] < d.repeat * 12)) return false;
+      return !d.cond || d.cond(w, A);
+    });
     if (pool.length) {
-      const d = pool[Math.floor(rng() * pool.length)];
+      // newer issues are a little more likely than ones that have been waiting since the 1960s
+      const weights = pool.map((d) => 1 + Math.min(1.5, Math.max(0, w.year - d.from) < 10 ? 1 : 0) + rng());
+      let r = rng() * weights.reduce((a, b) => a + b, 0);
+      let d = pool[0];
+      for (let k = 0; k < pool.length; k++) {
+        r -= weights[k];
+        if (r <= 0) {
+          d = pool[k];
+          break;
+        }
+      }
       w.decision = { kind: "dilemma", id: d.id, town: pickTown(w, A, d.town, rng) };
     }
-    w.nextDilemma = w.t + 9 + Math.floor(rng() * 12);
+    // the next one comes 1½ to 4 years later, sometimes with a longer lull
+    w.nextDilemma = w.t + 18 + Math.floor(rng() * 30) + (rng() < 0.25 ? 12 : 0);
   }
 }
 

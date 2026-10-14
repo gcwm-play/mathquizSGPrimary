@@ -212,6 +212,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const [tool, setTool] = useState("look");
   const [tray, setTray] = useState(null);
   const [speed, setSpeed] = useState(1);
+  const lastSpeed = useRef(1); // ▶ resumes at the speed you were using
   const [panel, setPanel] = useState(initial.decision ? { id: "decision" } : initial.t === 0 ? { id: initial.planned ? "help" : "plan" } : null);
   const [overlay, setOverlay] = useState("none");
   const [inspect, setInspect] = useState(null);
@@ -745,7 +746,14 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         </div>
         <div className="pointer-events-none ml-auto flex shrink-0 flex-col items-end gap-2">
           <div className="pointer-events-auto flex items-center gap-1.5">
-            <button onClick={() => setSpeed(speed === 0 ? 2 : 0)} aria-label={speed === 0 ? "Play" : "Pause"} className={`city-btn city-sticker flex h-11 w-11 items-center justify-center rounded-full text-lg font-bold ${speed === 0 ? "bg-[var(--warn)] text-white" : "bg-[var(--card)]"}`}>
+            <button
+              onClick={() => {
+                if (speed === 0) setSpeed(lastSpeed.current || 1);
+                else {
+                  lastSpeed.current = speed;
+                  setSpeed(0);
+                }
+              }} aria-label={speed === 0 ? "Play" : "Pause"} className={`city-btn city-sticker flex h-11 w-11 items-center justify-center rounded-full text-lg font-bold ${speed === 0 ? "bg-[var(--warn)] text-white" : "bg-[var(--card)]"}`}>
               {speed === 0 ? "▶" : "❚❚"}
             </button>
             <button onClick={() => setSpeed(speed === 0 ? 1 : (speed % 3) + 1)} aria-label={`Speed: ${SPEEDS[speed].label}`} className="city-btn city-sticker flex h-11 min-w-[2.75rem] items-center justify-center rounded-full bg-[var(--card)] px-2 text-[15px] font-bold">
