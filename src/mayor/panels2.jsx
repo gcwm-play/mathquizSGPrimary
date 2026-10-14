@@ -380,6 +380,14 @@ export function DecisionPanel({ world: w, onPick }) {
   );
 }
 
+// Log lines are either "what you did" ("kept your promise…") or a whole
+// sentence ("The cover-up leaked!"). Only the first kind gets "You".
+export function youSaid(text) {
+  const t = String(text || "").trim();
+  const body = /^[a-z]/.test(t) ? `You ${t}` : t;
+  return /[.!?…]$/.test(body) ? body : `${body}.`;
+}
+
 // ---------------- crisis ----------------
 const EFFECT_TEXT = {
   business: "Business tax",
@@ -604,11 +612,11 @@ export function ReportPanel({ world: w, index, onClose }) {
               <li key={i}>{f}</li>
             ))}
             {r.good.map((f, i) => (
-              <li key={`g${i}`}>👍 You {f}.</li>
+              <li key={`g${i}`}>👍 {youSaid(f)}</li>
             ))}
             {r.bad.map((f, i) => (
               <li key={`b${i}`} className="text-[var(--bad)]">
-                👎 You {f}.
+                👎 {youSaid(f)}
               </li>
             ))}
           </ul>
@@ -1071,13 +1079,13 @@ export function ElectionReport({ world: w, rec, onClose, actions }) {
             <div>
               <h3 className="mb-1 font-bold">👍 What went well</h3>
               <ul className="space-y-0.5 text-[13.5px]">
-                {a.good.length ? a.good.map((g, i) => <li key={i}>• You {g}.</li>) : <li className="text-[var(--muted)]">Nothing stood out this term.</li>}
+                {a.good.length ? a.good.map((g, i) => <li key={i}>• {youSaid(g)}</li>) : <li className="text-[var(--muted)]">Nothing stood out this term.</li>}
               </ul>
             </div>
             <div>
               <h3 className="mb-1 font-bold">👎 What went badly</h3>
               <ul className="space-y-0.5 text-[13.5px]">
-                {a.bad.length ? a.bad.map((g, i) => <li key={i}>• You {g}.</li>) : <li className="text-[var(--muted)]">No major blunders.</li>}
+                {a.bad.length ? a.bad.map((g, i) => <li key={i}>• {youSaid(g)}</li>) : <li className="text-[var(--muted)]">No major blunders.</li>}
               </ul>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Panel } from "../city/panels.jsx";
 import { NEEDS, TERM_YEARS, diffOf } from "./defs.js";
-import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS, modeOf, pledgeProgress } from "./sim.js";
+import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS, modeOf, pledgeProgress, pledgeCred } from "./sim.js";
 import { housingByTown } from "./housing.js";
 import { ImpactBox, ObjectiveRow, PurposePicker } from "./panels2.jsx";
 import { setPurpose, purposeCost } from "./world.js";
@@ -233,6 +233,11 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
       {season ? (
         <>
           <p className="text-[13px] text-[var(--muted)]">Promise up to 3 things to win votes now. Each town's pledges fix what it's shortest of, and the towns least likely to vote for you are at the top. The worse off a town is, the more votes a pledge wins, and the angrier it gets if you break it.</p>
+          {pledgeCred(w) < 0.99 && (
+            <p className="mt-1 rounded-xl bg-[var(--bad-bg)] px-2.5 py-1.5 text-[13px] font-semibold text-[var(--bad)]">
+              🤨 Voters doubt your promises after the ones you broke: pledges win {Math.round((1 - pledgeCred(w)) * 100)}% fewer votes. Keep a promise to win their trust back.
+            </p>
+          )}
           <div className="mt-2 space-y-3">
             {(() => {
               const groups = [];

@@ -912,7 +912,7 @@ function applyFantasy(w, o, ctx, push, rng) {
     const t = fillT(o.story, ctx);
     push(`${SCENARIOS[ctx.id]?.icon || "🐉"} ${t}`);
     chron(w, SCENARIOS[ctx.id]?.icon || "🐉", t, o.tone || "neutral");
-    w.log.push({ year: w.year, text: t.replace(/\.$/, "").replace(/^./, (m) => m.toLowerCase()), tone: o.tone || "neutral", fantasy: true });
+    w.log.push({ year: w.year, text: t, tone: o.tone || "neutral", fantasy: true });
   }
   w.rev = (w.rev || 0) + 1;
 }
