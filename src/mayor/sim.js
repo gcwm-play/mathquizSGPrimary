@@ -149,7 +149,9 @@ export function analyze(w) {
     }
     // each building turns out a little better or worse than average
     const eff = s.eff ?? 1;
-    if (S.cover) services.push({ x: s.x, y: s.y, cover: S.cover, r: S.r, f: fund * eff, type: s.type });
+    // a wet market in the CBD is a novelty, not where office workers eat
+    const cbdMarket = s.type === "market" && w.towns[townOf(w, s.x, s.y)]?.purpose === "commercial" ? 0.4 : 1;
+    if (S.cover) services.push({ x: s.x, y: s.y, cover: S.cover, r: S.r, f: fund * eff * cbdMarket, type: s.type });
     if (s.type === "sports") services.push({ x: s.x, y: s.y, cover: "community", r: S.r, f: fund * eff });
     if (S.alsoCover) services.push({ x: s.x, y: s.y, cover: S.alsoCover, r: S.r, f: fund * eff });
     // copies of someone else's landmark draw fewer visitors
@@ -177,6 +179,19 @@ export function analyze(w) {
     if (T.poll) polluters.push({ x: l.x, y: l.y, p: T.poll, r: 5 });
     if (l.b.conserved) tourism += 25;
     if (l.b.type === "shophouse" && w.towns[l.town]?.purpose === "heritage") tourism += 6;
+  }
+  // hawker centres among offices and shops feed the lunch crowd, and the
+  // famous ones (Lau Pa Sat, Maxwell, Amoy Street) draw tourists too
+  const lunch = new Map();
+  for (const s of w.structs) {
+    if (s.type !== "hawker" || s.state === "build" || s.off) continue;
+    const S = STRUCTS.hawker;
+    let workers = 0;
+    for (const l of comLots) if (dist(l.x, l.y, s.x, s.y) <= S.r) workers += LOT_TYPES[l.b.type].jobs || 0;
+    const pur = w.towns[townOf(w, s.x, s.y)]?.purpose;
+    const draw = pur === "commercial" || pur === "heritage" ? 0.05 : 0.015;
+    tourism += Math.min(180, workers * draw) * (s.eff ?? 1);
+    lunch.set(s.id, workers);
   }
 
   const coverAt = (x, y) => {
@@ -345,7 +360,7 @@ export function analyze(w) {
     return { ...t, needs, minor, schools, unhoused, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
   });
   const vacant = T.reduce((a, t) => a + t.vacant, 0);
-  return { info, want, towns, vacant, upkeepTown, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, coverAt, pollAt, services };
+  return { lunch, info, want, towns, vacant, upkeepTown, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, coverAt, pollAt, services };
 }
 
 export function effect(w, key) {
@@ -399,7 +414,9 @@ export function monthlyBudget(w, A, ov = null) {
       }
     }
     if (Ty.jobs) {
-      const bt = Ty.jobs * lv * 0.004 * D.income * biz;
+      // offices and shops near good, cheap food do a little better
+      const lunchBoost = Ty.zone === "com" ? 1 + 0.12 * Math.min(1, A.info.get(l.id)?.c.food || 0) : 1;
+      const bt = Ty.jobs * lv * 0.004 * D.income * biz * lunchBoost;
       T.business[l.town] += bt;
       SUB[Ty.zone === "ind" ? "bizInd" : "bizCom"][l.town] += bt;
     }
@@ -895,12 +912,10 @@ const span2 = (a, b, f = (x) => Math.round(x)) => {
   return lo === hi ? `${lo}` : `${lo}–${hi}`;
 };
 const moneySpan = (a, b) => {
+  const one = (v) => (Math.abs(v) < 0.5 ? "$0" : `${v > 0 ? "+" : "−"}${fmtMoney(Math.abs(v))}`);
   const lo = Math.min(a, b);
   const hi = Math.max(a, b);
-  const sg = (v) => (v >= 0 ? "+" : "−");
-  if (Math.round(lo) === Math.round(hi)) return `${sg(lo)}${fmtMoney(Math.abs(lo))}`;
-  if (lo >= 0 || hi <= 0) return `${sg(lo)}${fmtMoney(Math.abs(lo < 0 ? hi : lo))}–${fmtMoney(Math.abs(lo < 0 ? lo : hi))}`;
-  return `${fmtMoney(lo).replace("-", "−")} to +${fmtMoney(hi)}`;
+  return one(lo) === one(hi) ? one(lo) : `${one(lo)} to ${one(hi)}`;
 };
 const netOf = (B) => total(B.rev) - total(B.exp);
 
@@ -912,6 +927,8 @@ export function toolInfo(w, T) {
   if (S) {
     if (S.cover) items.push({ t: `${COVER_NAME[S.cover] || S.cover} for homes within ${S.r * 50} m (closer homes benefit more)`, good: true });
     if (S.alsoCover) items.push({ t: `${COVER_NAME[S.alsoCover]} too`, good: true });
+    if (T.struct === "hawker") items.push({ t: "🍱 Feeds nearby office and shop workers: a little more business tax, and tourists in CBD and heritage towns", good: true });
+    if (T.struct === "market") items.push({ t: "🏢 Only 40% as useful in a CBD town", good: false });
     if (S.cover === "school" && T.struct === "scienceCentre") items.push({ t: "Counts as a primary school", good: true });
     const tScale = 0.5 * Math.min(1, (w.stats?.pop || 0) / 40000 + 0.3) * effect(w, "tourism");
     if (S.tourism) items.push({ t: `📸 Tourism ${moneySpan(S.tourism * tScale * EFF_LO, S.tourism * tScale * EFF_HI)}/month`, good: true });
@@ -968,6 +985,24 @@ export function estimateStruct(w, plan) {
   const B0 = monthlyBudget(w, A0);
   const items = [];
   const t0 = A0.towns[ti];
+  const S = STRUCTS[plan.type];
+  const NEED_OF = { food: "food", school: "school", school2: "school", school3: "school", health: "health", safety: "safety", fire: "safety", community: "community", green: "green", transport: "transport", mrt: "transport" };
+  const need = NEED_OF[S.cover];
+  // who it reaches
+  let inReach = 0;
+  let workers = 0;
+  if (S.cover && S.r) {
+    for (const l of w.lots) {
+      if (!l.b || l.b.state === "build" || dist(l.x, l.y, plan.x, plan.y) > S.r) continue;
+      if (l.town === ti) inReach += residents(l.b);
+      if (l.zone === "com") workers += LOT_TYPES[l.b.type].jobs || 0;
+    }
+    for (const k of w.kampongs) if (k.town === ti && dist(k.x, k.y, plan.x, plan.y) <= S.r) inReach += k.houses.length * KAMPONG.housePop;
+    const tp = t0 ? t0.pop + t0.kpop : 0;
+    items.push({ t: `🏠 ${fmtNum(inReach)} residents in reach${tp ? ` (${Math.round((inReach / tp) * 100)}% of ${w.towns[ti].name})` : ""}`, good: inReach > 0 });
+    if (plan.type === "hawker" && workers > 0) items.push({ t: `🍱 Lunch for ${fmtNum(workers)} office and shop workers`, good: true });
+  }
+  const before = items.length;
   if (t0 && t0.pop + t0.kpop > 0) {
     for (const [k, nd] of Object.entries(NEEDS)) {
       if (t0.minor?.includes(k)) continue;
@@ -982,6 +1017,14 @@ export function estimateStruct(w, plan) {
     const hb = hi.A.towns[ti].happy;
     if (Math.max(Math.abs(ha - h0), Math.abs(hb - h0)) >= 0.3) items.push({ t: `😊 Happiness ${ha - h0 >= 0 ? "+" : "−"}${span2(Math.abs(ha - h0), Math.abs(hb - h0), (x) => Math.round(x * 10) / 10)}%`, good: hb > h0 });
   } else items.push({ t: "Nobody lives near here yet", good: false });
+  // nothing changed for residents: say why
+  if (need && items.length === before) {
+    const P = purposeOf(w.towns[ti]);
+    if (t0?.minor?.includes(need)) items.push({ t: `ℹ️ ${NEEDS[need].name} isn't expected in a ${P.name.toLowerCase()} town, so residents won't notice`, good: false });
+    else if (!inReach) items.push({ t: "ℹ️ No homes in reach: place it closer to where people live", good: false });
+    else if ((t0?.needs[need] ?? 0) >= 85) items.push({ t: `ℹ️ ${w.towns[ti].name} already scores ${Math.round(t0.needs[need])} for ${NEEDS[need].name.toLowerCase()}`, good: false });
+    else items.push({ t: `ℹ️ Too few homes in reach to move ${w.towns[ti].name}'s average, or they already have ${NEEDS[need].name.toLowerCase()} nearby`, good: false });
+  }
   const others = A0.towns
     .map((t, i) => ({ i, d: Math.max(...Object.keys(NEEDS).map((k) => hi.A.towns[i].needs[k] - t.needs[k])) }))
     .filter((x) => x.i !== ti && x.d >= 1)
