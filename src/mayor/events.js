@@ -16,7 +16,7 @@ const popAvg = (A, k) => {
   let s = 0;
   let n = 0;
   for (const t of A.towns) {
-    const p = t.pop + t.kpop;
+    const p = t.pop;
     s += (t.needs[k] ?? 50) * p;
     n += p;
   }
@@ -553,7 +553,7 @@ export const DILEMMA = Object.fromEntries(DILEMMAS.map((d) => [d.id, d]));
 // ---------------- applying outcomes ----------------
 export function pickTown(w, A, how, rng) {
   if (!how) return null;
-  const live = w.towns.map((t, i) => i).filter((i) => (A.towns[i].pop + A.towns[i].kpop) > 0);
+  const live = w.towns.map((t, i) => i).filter((i) => A.towns[i].pop > 0);
   const pool = live.length ? live : w.towns.map((_, i) => i);
   if (how === "random") return pool[Math.floor(rng() * pool.length)];
   if (how === "biggest") return pool.reduce((a, b) => (A.towns[b].pop > A.towns[a].pop ? b : a), pool[0]);

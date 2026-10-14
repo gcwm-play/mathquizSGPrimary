@@ -7,7 +7,7 @@ import { townOf } from "./world.js";
 
 const fmt = (n) => Math.round(n).toLocaleString("en-SG");
 const roundTo = (n, s) => Math.ceil(n / s) * s;
-const townPop = (A, i) => A.towns[i].pop + A.towns[i].kpop;
+const townPop = (A, i) => A.towns[i].pop;
 const liveTowns = (w, A) => w.towns.map((_, i) => i).filter((i) => townPop(A, i) > 300);
 
 function oldBlocks(w, town) {

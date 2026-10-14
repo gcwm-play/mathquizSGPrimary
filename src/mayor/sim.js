@@ -421,7 +421,7 @@ export function monthlyBudget(w, A, ov = null) {
       SUB[Ty.zone === "ind" ? "bizInd" : "bizCom"][l.town] += bt;
     }
   }
-  const pops = A.towns.map((t) => t.pop + t.kpop);
+  const pops = A.towns.map((t) => t.pop);
   const tp = pops.reduce((a, b) => a + b, 0);
   const share = (i) => (tp ? pops[i] / tp : 1 / n);
   const block = w.term?.block ?? (A.pop * 0.0035 + 120) * D.income;
@@ -998,12 +998,12 @@ export function estimateStruct(w, plan) {
       if (l.zone === "com") workers += LOT_TYPES[l.b.type].jobs || 0;
     }
     for (const k of w.kampongs) if (k.town === ti && dist(k.x, k.y, plan.x, plan.y) <= S.r) inReach += k.houses.length * KAMPONG.housePop;
-    const tp = t0 ? t0.pop + t0.kpop : 0;
+    const tp = t0 ? t0.pop : 0;
     items.push({ t: `🏠 ${fmtNum(inReach)} residents in reach${tp ? ` (${Math.round((inReach / tp) * 100)}% of ${w.towns[ti].name})` : ""}`, good: inReach > 0 });
     if (plan.type === "hawker" && workers > 0) items.push({ t: `🍱 Lunch for ${fmtNum(workers)} office and shop workers`, good: true });
   }
   const before = items.length;
-  if (t0 && t0.pop + t0.kpop > 0) {
+  if (t0 && t0.pop > 0) {
     for (const [k, nd] of Object.entries(NEEDS)) {
       if (t0.minor?.includes(k)) continue;
       const v0 = t0.needs[k];
@@ -1267,7 +1267,7 @@ export function stepMonth(w, rng = Math.random) {
     // a need that was poor and is now good earns thanks for a while
     const prev = town.needs || {};
     town.thanks = (town.thanks || []).filter((x) => x.until > w.t);
-    if (t.pop + t.kpop > 0) {
+    if (t.pop > 0) {
       for (const [k, v] of Object.entries(t.needs)) {
         if (t.minor?.includes(k) || prev[k] == null) continue;
         if ((town.low?.[k] ?? prev[k]) < 50 && v >= 58 && !town.thanks.some((x) => x.need === k)) {
@@ -1279,7 +1279,7 @@ export function stepMonth(w, rng = Math.random) {
       town.low = town.low || {};
       for (const [k, v] of Object.entries(t.needs)) town.low[k] = v >= 58 ? v : Math.min(town.low[k] ?? v, v);
     }
-    town.pop = t.pop + t.kpop;
+    town.pop = t.pop;
     town.kpop = t.kpop;
     town.needs = t.needs;
     town.minor = t.minor;
@@ -1298,8 +1298,8 @@ export function stepMonth(w, rng = Math.random) {
     tfrSum += town.tfr * town.pop;
     lifeSum += town.life * town.pop;
   }
-  const tp = A.towns.reduce((a, t) => a + t.pop + t.kpop, 0);
-  w.approval = tp ? A.towns.reduce((a, t, i) => a + w.towns[i].approval * (t.pop + t.kpop), 0) / tp : 55;
+  const tp = A.towns.reduce((a, t) => a + t.pop, 0);
+  w.approval = tp ? A.towns.reduce((a, t, i) => a + w.towns[i].approval * t.pop, 0) / tp : 55;
   const tfr = tp ? tfrSum / tp : baseTfr(w.year);
   const life = tp ? lifeSum / tp : 65;
   w.tfrLag += (tfr - w.tfrLag) / 240;
@@ -1405,7 +1405,7 @@ function yearEnd(w, A, rng, finIdx) {
   let hs = 0;
   let n = 0;
   for (const t of A.towns) {
-    const p = t.pop + t.kpop;
+    const p = t.pop;
     hs += t.needs.housing * p;
     n += p;
   }
@@ -1469,7 +1469,7 @@ function feedbackFor(t, seed, town) {
     out.push({ need: k, v: Math.round(v), text: list[(seed + extra + k.length) % list.length] });
     complaints++;
   }
-  if (!complaints && !(t.unhoused > 0.2) && t.pop + t.kpop > 0) out.push({ need: null, v: 80, kind: "happy", text: "Everyone's fairly happy for now. Nothing urgent here!" });
+  if (!complaints && !(t.unhoused > 0.2) && t.pop > 0) out.push({ need: null, v: 80, kind: "happy", text: "Everyone's fairly happy for now. Nothing urgent here!" });
   return out;
 }
 
