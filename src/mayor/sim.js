@@ -559,6 +559,9 @@ function actionFor(w, i, need) {
 // how far below a comfortable 60 a need is: bigger gaps win more votes and cost more if broken
 const gapOf = (v) => clamp(60 - (v ?? 50), 4, 55);
 const pledgeBoost = (gap) => 2 + gap * 0.12;
+// How much voters believe your promises: each broken one knocks it down,
+// each kept one wins some back.
+export const pledgeCred = (w) => w.pledgeCred ?? 1;
 const pledgePenalty = (gap) => ({ trust: 5 + gap * 0.22, anger: 0.6 + gap * 0.04 });
 
 // How far along an open promise is, for the elections panel.
@@ -625,7 +628,7 @@ function describePledge(w, A, o) {
     icon: o.kind === "raise" ? NEEDS[o.need]?.icon || K.icon : K.icon,
     text: K.text(tname, n, o),
     boost,
-    boostText: fmtRange(boost, { unit: "%" }),
+    boostText: fmtRange(boost * pledgeCred(w), { unit: "%" }),
     penText: `trust ${fmtRange(-pen.trust)}${o.town != null ? `, anger in ${tname}` : ", anger everywhere"}`,
     years: K.years,
     all: !!K.all || o.town == null,
@@ -670,8 +673,12 @@ function checkPledges(w) {
       const dt = rollIn(pen.trust);
       const da = rollIn(pen.anger);
       p.status = "broken";
+      p.brokeT = w.t;
       w.trust = clamp(w.trust - dt, 0, 100);
       for (const i of towns) w.towns[i].anger += da;
+      // word gets around: other towns trust your promises less too
+      if (p.town != null) w.towns.forEach((t, i) => i !== p.town && (t.anger += da * 0.25));
+      w.pledgeCred = Math.max(0.3, pledgeCred(w) * 0.7);
       const where = p.town != null ? w.towns[p.town].name : "every town";
       pushNews(w, `💔 ${why}: "${p.text}". Trust −${Math.round(dt)}, and ${where} ${gap >= 30 ? "is furious" : "is unhappy"}.`);
     };
@@ -682,8 +689,10 @@ function checkPledges(w) {
     if (!K.keepUntilDeadline && K.check(w, p)) {
       const dt = rollIn(4 + gap * 0.1);
       p.status = "kept";
+      p.keptT = w.t;
       w.trust = clamp(w.trust + dt, 0, 100);
       for (const i of towns) w.towns[i].anger = Math.max(0, w.towns[i].anger - (0.4 + gap * 0.02));
+      w.pledgeCred = Math.min(1, pledgeCred(w) + 0.35);
       pushNews(w, `✅ Promise kept: "${p.text}". Trust +${Math.round(dt)}.`);
       continue;
     }
@@ -691,7 +700,9 @@ function checkPledges(w) {
       if (K.keepUntilDeadline) {
         const dt = rollIn(4 + gap * 0.05);
         p.status = "kept";
+        p.keptT = w.t;
         w.trust = clamp(w.trust + dt, 0, 100);
+        w.pledgeCred = Math.min(1, pledgeCred(w) + 0.35);
         pushNews(w, `✅ Promise kept: "${p.text}". Trust +${Math.round(dt)}.`);
       } else breakIt("Deadline missed");
     }
@@ -705,7 +716,7 @@ export const monthsToElection = (w) => w.election.next - w.t;
 export function townSupport(w, i) {
   const t = w.towns[i];
   let s = t.approval * 0.7 + 20 + (w.trust - 60) * 0.35 - t.anger * 3.5 + effectAdd(w, "mood");
-  for (const p of w.pledges || []) if (p.status === "open" && p.term === w.election.next && (p.town === i || p.town == null)) s += p.boost;
+  for (const p of w.pledges || []) if (p.status === "open" && p.term === w.election.next && (p.town === i || p.town == null)) s += p.boost * pledgeCred(w);
   return clamp(s, 2, 98);
 }
 
@@ -727,17 +738,22 @@ export function electionAnalysis(w, A) {
     if (queue > 0.03) factors.push({ icon: "⏳", label: `Families still waiting for a flat (${Math.round(queue * 100)}% of people)`, pts: -queue * Math.min(0.6, w.t / 120) * 45 * 0.7 });
     if (t.anger > 0.3) factors.push({ icon: "😠", label: "Anger over demolitions, resettlement and broken promises", pts: -t.anger * 3.5 });
     let pledge = 0;
-    for (const p of w.pledges || []) if (p.status === "open" && p.term === w.election.next && (p.town === i || p.town == null)) pledge += p.boost;
-    if (pledge) factors.push({ icon: "📣", label: "Election pledges", pts: pledge });
+    for (const p of w.pledges || []) if (p.status === "open" && p.term === w.election.next && (p.town === i || p.town == null)) pledge += p.boost * pledgeCred(w);
+    if (pledge) factors.push({ icon: "📣", label: `Election pledges${pledgeCred(w) < 0.99 ? ` (worth ${Math.round((1 - pledgeCred(w)) * 100)}% less: voters doubt you)` : ""}`, pts: pledge });
     factors.sort((a, b) => a.pts - b.pts);
     return { name: t.name, approval: Math.round(t.approval), support: Math.round(townSupport(w, i)), pop: t.pop || 0, factors };
   });
   const region = [];
   const trustPts = (w.trust - 60) * 0.35;
   const term = (w.pledges || []).filter((p) => p.term === w.election.next || (p.made >= w.election.next - 72 && p.made < w.election.next));
-  const broken = (w.pledges || []).filter((p) => p.status === "broken" && p.deadline > w.election.next - 72);
-  const kept = (w.pledges || []).filter((p) => p.status === "kept" && p.deadline > w.election.next - 72);
-  region.push({ icon: "🤝", label: `Trust in you is ${Math.round(w.trust)}/100${broken.length ? ` (${broken.length} broken promise${broken.length > 1 ? "s" : ""})` : ""}`, pts: trustPts });
+  // promises broken or kept since the last election (older saves: by deadline)
+  const termStart = w.election.next - TERM_YEARS * 12;
+  const when = (p) => (p.status === "broken" ? p.brokeT : p.keptT) ?? p.deadline;
+  const broken = (w.pledges || []).filter((p) => p.status === "broken" && when(p) >= termStart && when(p) <= w.t);
+  const kept = (w.pledges || []).filter((p) => p.status === "kept" && when(p) >= termStart && when(p) <= w.t);
+  const allBroken = (w.pledges || []).filter((p) => p.status === "broken").length;
+  const brokeText = broken.length || allBroken ? ` (${broken.length} broken promise${broken.length === 1 ? "" : "s"} this term${allBroken > broken.length ? `, ${allBroken} in all` : ""})` : "";
+  region.push({ icon: "🤝", label: `Trust in you is ${Math.round(w.trust)}/100${brokeText}`, pts: trustPts });
   const mood = effectAdd(w, "mood");
   if (Math.abs(mood) >= 1) region.push({ icon: mood < 0 ? "😟" : "🎉", label: mood < 0 ? "National mood (crisis or hard times)" : "Good national mood", pts: mood });
   if (w.taxes.property > 10) region.push({ icon: "🧾", label: `Property tax at ${w.taxes.property}% squeezes households`, pts: -(w.taxes.property - 10) * 0.6 });
@@ -747,7 +763,8 @@ export function electionAnalysis(w, A) {
   const good = w.log.filter((l) => l.year >= since && l.tone === "good").slice(-5).map((l) => l.text);
   const bad = w.log.filter((l) => l.year >= since && l.tone === "bad").slice(-5).map((l) => l.text);
   for (const p of kept.slice(-3)) good.push(`kept your promise: ${p.text}`);
-  for (const p of broken.slice(-3)) bad.push(`broke your promise: ${p.text}`);
+  for (const p of broken.slice(0, 4)) bad.push(`broke your promise: ${p.text}`);
+  if (broken.length > 4) bad.push(`broke ${broken.length - 4} more promise${broken.length - 4 > 1 ? "s" : ""}`);
   // what to fix first: the biggest drags across towns, weighted by people
   const drag = {};
   for (const t of towns) for (const f of t.factors) if (f.pts < 0) drag[f.label.split(" (")[0]] = (drag[f.label.split(" (")[0]] || 0) + f.pts * Math.max(1, t.pop);
