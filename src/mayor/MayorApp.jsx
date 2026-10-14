@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MapView, { zoomAt, lookAt } from "./MapView.jsx";
 import { TownsPanel, ElectionPanel, RenewSheet, NewsPanel, GoalsPanel, HelpPanel, MenuPanel, Panel, yearsMonths } from "./panels.jsx";
-import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel, ProjectPanel, ElectionReport } from "./panels2.jsx";
+import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel, ProjectPanel, ElectionReport, ChroniclePanel } from "./panels2.jsx";
+import { situation, setFantasy } from "./fantasy.js";
 import { decide, CRISES } from "./events.js";
 import { REGIONS, REGION_ORDER } from "./regions.js";
 import { DIFFICULTY, ALL_TOOLS, STRUCTS, ROAD_TYPES, toolGroups } from "./defs.js";
@@ -773,6 +774,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
                 🏝️ {w.year < 1972 ? "Blakang Mati" : `Sentosa ${fmtNum(w.sentosa.visitors)}/mo`}
               </button>
             )}
+            {w.fantasy?.state && (w.fantasy.on || situation(w).length > 0) && (
+              <button onClick={() => setPanel({ id: "chronicle" })} aria-label="Fantasy chronicle" className="city-btn city-sticker whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-bold text-white" style={{ background: "#7048e8" }}>
+                🐉 {situation(w).length > 1 ? situation(w).slice(0, 4).map((x) => x.icon).join("") : situation(w).length ? situation(w)[0].icon + " " + situation(w)[0].short : "Fantasy"}
+              </button>
+            )}
             {w.crisis && (
               <button onClick={() => setPanel({ id: "crisis" })} className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--bad)] px-3 py-1.5 text-[13px] font-bold text-white">
                 {CRISES[w.crisis.id].icon} {CRISES[w.crisis.id].name.split(" ").slice(0, 3).join(" ")} · {Math.max(0, w.crisis.until - w.t)}m
@@ -1040,6 +1046,17 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         />
       )}
       {panel?.id === "crisis" && <CrisisPanel world={w} onClose={() => setPanel(null)} />}
+      {panel?.id === "chronicle" && (
+        <ChroniclePanel
+          world={w}
+          onClose={() => setPanel(null)}
+          onToggle={() => {
+            setFantasy(w, !w.fantasy?.on);
+            toast(w.fantasy.on ? "🐉 Fantasy Mode is on. Anything can happen now..." : "📅 No new fantasy stories will start. What already happened stays.");
+            afterChange();
+          }}
+        />
+      )}
       {panel?.id === "sentosa" && <SentosaPanel world={w} analysis={A} onChange={afterChange} onClose={() => setPanel(null)} />}
       {panel?.id === "rivals" && <RivalsPanel world={w} onClose={() => setPanel(null)} onReport={(i) => setPanel({ id: "report", index: i })} />}
       {panel?.id === "report" && <ReportPanel world={w} index={panel.index} onClose={() => setPanel(null)} />}
@@ -1142,6 +1159,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           onGoals={() => setPanel({ id: "goals" })}
           onFinance={() => setPanel({ id: "finance" })}
           onRivals={() => setPanel({ id: "rivals" })}
+          onFantasy={w.year >= 2027 ? () => setPanel({ id: "chronicle" }) : null}
           onHelp={() => setPanel({ id: "help" })}
           onQuit={() => {
             save();

@@ -4,6 +4,7 @@
 import { clamp } from "./geom.js";
 import { LOT_TYPES } from "./defs.js";
 import { charge, noteImpact } from "./world.js";
+import { fantasyCard, decideFantasy, stepFantasy, fantasyOn, fantasySevere } from "./fantasy.js";
 
 const MULT = ["business", "tourism", "trade", "land", "jobs", "health", "upkeep", "growth"];
 export const EFFECT_ADD = ["mood", "comDemand", "indDemand", "life", "fert"];
@@ -656,6 +657,7 @@ export function describeEffects(w, o, town) {
 export function getDecision(w) {
   const d = w.decision;
   if (!d) return null;
+  if (d.kind.startsWith("fantasy")) return fantasyCard(w);
   let def;
   let title;
   let text;
@@ -692,6 +694,7 @@ export function getDecision(w) {
 export function decide(w, optId, push, rng = Math.random) {
   const d = w.decision;
   if (!d) return;
+  if (d.kind.startsWith("fantasy")) return decideFantasy(w, optId, push, rng);
   const card = getDecision(w);
   const o = card?.options.find((x) => x.id === optId);
   w.decision = null;
@@ -752,6 +755,9 @@ export function stepEvents(w, A, rng, push) {
     }
   }
 
+  // fantasy mode: lasting states, spreading zones, random stories
+  stepFantasy(w, A, rng, push);
+
   // crisis in progress
   const cr = w.crisis;
   if (cr) {
@@ -797,7 +803,7 @@ export function stepEvents(w, A, rng, push) {
     const C = CRISES[id];
     if (w.year === C.year && w.month === C.month && !w.crisesPast.some((p) => p.id === id)) return startCrisis(w, id, rng, push);
   }
-  if (w.year >= 2027 && w.nextFuture != null && w.t >= w.nextFuture) {
+  if (w.year >= 2027 && w.nextFuture != null && w.t >= w.nextFuture && !fantasyOn(w) && w.fantasy && !w.decision) {
     const pool = FUTURE.filter((id) => !w.crisesPast.slice(-2).some((p) => p.id === id));
     const id = pool[Math.floor(rng() * pool.length)];
     w.nextFuture = w.t + Math.round((10 + rng() * 14) * 12);
@@ -807,7 +813,7 @@ export function stepEvents(w, A, rng, push) {
   // random dilemmas: irregular gaps, never during a crisis or election season,
   // most happen only once a game and recurring ones need years between them
   if (!w.decision && w.t >= w.nextDilemma) {
-    const quiet = w.crisis || (w.election && w.t >= w.election.next - 6 && w.t < w.election.next) || (w.crisesPast.length && w.t - (w.crisisEndT ?? -99) < 6);
+    const quiet = w.crisis || fantasySevere(w) || (w.election && w.t >= w.election.next - 6 && w.t < w.election.next) || (w.crisesPast.length && w.t - (w.crisisEndT ?? -99) < 6);
     if (quiet) {
       w.nextDilemma = w.t + 6 + Math.floor(rng() * 6);
       return;
@@ -835,7 +841,7 @@ export function stepEvents(w, A, rng, push) {
       w.decision = { kind: "dilemma", id: d.id, town: pickTown(w, A, d.town, rng) };
     }
     // the next one comes 1½ to 4 years later, sometimes with a longer lull
-    w.nextDilemma = w.t + 18 + Math.floor(rng() * 30) + (rng() < 0.25 ? 12 : 0);
+    w.nextDilemma = w.t + 18 + Math.floor(rng() * 30) + (rng() < 0.25 ? 12 : 0) + (fantasyOn(w) ? 18 : 0);
   }
 }
 

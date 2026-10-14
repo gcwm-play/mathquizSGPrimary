@@ -28,7 +28,7 @@ export function terrain(w) {
       const [e, s] = w2es(x, y);
       const n = n1(x, y) * 0.75 + n2(x, y) * 0.25;
       let l = R.land(e, s, n);
-      for (const ed of w.edits) l = Math.max(l, ed.r - dist(x, y, ed.x, ed.y));
+      for (const ed of w.edits) l = ed.hole ? Math.min(l, dist(x, y, ed.x, ed.y) - ed.r) : Math.max(l, ed.r - dist(x, y, ed.x, ed.y));
       L[j * G + i] = l;
       let f = -9;
       for (const fr of fresh) {
@@ -755,7 +755,7 @@ export function plantTrees(w, x, y, r, rng = Math.random) {
 
 // What a bulldoze brush stroke would remove
 export function bulldozeSelect(w, x, y, r, sel) {
-  for (const l of lotsNear(w, x, y, r)) if (l.b) sel.lots.add(l.id);
+  for (const l of lotsNear(w, x, y, r)) if (l.b || l.ruin) sel.lots.add(l.id);
   for (const s of w.structs) if (!STRUCTS[s.type].fixed && dist(s.x, s.y, x, y) <= r + 1) sel.structs.add(s.id);
   w.trees.forEach((t, i) => {
     if (dist(t[0], t[1], x, y) <= r) sel.trees.add(i);
@@ -767,6 +767,7 @@ export function bulldozeCost(w, sel) {
   for (const id of sel.lots) {
     const l = w.lots.find((x) => x.id === id);
     if (l?.b) c += buildingComp(l) + 10;
+    else if (l?.ruin) c += 15;
   }
   for (const id of sel.structs) {
     const s = w.structs.find((x) => x.id === id);
@@ -779,6 +780,9 @@ export function bulldozeCommit(w, sel) {
   const lots = [...sel.lots].map((id) => w.lots.find((x) => x.id === id)).filter(Boolean);
   const first = lots[0] || w.structs.find((s) => sel.structs.has(s.id));
   clearLots(w, lots, true);
+  // ruins can be cleared once the danger has passed
+  const zones = w.fantasy?.zones || [];
+  for (const l of lots) if (l.ruin && !zones.some((z) => dist(l.x, l.y, z.x, z.y) <= z.r)) l.ruin = null;
   const gone = w.structs.filter((s) => sel.structs.has(s.id));
   w.structs = w.structs.filter((s) => !sel.structs.has(s.id));
   w.trees = w.trees.filter((_, i) => !sel.trees.has(i));
