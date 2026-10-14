@@ -232,7 +232,7 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
       <h3 className="mb-1 mt-4 font-bold">📣 Pledges</h3>
       {season ? (
         <>
-          <p className="text-[13px] text-[var(--muted)]">Promise up to 3 things to win votes now. Each town's pledges fix what it's shortest of, and the towns least likely to vote for you are at the top. The worse off a town is, the more votes a pledge wins, and the angrier it gets if you break it.</p>
+          <p className="text-[13px] text-[var(--muted)]">Promise up to 3 things to win votes now. Promises add at most 6% to any one town's vote. Each town's pledges fix what it's shortest of, and the towns least likely to vote for you are at the top. The worse off a town is, the more votes a pledge wins, and the angrier it gets if you break it.</p>
           {pledgeCred(w) < 0.99 && (
             <p className="mt-1 rounded-xl bg-[var(--bad-bg)] px-2.5 py-1.5 text-[13px] font-semibold text-[var(--bad)]">
               🤨 Voters doubt your promises after the ones you broke: pledges win {Math.round((1 - pledgeCred(w)) * 100)}% fewer votes. Keep a promise to win their trust back.
@@ -273,9 +273,10 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
                                 </div>
                               )}
                               <div className="text-[12px] text-[var(--good)]">
-                                {o.boostText} support {o.all ? "everywhere" : `in ${w.towns[o.town]?.name}`} · deliver within {o.years} years
+                                🗳️ {o.boostText} votes {o.all ? "everywhere" : `in ${w.towns[o.town]?.name}`} at this election · deliver within {o.years} years
                               </div>
-                              <div className="text-[12px] text-[var(--bad)]">If broken: {o.penText}</div>
+                              <div className="text-[12px] text-[var(--good)]">✅ If kept: {o.keptText}</div>
+                              <div className="text-[12px] text-[var(--bad)]">💔 If broken: {o.penText}</div>
                             </div>
                             <button
                               disabled={made || thisTerm.length >= 3}

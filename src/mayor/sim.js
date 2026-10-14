@@ -558,7 +558,9 @@ function actionFor(w, i, need) {
 }
 // how far below a comfortable 60 a need is: bigger gaps win more votes and cost more if broken
 const gapOf = (v) => clamp(60 - (v ?? 50), 4, 55);
-const pledgeBoost = (gap) => 2 + gap * 0.12;
+const pledgeBoost = (gap) => 1.5 + gap * 0.05; // vote points while the promise is open: about 1–7
+const PLEDGE_CAP = 6; // no town can be won with promises alone
+export const keptTrust = (gap) => 3 + gap * 0.06;
 // How much voters believe your promises: each broken one knocks it down,
 // each kept one wins some back.
 export const pledgeCred = (w) => w.pledgeCred ?? 1;
@@ -629,7 +631,8 @@ function describePledge(w, A, o) {
     text: K.text(tname, n, o),
     boost,
     boostText: fmtRange(boost * pledgeCred(w), { unit: "%" }),
-    penText: `trust ${fmtRange(-pen.trust)}${o.town != null ? `, anger in ${tname}` : ", anger everywhere"}`,
+    penText: `trust ${fmtRange(-pen.trust)}/100${o.town != null ? `, anger in ${tname}` : ", anger everywhere"}`,
+    keptText: `trust ${fmtRange(keptTrust(o.gap))}/100`,
     years: K.years,
     all: !!K.all || o.town == null,
   };
@@ -687,7 +690,7 @@ function checkPledges(w) {
       continue;
     }
     if (!K.keepUntilDeadline && K.check(w, p)) {
-      const dt = rollIn(4 + gap * 0.1);
+      const dt = rollIn(keptTrust(gap));
       p.status = "kept";
       p.keptT = w.t;
       w.trust = clamp(w.trust + dt, 0, 100);
@@ -698,7 +701,7 @@ function checkPledges(w) {
     }
     if (w.t >= p.deadline) {
       if (K.keepUntilDeadline) {
-        const dt = rollIn(4 + gap * 0.05);
+        const dt = rollIn(keptTrust(gap) * 0.8);
         p.status = "kept";
         p.keptT = w.t;
         w.trust = clamp(w.trust + dt, 0, 100);
@@ -716,7 +719,9 @@ export const monthsToElection = (w) => w.election.next - w.t;
 export function townSupport(w, i) {
   const t = w.towns[i];
   let s = t.approval * 0.7 + 20 + (w.trust - 60) * 0.35 - t.anger * 3.5 + effectAdd(w, "mood");
-  for (const p of w.pledges || []) if (p.status === "open" && p.term === w.election.next && (p.town === i || p.town == null)) s += p.boost * pledgeCred(w);
+  let pl = 0;
+  for (const p of w.pledges || []) if (p.status === "open" && p.term === w.election.next && (p.town === i || p.town == null)) pl += p.boost * pledgeCred(w);
+  s += Math.min(PLEDGE_CAP, pl);
   return clamp(s, 2, 98);
 }
 
@@ -739,6 +744,7 @@ export function electionAnalysis(w, A) {
     if (t.anger > 0.3) factors.push({ icon: "😠", label: "Anger over demolitions, resettlement and broken promises", pts: -t.anger * 3.5 });
     let pledge = 0;
     for (const p of w.pledges || []) if (p.status === "open" && p.term === w.election.next && (p.town === i || p.town == null)) pledge += p.boost * pledgeCred(w);
+    pledge = Math.min(PLEDGE_CAP, pledge);
     if (pledge) factors.push({ icon: "📣", label: `Election pledges${pledgeCred(w) < 0.99 ? ` (worth ${Math.round((1 - pledgeCred(w)) * 100)}% less: voters doubt you)` : ""}`, pts: pledge });
     factors.sort((a, b) => a.pts - b.pts);
     return { name: t.name, approval: Math.round(t.approval), support: Math.round(townSupport(w, i)), pop: t.pop || 0, factors };
