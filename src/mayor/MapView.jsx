@@ -24,13 +24,13 @@ export function zoomAt(cam, sx, sy, factor, width, height) {
 
 // The map. One finger moves the map (or paints with a brush tool, or drags a
 // road handle); a tap acts with the current tool; two fingers pinch-zoom.
-export default function MapView({ worldRef, analysisRef, camRef, dirtyRef, previewRef, sizeRef, handlesRef, tool, brush, overlay, selected, motion, onTap, onBrush, onHandle, onTouchStart }) {
+export default function MapView({ worldRef, analysisRef, camRef, dirtyRef, previewRef, sizeRef, handlesRef, tool, brush, overlay, selected, motion, paused, onTap, onBrush, onHandle, onTouchStart }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const R = useRef(null);
   const interacting = useRef(false);
   const props = useRef({});
-  props.current = { tool, brush, overlay, selected, motion, onTap, onBrush, onHandle, onTouchStart };
+  props.current = { tool, brush, overlay, selected, motion, paused, onTap, onBrush, onHandle, onTouchStart };
   if (!R.current) R.current = createRenderer();
 
   useEffect(() => {
@@ -70,9 +70,15 @@ export default function MapView({ worldRef, analysisRef, camRef, dirtyRef, previ
     let raf;
     let last = 0;
     let cost = 16;
+    // animation clock that stands still while the game is paused
+    let clock = 0;
+    let prevT = null;
     const loop = (t) => {
       raf = requestAnimationFrame(loop);
-      const animate = props.current.motion;
+      const frozen = !!props.current.paused;
+      if (prevT != null && !frozen) clock += Math.min(250, t - prevT);
+      prevT = t;
+      const animate = props.current.motion && !frozen;
       const gap = Math.min(100, Math.max(33, cost * 1.6));
       if (!dirtyRef.current && (!animate || t - last < gap) && t - last < 700) return;
       if (document.hidden) return;
@@ -87,7 +93,7 @@ export default function MapView({ worldRef, analysisRef, camRef, dirtyRef, previ
         overlay: props.current.overlay,
         preview: previewRef.current,
         selected: props.current.selected,
-        time: t,
+        time: clock,
         interacting: interacting.current,
         motion: animate,
       });

@@ -1202,6 +1202,35 @@ export function checkpointInfo() {
   }
 }
 
+// A save made a year before each polling day, so a lost election can be replayed.
+const PREVOTE_KEY = "lion-city-mayor-prevote";
+export function savePrevote(w) {
+  try {
+    localStorage.setItem(PREVOTE_KEY, snapshot(w));
+    return true;
+  } catch {
+    return false;
+  }
+}
+export function loadPrevote() {
+  try {
+    const raw = localStorage.getItem(PREVOTE_KEY);
+    return raw ? restore(raw) : null;
+  } catch {
+    return null;
+  }
+}
+export function prevoteInfo() {
+  try {
+    const raw = localStorage.getItem(PREVOTE_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return { name: d.name, year: d.year, month: d.month, seed: d.seed };
+  } catch {
+    return null;
+  }
+}
+
 export function saveInfo() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
