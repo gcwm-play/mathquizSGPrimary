@@ -1,16 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MapView, { zoomAt, lookAt } from "./MapView.jsx";
 import { TownsPanel, ElectionPanel, RenewSheet, NewsPanel, GoalsPanel, HelpPanel, MenuPanel, Panel, yearsMonths } from "./panels.jsx";
-import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel, ProjectPanel } from "./panels2.jsx";
+import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel, ProjectPanel, ElectionReport } from "./panels2.jsx";
 import { decide, CRISES } from "./events.js";
 import { REGIONS, REGION_ORDER } from "./regions.js";
 import { DIFFICULTY, ALL_TOOLS, STRUCTS, ROAD_TYPES, toolGroups } from "./defs.js";
 import {
-  saveCheckpoint, loadCheckpoint, checkpointInfo,
+  saveCheckpoint, loadCheckpoint, checkpointInfo, savePrevote, loadPrevote, prevoteInfo,
   newWorld, planRoad, commitRoad, snapPoint, planStruct, commitStruct, removeRoad, nearestSeg, segPts, paintZone, plantTrees,
   bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, saveInfo, clearPreview,
 } from "./world.js";
-import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit } from "./sim.js";
+import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis } from "./sim.js";
 import { OVERLAYS, ZONE_TINT } from "./render.js";
 import { inQuad, dist } from "./geom.js";
 
@@ -21,6 +21,7 @@ const SPEEDS = [
   { ms: 600, icon: "3×", label: "Fast" },
 ];
 const SETTINGS_KEY = "lion-city-mayor-settings";
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function useSettings() {
   const read = () => {
@@ -261,9 +262,12 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       const world = worldRef.current;
       const before = world.news[0];
       stepMonth(world);
+      // a year before polling day, keep a save so a lost election can be replayed
+      if (world.t === world.election.next - 12) savePrevote(world);
       if (world.news[0] && world.news[0] !== before) toast(world.news[0].text);
       if (world.election.justHeld) {
-        saveCheckpoint(world);
+        // only keep a checkpoint you'd want to go back to
+        if (!world.gameOver) saveCheckpoint(world);
         setPanel({ id: "result" });
       } else if (world.decision) setPanel({ id: "decision" });
       else if (world.reportReady != null) {
@@ -631,6 +635,45 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       </>
     );
   }
+  // ways to carry on after losing an election
+  const lostActions = () => {
+    const pre = prevoteInfo();
+    const chk = checkpointInfo();
+    const btn = "city-btn city-sticker rounded-2xl px-3 py-2.5 text-left font-bold";
+    return [
+      pre && pre.name === w.name && pre.seed === w.seed && pre.year <= w.year && (
+        <button key="pre" onClick={() => { const nw = loadPrevote(); if (nw) onRestart(nw); }} className={`${btn} bg-[var(--brand)] text-white`}>
+          ↩ Replay the year before the vote
+          <span className="block text-[12px] font-semibold opacity-90">From {MONTH_NAMES[pre.month]} {pre.year}: fix what the report card says</span>
+        </button>
+      ),
+      chk && chk.year < w.election.last.year && (
+        <button key="chk" onClick={() => { const nw = loadCheckpoint(); if (nw) onRestart(nw); }} className={`${btn} bg-[var(--soft)]`}>
+          ↩ Go back to just after the {chk.year} election
+          <span className="block text-[12px] font-semibold text-[var(--muted)]">Replay the whole term</span>
+        </button>
+      ),
+      <button
+        key="sand"
+        onClick={() => {
+          w.gameOver = null;
+          w.mode = "sandbox";
+          w.endYear = null;
+          w.cash = Math.max(w.cash, 20000);
+          setPanel(null);
+          refresh();
+        }}
+        className={`${btn} bg-[var(--soft)]`}
+      >
+        🏖️ Keep playing in Sandbox
+        <span className="block text-[12px] font-semibold text-[var(--muted)]">Stay on as mayor; you can't be voted out</span>
+      </button>,
+      <button key="new" onClick={() => onRestart(newWorld({ region: w.region, difficulty: w.difficulty, mode: w.mode === "sandbox" ? "campaign" : w.mode }))} className={`${btn} bg-[var(--soft)]`}>
+        🆕 Start a new game
+        <span className="block text-[12px] font-semibold text-[var(--muted)]">Same region, from 1965</span>
+      </button>,
+    ].filter(Boolean);
+  };
   const hint = !T || T.mode === "look" ? "" : T.mode === "road" ? (p?.kind === "road" && p.stage === "end" ? "Drag ↔ to curve it, or A / B to move the ends" : p?.kind === "road" ? "Now tap where it ends" : "Tap where the road starts") : T.mode === "brush" ? "Paint with one finger · two fingers move the map" : T.mode === "place" ? "Tap beside a road to place it" : tool === "unroad" ? "Tap a road to remove it" : "Tap an old block or kampong";
 
   return (
@@ -647,6 +690,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         brush={brushMode}
         overlay={overlay}
         motion={settings.motion}
+        paused={paused}
         selected={inspect?.hit ? { q: inspect.hit.q, x: inspect.hit.x, y: inspect.hit.y, r: inspect.hit.r, cover: inspect.hit.kind === "struct" && STRUCTS[inspect.hit.s.type].r && STRUCTS[inspect.hit.s.type].cover ? { x: inspect.hit.s.x, y: inspect.hit.s.y, r: STRUCTS[inspect.hit.s.type].r, kind: STRUCTS[inspect.hit.s.type].cover } : null } : null}
         onTap={onTap}
         onBrush={onBrush}
@@ -868,7 +912,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           }}
         />
       )}
-      {panel?.id === "election" && <ElectionPanel world={w} onClose={() => setPanel(null)} onChange={afterChange} toast={toast} />}
+      {panel?.id === "election" && <ElectionPanel world={w} onClose={() => setPanel(null)} onChange={afterChange} toast={toast} onReport={(i) => setPanel({ id: "vote", index: i })} />}
       {panel?.id === "result" && w.election.last && (
         <Panel title={`🗳️ ${w.election.last.year} election results`} onClose={() => setPanel(null)} closable={!w.gameOver}>
           <div className="text-center">
@@ -887,12 +931,25 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
               </div>
             ))}
           </div>
-          {!w.gameOver && (
-            <button onClick={() => setPanel(null)} className="city-btn city-sticker mt-4 w-full rounded-2xl bg-[var(--brand)] py-2 font-bold text-white">
-              Back to work
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button onClick={() => setPanel({ id: "vote" })} className={`city-btn city-sticker flex-1 rounded-2xl py-2 font-bold ${w.gameOver ? "bg-[var(--brand)] text-white" : "bg-[var(--soft)]"}`}>
+              📋 {w.election.last.won ? "Why did they vote for me?" : "Why did I lose? See the report card"}
             </button>
-          )}
+            {!w.gameOver && (
+              <button onClick={() => setPanel(null)} className="city-btn city-sticker flex-1 rounded-2xl bg-[var(--brand)] py-2 font-bold text-white">
+                Back to work
+              </button>
+            )}
+          </div>
         </Panel>
+      )}
+      {panel?.id === "vote" && (
+        <ElectionReport
+          world={w}
+          rec={panel.index != null ? w.election.history[panel.index] : w.election.last && { ...w.election.last, analysis: w.election.last.analysis || electionAnalysis(w, A) }}
+          onClose={() => setPanel(null)}
+          actions={w.gameOver && panel.index == null ? lostActions() : null}
+        />
       )}
       {panel?.id === "finance" && <FinancePanel world={w} analysis={A} onChange={afterChange} onClose={() => setPanel(null)} />}
       {panel?.id === "project" && (
@@ -1058,13 +1115,18 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           }}
         />
       )}
-      {w.gameOver && panel?.id !== "result" && panel?.id !== "report" && (
+      {w.gameOver && panel?.id !== "result" && panel?.id !== "report" && panel?.id !== "vote" && (
         <Panel title="📋 Your time as mayor" onClose={() => {}} closable={false}>
           <p className="text-lg">{w.gameOver.text}</p>
           <p className="mt-2 text-sm text-[var(--muted)]">
             You housed {fmtNum(w.stats.pop)} people by {dateLabel(w)}.
           </p>
           <FinalReport final={w.gameOver.final} />
+          {w.gameOver.reason === "election" && w.election.last && (
+            <button onClick={() => setPanel({ id: "vote" })} className="city-btn city-sticker mt-3 w-full rounded-2xl bg-[var(--brand)] py-2 font-bold text-white">
+              📋 See why you lost, and how to carry on
+            </button>
+          )}
           {w.reports?.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {w.reports.map((r, i) => (

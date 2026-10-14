@@ -978,3 +978,112 @@ export function ProjectPanel({ world: w, toolId, onChoose, onClose }) {
     </Panel>
   );
 }
+
+// ---------------- why the region voted as it did ----------------
+function Factor({ f }) {
+  const v = Math.round(f.pts * 10) / 10;
+  return (
+    <li className="flex items-center gap-2 text-[13.5px] leading-snug">
+      <span className="w-5 shrink-0 text-center">{f.icon}</span>
+      <span className="min-w-0 flex-1">{f.label}</span>
+      <b className="shrink-0 tabular-nums" style={{ color: v < 0 ? "var(--bad)" : "var(--good)" }}>
+        {v > 0 ? "+" : ""}
+        {v} pts
+      </b>
+    </li>
+  );
+}
+
+export function ElectionReport({ world: w, rec, onClose, actions }) {
+  const a = rec?.analysis;
+  if (!rec) return null;
+  return (
+    <Panel title={`📋 ${rec.year} election report card`} onClose={onClose} closable={!actions}>
+      <div className={`rounded-2xl p-3 ${rec.won ? "" : "bg-[var(--bad-bg)]"}`} style={rec.won ? { background: "rgba(47,191,113,0.14)" } : null}>
+        <div className="text-xl font-bold">
+          {rec.won ? "🏆" : "😬"} {rec.share}% voted for you · {rec.won ? "you won" : "you lost"}
+        </div>
+        <div className="text-[13px] text-[var(--muted)]">Each town's vote starts from how happy residents are, then trust in you, anger and your pledges push it up or down. Points below are approximate.</div>
+      </div>
+      {!a && <p className="mt-2 text-[14px] text-[var(--muted)]">No detailed report for this election.</p>}
+      {a && (
+        <>
+          <h3 className="mb-1 mt-3 font-bold">🏘️ Town by town</h3>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {a.towns.map((t, i) => {
+              const r = rec.results[i];
+              const neg = t.factors.filter((f) => f.pts < 0).slice(0, 4);
+              const pos = t.factors.filter((f) => f.pts > 0).slice(-3).reverse();
+              return (
+                <div key={t.name} className="rounded-2xl border-2 border-[var(--ink)]/10 p-2">
+                  <div className="flex items-center justify-between">
+                    <b>{t.name}</b>
+                    <b style={{ color: r?.won ? "var(--good)" : "var(--bad)" }}>{r?.pct ?? t.support}%</b>
+                  </div>
+                  {neg.length > 0 && (
+                    <>
+                      <div className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[var(--muted)]">Cost you votes</div>
+                      <ul className="space-y-0.5">
+                        {neg.map((f) => (
+                          <Factor key={f.label} f={f} />
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {pos.length > 0 && (
+                    <>
+                      <div className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[var(--muted)]">Won you votes</div>
+                      <ul className="space-y-0.5">
+                        {pos.map((f) => (
+                          <Factor key={f.label} f={f} />
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {!t.pop && <div className="text-[12px] text-[var(--muted)]">Hardly anyone lives here yet.</div>}
+                </div>
+              );
+            })}
+          </div>
+          <h3 className="mb-1 mt-3 font-bold">🌏 Across the region</h3>
+          <ul className="space-y-0.5">
+            {a.region.map((f) => (
+              <Factor key={f.label} f={f} />
+            ))}
+          </ul>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <h3 className="mb-1 font-bold">👍 What went well</h3>
+              <ul className="space-y-0.5 text-[13.5px]">
+                {a.good.length ? a.good.map((g, i) => <li key={i}>• You {g}.</li>) : <li className="text-[var(--muted)]">Nothing stood out this term.</li>}
+              </ul>
+            </div>
+            <div>
+              <h3 className="mb-1 font-bold">👎 What went badly</h3>
+              <ul className="space-y-0.5 text-[13.5px]">
+                {a.bad.length ? a.bad.map((g, i) => <li key={i}>• You {g}.</li>) : <li className="text-[var(--muted)]">No major blunders.</li>}
+              </ul>
+            </div>
+          </div>
+          {a.fixes.length > 0 && (
+            <div className="mt-3 rounded-2xl bg-[var(--soft)] p-2.5">
+              <h3 className="font-bold">🛠️ {rec.won ? "To do even better next time" : "What would have won it"}</h3>
+              <ol className="ml-5 list-decimal text-[13.5px]">
+                {a.fixes.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </>
+      )}
+      {actions ? (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">{actions}</div>
+      ) : (
+        <button onClick={onClose} className="city-btn city-sticker mt-4 w-full rounded-2xl bg-[var(--brand)] py-2 font-bold text-white">
+          Back to work
+        </button>
+      )}
+    </Panel>
+  );
+}

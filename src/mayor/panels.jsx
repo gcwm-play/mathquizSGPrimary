@@ -130,7 +130,7 @@ function Stat({ label, value, tone }) {
   );
 }
 
-export function ElectionPanel({ world: w, onClose, onChange, toast }) {
+export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) {
   const season = inSeason(w);
   const months = monthsToElection(w);
   const open = (w.pledges || []).filter((p) => p.status === "open");
@@ -247,9 +247,14 @@ export function ElectionPanel({ world: w, onClose, onChange, toast }) {
         <>
           <h3 className="mb-1 mt-4 font-bold">Past elections</h3>
           <ul className="space-y-1 text-[14px]">
-            {[...w.election.history].reverse().map((e) => (
+            {[...w.election.history].reverse().map((e, k) => (
               <li key={e.year}>
                 {e.won ? "🏆" : "❌"} {e.year}: {e.share}% · {e.results.map((r) => `${r.name} ${r.pct}%`).join(", ")}
+                {e.analysis && onReport && (
+                  <button onClick={() => onReport(w.election.history.length - 1 - k)} className="city-btn ml-1 rounded-full bg-[var(--soft)] px-2 py-0.5 text-[12px] font-bold">
+                    📋 Report
+                  </button>
+                )}
               </li>
             ))}
           </ul>

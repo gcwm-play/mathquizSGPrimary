@@ -642,8 +642,78 @@ export function townSupport(w, i) {
   return clamp(s, 2, 98);
 }
 
-function holdElection(w, rng) {
+// Why towns voted the way they did: the main things that pushed support up
+// or down, in vote points, plus what went well and badly this term.
+export function electionAnalysis(w, A) {
+  const towns = w.towns.map((t, i) => {
+    const factors = [];
+    const P = purposeOf(t);
+    let tw = 0;
+    for (const [k, nd] of Object.entries(NEEDS)) tw += nd.weight * (P.weight[k] ?? 1);
+    for (const [k, nd] of Object.entries(NEEDS)) {
+      const pw = P.weight[k] ?? 1;
+      if (pw < MINOR || t.needs?.[k] == null) continue;
+      const pts = (t.needs[k] - 60) * ((nd.weight * pw) / tw) * 0.7;
+      if (Math.abs(pts) >= 0.8) factors.push({ icon: nd.icon, label: `${nd.name} (${Math.round(t.needs[k])}/100)`, pts, need: k });
+    }
+    const queue = A?.towns[i]?.unhoused || 0;
+    if (queue > 0.03) factors.push({ icon: "⏳", label: `Families still waiting for a flat (${Math.round(queue * 100)}% of people)`, pts: -queue * Math.min(0.6, w.t / 120) * 45 * 0.7 });
+    if (t.anger > 0.3) factors.push({ icon: "😠", label: "Anger over demolitions, resettlement and broken promises", pts: -t.anger * 3.5 });
+    let pledge = 0;
+    for (const p of w.pledges || []) if (p.status === "open" && p.term === w.election.next && (p.town === i || p.town == null)) pledge += p.boost;
+    if (pledge) factors.push({ icon: "📣", label: "Election pledges", pts: pledge });
+    factors.sort((a, b) => a.pts - b.pts);
+    return { name: t.name, approval: Math.round(t.approval), support: Math.round(townSupport(w, i)), pop: t.pop || 0, factors };
+  });
+  const region = [];
+  const trustPts = (w.trust - 60) * 0.35;
+  const term = (w.pledges || []).filter((p) => p.term === w.election.next || (p.made >= w.election.next - 72 && p.made < w.election.next));
+  const broken = (w.pledges || []).filter((p) => p.status === "broken" && p.deadline > w.election.next - 72);
+  const kept = (w.pledges || []).filter((p) => p.status === "kept" && p.deadline > w.election.next - 72);
+  region.push({ icon: "🤝", label: `Trust in you is ${Math.round(w.trust)}/100${broken.length ? ` (${broken.length} broken promise${broken.length > 1 ? "s" : ""})` : ""}`, pts: trustPts });
+  const mood = effectAdd(w, "mood");
+  if (Math.abs(mood) >= 1) region.push({ icon: mood < 0 ? "😟" : "🎉", label: mood < 0 ? "National mood (crisis or hard times)" : "Good national mood", pts: mood });
+  if (w.taxes.property > 10) region.push({ icon: "🧾", label: `Property tax at ${w.taxes.property}% squeezes households`, pts: -(w.taxes.property - 10) * 0.6 });
+  if (A && A.unemployment > 0.06) region.push({ icon: "💼", label: `Unemployment at ${Math.round(A.unemployment * 100)}%`, pts: -A.unemployment * 40 });
+  region.sort((a, b) => a.pts - b.pts);
+  const since = w.election.history.length ? w.election.history[w.election.history.length - 1].year : 1965;
+  const good = w.log.filter((l) => l.year >= since && l.tone === "good").slice(-5).map((l) => l.text);
+  const bad = w.log.filter((l) => l.year >= since && l.tone === "bad").slice(-5).map((l) => l.text);
+  for (const p of kept.slice(-3)) good.push(`kept your promise: ${p.text}`);
+  for (const p of broken.slice(-3)) bad.push(`broke your promise: ${p.text}`);
+  // what to fix first: the biggest drags across towns, weighted by people
+  const drag = {};
+  for (const t of towns) for (const f of t.factors) if (f.pts < 0) drag[f.label.split(" (")[0]] = (drag[f.label.split(" (")[0]] || 0) + f.pts * Math.max(1, t.pop);
+  for (const f of region) if (f.pts < 0) drag[f.label.split(" (")[0]] = (drag[f.label.split(" (")[0]] || 0) + f.pts * 10000;
+  const fixes = Object.entries(drag)
+    .sort((a, b) => a[1] - b[1])
+    .slice(0, 3)
+    .map(([k]) => FIX_HINTS[Object.keys(FIX_HINTS).find((h) => k.startsWith(h))] || k);
+  return { towns, region, good, bad, fixes, pledges: term.length };
+}
+const FIX_HINTS = {
+  "Housing quality": "Upgrade or rebuild old blocks (🏗️ Renew) and keep estate maintenance up.",
+  Jobs: "Zone shops, offices and factories so people can work near home.",
+  "Cost of living": "Ease property tax and S&CC charges, or offer a bigger HDB grant.",
+  "Food nearby": "Build hawker centres or markets near homes.",
+  Schools: "Build primary and secondary schools near homes.",
+  Healthcare: "Build polyclinics, or a hospital for a wide area.",
+  Safety: "Build police posts and fire stations.",
+  Transport: "Add bus interchanges and MRT stations.",
+  Greenery: "Build parks or plant trees near homes.",
+  Community: "Build community centres or sports complexes.",
+  "Clean air": "Keep factories away from homes; plant trees as a buffer.",
+  "Families still waiting": "Build more flats, and make sure homes are ready before clearing kampongs or old blocks.",
+  "Anger over demolitions": "Clear fewer homes at once, and rehouse people first (check the 🚚 estimate in Renew).",
+  "Trust in you": "Keep your pledges and hit objectives to rebuild trust.",
+  "Property tax": "Lower property tax towards 8-10%.",
+  Unemployment: "Zone more jobs: shops, offices and factories.",
+  "National mood": "Hard times hurt; respond well to crises and keep services funded.",
+};
+
+function holdElection(w, rng, A) {
   const D = diffOf(w);
+  const analysis = electionAnalysis(w, A);
   let votes = 0;
   let total = 0;
   const results = w.towns.map((t, i) => {
@@ -656,7 +726,7 @@ function holdElection(w, rng) {
   });
   const share = total ? votes / total : 50;
   const won = share >= 50;
-  const rec = { year: w.year, share: Math.round(share * 10) / 10, results, won };
+  const rec = { year: w.year, share: Math.round(share * 10) / 10, results, won, analysis };
   w.election.history.push(rec);
   w.election.last = rec;
   w.election.next += TERM_YEARS * 12;
@@ -1068,7 +1138,7 @@ export function stepMonth(w, rng = Math.random) {
     w.election.offers = pledgeOffers(w, A);
     pushNews(w, `🗳️ Election season! Polling day is ${tToDate(w, w.election.next)}. Open the 🗳️ panel to make pledges.`);
   }
-  if (w.t === w.election.next) holdElection(w, rng);
+  if (w.t === w.election.next) holdElection(w, rng, A);
 
   for (const ev of [...GLOBAL_EVENTS, ...(R.events || [])]) if (ev.year === w.year && ev.month === w.month) pushNews(w, ev.text);
   if (w.cash < -debtLimit(w) && canLose(w) && D.voteMin) {
