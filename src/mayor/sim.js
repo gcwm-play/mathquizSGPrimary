@@ -2,7 +2,7 @@
 // happiness and feedback, money, elections and pledges.
 import { PURPOSES, purposeOf, MINOR, LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
 import { REGIONS } from "./regions.js";
-import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteImpactSim } from "./world.js";
+import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteImpactSim, fixOverlaps } from "./world.js";
 import { dist, clamp, polyLength, nearestOnPoly, makeRng } from "./geom.js";
 import { residents, housingByTown, displace } from "./housing.js";
 import { townTfr, townLife, baseTfr, lifeIndex, tfrIndex, financeIndex } from "./society.js";
@@ -21,6 +21,11 @@ const canLose = (w) => w.mode !== "sandbox" && !w.sandbox;
 
 // Fill in anything an older save is missing.
 export function ensureWorld(w) {
+  // v5: lots that overlapped buildings in older saves
+  if ((w.fixV || 0) < 1) {
+    w.fixV = 1;
+    fixOverlaps(w);
+  }
   if (w.v3) {
     for (const sg of w.segs) if (sg.type === "avenue") sg.type = "road";
     return w;

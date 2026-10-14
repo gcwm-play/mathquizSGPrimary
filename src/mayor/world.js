@@ -640,6 +640,8 @@ export function genLots(w, seg) {
       }
       if (!ok) continue;
       const [cx, cy] = quadCenter(q);
+      if (w.structs.some((st) => closeTo(st, cx, cy, 7) && quadsOverlap(q, st.q))) continue;
+      if (w.lots.some((l) => closeTo(l, cx, cy, 2.6) && quadsOverlap(q, l.q))) continue;
       const lot = { id: w.nextId++, seg: seg.id, q, x: +cx.toFixed(3), y: +cy.toFixed(3), ang: +Math.atan2(p0.ty + p1.ty, p0.tx + p1.tx).toFixed(3), town: townOf(w, cx, cy), zone: null, b: null };
       w.lots.push(lot);
       markQuad(o, q, lot.id);
@@ -649,6 +651,70 @@ export function genLots(w, seg) {
   touch(w);
   w._occ = null;
   return made;
+}
+
+// ---------- exact overlap of two footprints ----------
+// Sampling a few points misses footprints that only clip each other's
+// edges, which drew buildings on top of one another. This is exact.
+function shrinkQ(q, f = 0.06) {
+  const cx = (q[0] + q[2] + q[4] + q[6]) / 4;
+  const cy = (q[1] + q[3] + q[5] + q[7]) / 4;
+  return q.map((v, i) => (i % 2 ? v + (cy - v) * f : v + (cx - v) * f));
+}
+function axesOf(q) {
+  const out = [];
+  for (let i = 0; i < 4; i++) {
+    const ex = q[((i + 1) % 4) * 2] - q[i * 2];
+    const ey = q[((i + 1) % 4) * 2 + 1] - q[i * 2 + 1];
+    out.push([-ey, ex]);
+  }
+  return out;
+}
+export function quadsOverlap(a, b) {
+  const A = shrinkQ(a);
+  const B = shrinkQ(b);
+  for (const [ax, ay] of [...axesOf(A), ...axesOf(B)]) {
+    let a0 = Infinity;
+    let a1 = -Infinity;
+    let b0 = Infinity;
+    let b1 = -Infinity;
+    for (let k = 0; k < 4; k++) {
+      const pa = A[k * 2] * ax + A[k * 2 + 1] * ay;
+      const pb = B[k * 2] * ax + B[k * 2 + 1] * ay;
+      a0 = Math.min(a0, pa);
+      a1 = Math.max(a1, pa);
+      b0 = Math.min(b0, pb);
+      b1 = Math.max(b1, pb);
+    }
+    if (a1 <= b0 || b1 <= a0) return false;
+  }
+  return true;
+}
+const closeTo = (o, x, y, r) => Math.abs(o.x - x) < r && Math.abs(o.y - y) < r;
+
+// Older saves can have lots overlapping services or each other: tidy once.
+export function fixOverlaps(w) {
+  const gone = new Set();
+  for (const st of w.structs) {
+    const hit = w.lots.filter((l) => !gone.has(l.id) && closeTo(l, st.x, st.y, 7) && quadsOverlap(l.q, st.q));
+    for (const l of hit) gone.add(l.id);
+  }
+  const lots = [...w.lots].sort((a, b) => a.id - b.id);
+  for (let i = 0; i < lots.length; i++) {
+    const a = lots[i];
+    if (gone.has(a.id)) continue;
+    for (let j = i + 1; j < lots.length; j++) {
+      const b = lots[j];
+      if (gone.has(b.id) || !closeTo(a, b.x, b.y, 2.6)) continue;
+      // keep whichever has a building, else the older one
+      if (quadsOverlap(a.q, b.q)) gone.add(!a.b && b.b ? a.id : b.id);
+      if (gone.has(a.id)) break;
+    }
+  }
+  if (!gone.size) return 0;
+  clearLots(w, w.lots.filter((l) => gone.has(l.id)));
+  touch(w);
+  return gone.size;
 }
 
 function convex(q) {
@@ -853,6 +919,10 @@ export function planStruct(w, type, x, y) {
         if (v0 > 0) lots.add(v0);
       }
     }
+    // exact check at the edges: clipped lots are demolished, clipped services block it
+    const [qx, qy] = quadCenter(q);
+    for (const st of w.structs) if (closeTo(st, qx, qy, 9) && quadsOverlap(q, st.q)) return { q, msg: "Something is already built here" };
+    for (const l of w.lots) if (!lots.has(l.id) && closeTo(l, qx, qy, 7) && quadsOverlap(q, l.q)) lots.add(l.id);
     return { q, ok: true, lots };
   };
   let found = null;
