@@ -138,7 +138,6 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
   const done = (w.pledges || []).filter((p) => p.status !== "open").slice(-6).reverse();
   const tp = w.towns.reduce((a, t) => a + (t.pop || 0), 0);
   const overall = tp ? w.towns.reduce((a, t, i) => a + townSupport(w, i) * (t.pop || 0), 0) / tp : 50;
-  const taken = new Set(thisTerm.map((p) => p.kind));
   return (
     <Panel title="🗳️ Elections" onClose={onClose}>
       <div className={`rounded-2xl p-3 ${season ? "bg-[var(--bad-bg)]" : "bg-[var(--soft)]"}`}>
@@ -171,33 +170,65 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
       <h3 className="mb-1 mt-4 font-bold">📣 Pledges</h3>
       {season ? (
         <>
-          <p className="text-[13px] text-[var(--muted)]">Promise up to 3 things to win votes now. Keep them by the deadline and trust rises; break them and you'll pay for it next time.</p>
-          <div className="mt-2 space-y-2">
-            {(w.election.offers || []).map((o, k) => {
-              const made = taken.has(o.kind);
-              return (
-                <div key={k} className="flex items-center gap-2 rounded-2xl border-2 border-[var(--ink)]/10 p-2">
-                  <span className="text-2xl">{o.icon}</span>
-                  <div className="min-w-0 flex-1 leading-tight">
-                    <div className="font-bold">{o.text}</div>
-                    <div className="text-[12px] text-[var(--muted)]">
-                      +{o.boost}% support {o.all ? "everywhere" : `in ${w.towns[o.town]?.name}`} · deliver within {o.years} years
+          <p className="text-[13px] text-[var(--muted)]">Promise up to 3 things to win votes now. Each town's pledges fix what it's shortest of, and the towns least likely to vote for you are at the top. The worse off a town is, the more votes a pledge wins, and the angrier it gets if you break it.</p>
+          <div className="mt-2 space-y-3">
+            {(() => {
+              const groups = [];
+              for (const o of w.election.offers || []) {
+                const key = o.all ? "all" : String(o.town);
+                let g = groups.find((x) => x.key === key);
+                if (!g) groups.push((g = { key, town: o.all ? null : o.town, items: [] }));
+                g.items.push(o);
+              }
+              return groups.map((g) => {
+                const sup = g.town != null ? townSupport(w, g.town) : null;
+                return (
+                  <div key={g.key}>
+                    <div className="mb-1 flex items-center justify-between text-[13px] font-bold">
+                      <span>{g.town != null ? w.towns[g.town].name : "🏙️ Region-wide"}</span>
+                      {sup != null && (
+                        <span className={sup < 50 ? "text-[var(--bad)]" : "text-[var(--good)]"}>
+                          {Math.round(sup)}% support {sup < 45 ? "· top priority" : sup < 52 ? "· swing town" : ""}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      {g.items.map((o, k) => {
+                        const made = thisTerm.some((p) => p.kind === o.kind && p.town === o.town && (p.need ?? o.need) === o.need);
+                        return (
+                          <div key={k} className="flex items-center gap-2 rounded-2xl border-2 border-[var(--ink)]/10 p-2">
+                            <span className="text-2xl">{o.icon}</span>
+                            <div className="min-w-0 flex-1 leading-tight">
+                              <div className="font-bold">{o.text}</div>
+                              {o.cur != null && (
+                                <div className="text-[12px] text-[var(--muted)]">
+                                  {o.need ? `${o.need[0].toUpperCase()}${o.need.slice(1)} is ${o.cur}/100 here` : ""}
+                                </div>
+                              )}
+                              <div className="text-[12px] text-[var(--good)]">
+                                {o.boostText} support {o.all ? "everywhere" : `in ${w.towns[o.town]?.name}`} · deliver within {o.years} years
+                              </div>
+                              <div className="text-[12px] text-[var(--bad)]">If broken: {o.penText}</div>
+                            </div>
+                            <button
+                              disabled={made || thisTerm.length >= 3}
+                              onClick={() => {
+                                const r = makePledge(w, o);
+                                if (!r.ok) toast(r.msg);
+                                onChange();
+                              }}
+                              className="city-btn shrink-0 rounded-full bg-[var(--brand)] px-3 py-2 text-sm font-bold text-white disabled:bg-[var(--muted)]"
+                            >
+                              {made ? "Pledged" : "Pledge"}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                  <button
-                    disabled={made || thisTerm.length >= 3}
-                    onClick={() => {
-                      const r = makePledge(w, o);
-                      if (!r.ok) toast(r.msg);
-                      onChange();
-                    }}
-                    className="city-btn shrink-0 rounded-full bg-[var(--brand)] px-3 py-2 text-sm font-bold text-white disabled:bg-[var(--muted)]"
-                  >
-                    {made ? "Pledged" : "Pledge"}
-                  </button>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </>
       ) : (

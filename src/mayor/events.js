@@ -566,6 +566,40 @@ export function pickTown(w, A, how, rng) {
 
 export const fill = (text, w, town) => (text || "").replace(/\{town\}/g, town != null ? w.towns[town].name : "the region");
 
+// ---------------- ranges ----------------
+// Effects are shown as a range (a 5% effect reads 2–8%) and the real value is
+// rolled when the choice is made, so no two playthroughs go quite the same.
+export const SPREAD = 0.6;
+export const rollIn = (v, rng = Math.random) => v * (1 - SPREAD + rng() * 2 * SPREAD);
+const rollDev = (v, rng) => 1 + rollIn(v - 1, rng);
+const ROLL_KEYS = ["trust", "rep", "fert", "health", "waitlist", "gain", "anger", "angerAll", "kill"];
+export function rollOutcome(o, rng = Math.random) {
+  if (!o || o.rolled) return o;
+  const out = { ...o, rolled: true };
+  for (const k of ROLL_KEYS) if (typeof o[k] === "number" && o[k]) out[k] = rollIn(o[k], rng);
+  if (o.mood) out.mood = [rollIn(o.mood[0], rng), o.mood[1]];
+  if (o.effect) {
+    out.effect = {};
+    for (const [k, v] of Object.entries(o.effect)) out.effect[k] = k === "months" ? v : MULT.includes(k) ? rollDev(v, rng) : rollIn(v, rng);
+  }
+  if (o.needs) {
+    out.needs = {};
+    for (const [k, v] of Object.entries(o.needs)) out.needs[k] = k === "months" || k === "all" ? v : rollIn(v, rng);
+  }
+  if (o.crisis) out.crisis = rollDev(o.crisis, rng);
+  return out;
+}
+// "+2–8%" for a range around v, or "+5%" once rolled
+export function fmtRange(v, { exact = false, unit = "", dp = 0 } = {}) {
+  const r = (x) => (dp ? Math.round(x * 10 ** dp) / 10 ** dp : Math.round(x));
+  const sg = v > 0 ? "+" : "−";
+  const a = Math.abs(v);
+  if (exact) return `${sg}${r(a).toLocaleString("en-SG")}${unit}`;
+  const lo = Math.max(dp ? 0.1 : 1, r(a * (1 - SPREAD)));
+  const hi = Math.max(lo, r(a * (1 + SPREAD)));
+  return lo === hi ? `${sg}${lo.toLocaleString("en-SG")}${unit}` : `${sg}${lo.toLocaleString("en-SG")}–${hi.toLocaleString("en-SG")}${unit}`;
+}
+
 // cost of an option in $K for this region
 export function optionCost(w, o) {
   const S = scaleOf(w);
@@ -577,6 +611,7 @@ export function applyOutcome(w, o, town, push, rng = Math.random) {
     if (o.failText) push(fill(o.failText, w, town));
     return false;
   }
+  o = rollOutcome(o, rng);
   const S = scaleOf(w);
   const all = w.towns.map((_, i) => i);
   const C = optionCost(w, o);
@@ -620,34 +655,36 @@ const NEED_ICON = { food: "🍜", school: "🏫", health: "🩺", safety: "👮"
 const EFF_NAME = { business: "business tax", tourism: "tourism", trade: "trade", land: "land & flat sales", jobs: "jobs", health: "healthcare", upkeep: "running costs", growth: "new families", comDemand: "shop demand", indDemand: "factory demand" };
 const yrs = (m) => (m >= 24 ? `${Math.round(m / 12)} yrs` : `${m} mo`);
 const sign = (v) => (v > 0 ? `+${v}` : `${v}`);
-export function describeEffects(w, o, town) {
+export function describeEffects(w, o, town, opts = {}) {
+  const ex = !!(opts.exact || o.rolled);
+  const R = (v, unit = "", dp = 0) => fmtRange(v, { exact: ex, unit, dp });
   const out = [];
   const where = town != null ? w.towns[town]?.name : "every town";
-  if (o.trust) out.push({ t: `Trust ${sign(o.trust)}`, good: o.trust > 0 });
-  if (o.rep) out.push({ t: `Reputation ${sign(o.rep)}`, good: o.rep > 0 });
-  if (o.mood) out.push({ t: `Mood ${sign(o.mood[0])} for ${yrs(o.mood[1])}`, good: o.mood[0] > 0 });
+  if (o.trust) out.push({ t: `Trust ${R(o.trust)}`, good: o.trust > 0 });
+  if (o.rep) out.push({ t: `Reputation ${R(o.rep)}`, good: o.rep > 0 });
+  if (o.mood) out.push({ t: `Mood ${R(o.mood[0])} for ${yrs(o.mood[1])}`, good: o.mood[0] > 0 });
   if (o.anger) out.push({ t: `Anger in ${where}`, good: false });
   if (o.angerAll) out.push({ t: "Anger in every town", good: false });
   if (o.needs) {
     const { months, all, ...nd } = o.needs;
-    for (const [k, v] of Object.entries(nd)) out.push({ t: `${NEED_ICON[k] || ""} ${k} ${sign(v)} in ${all || town == null ? "every town" : where} for ${yrs(months || 12)}`, good: v > 0 });
+    for (const [k, v] of Object.entries(nd)) out.push({ t: `${NEED_ICON[k] || ""} ${k} ${R(v)} in ${all || town == null ? "every town" : where} for ${yrs(months || 12)}`, good: v > 0 });
   }
   if (o.effect) {
     const { months, ...eff } = o.effect;
     for (const [k, v] of Object.entries(eff)) {
-      if (k === "mood") out.push({ t: `Mood ${sign(v)} for ${yrs(months || 12)}`, good: v > 0 });
+      if (k === "mood") out.push({ t: `Mood ${R(v)} for ${yrs(months || 12)}`, good: v > 0 });
       else if (EFF_NAME[k]) {
-        const pct = k.endsWith("Demand") ? Math.round(v * 100) : Math.round((v - 1) * 100);
+        const pct = k.endsWith("Demand") ? v * 100 : (v - 1) * 100;
         const good = k === "upkeep" ? pct < 0 : pct > 0;
-        out.push({ t: `${EFF_NAME[k]} ${pct > 0 ? "+" : ""}${pct}% for ${yrs(months || 12)}`, good });
+        out.push({ t: `${EFF_NAME[k]} ${R(pct, "%")} for ${yrs(months || 12)}`, good });
       }
     }
   }
-  if (o.crisis) out.push({ t: `Crisis impact ${o.crisis < 1 ? "−" : "+"}${Math.abs(Math.round((o.crisis - 1) * 100))}%`, good: o.crisis < 1 });
+  if (o.crisis) out.push({ t: `Crisis impact ${R((o.crisis - 1) * 100, "%")}`, good: o.crisis < 1 });
   if (o.crisisMonths) out.push({ t: `Crisis ${o.crisisMonths < 0 ? "ends" : "lasts"} ${Math.abs(o.crisisMonths)} months ${o.crisisMonths < 0 ? "sooner" : "longer"}`, good: o.crisisMonths < 0 });
-  if (o.fert) out.push({ t: `Births ${o.fert > 0 ? "+" : "−"}${Math.abs(Math.round(o.fert * 100))}%`, good: o.fert > 0 });
-  if (o.health) out.push({ t: `Life expectancy +${o.health} yrs`, good: true });
-  if (o.waitlist) out.push({ t: `Housing queue +${Math.round(o.waitlist * scaleOf(w)).toLocaleString("en-SG")}`, good: false });
+  if (o.fert) out.push({ t: `Births ${R(o.fert * 100, "%")}`, good: o.fert > 0 });
+  if (o.health) out.push({ t: `Life expectancy ${R(o.health, " yrs", 1)}`, good: o.health > 0 });
+  if (o.waitlist) out.push({ t: `Housing queue ${R(o.waitlist * scaleOf(w))}`, good: false });
   if (o.later) out.push({ t: o.later.chance != null ? `🎲 ${Math.round(o.later.chance * 100)}% risk later` : "⏳ Consequences later", good: false });
   return out;
 }
@@ -687,7 +724,10 @@ export function getDecision(w) {
     text,
     tag,
     hint: d.kind === "crisis" ? CRISES[d.id].hint : null,
-    options: options.map((o) => ({ ...o, ...optionCost(w, o), effects: describeEffects(w, o, d.town) })),
+    options: options.map((o) => {
+      const C = optionCost(w, o);
+      return { ...o, ...C, effects: describeEffects(w, o, d.town) };
+    }),
   };
 }
 
@@ -699,13 +739,21 @@ export function decide(w, optId, push, rng = Math.random) {
   const o = card?.options.find((x) => x.id === optId);
   w.decision = null;
   if (!o) return;
-  const ok = applyOutcome(w, o, d.town, push, rng);
+  let ok = true;
+  if (o.chance != null && rng() > o.chance) {
+    ok = false;
+    if (o.failText) push(fill(o.failText, w, d.town));
+  }
+  const rolled = ok ? rollOutcome({ ...o, chance: null }, rng) : null;
+  if (ok) applyOutcome(w, rolled, d.town, push, rng);
   if (d.kind === "crisis" && w.crisis) w.crisis.choice = optId;
   if (ok && o.log) w.log.push({ year: w.year, text: fill(o.log, w, d.town), tone: o.tone || "good" });
   if (ok && o.later) w.followups.push({ at: w.t + o.later.months, kind: d.kind, id: d.id, opt: optId, town: d.town });
   if (d.kind === "dilemma") w.dilemmaLog.push({ t: w.t, id: d.id, opt: optId });
   if (ok) trackImpact(w, `your "${o.label}" decision`, d.town, o.needs ? Object.keys(o.needs).find((k) => k !== "months" && k !== "all") : null);
-  push(`${card.icon} ${card.title}: you chose "${o.label}".`);
+  const res = ok ? describeEffects(w, rolled, d.town).filter((e) => !e.t.startsWith("🎲") && !e.t.startsWith("⏳")) : [];
+  const money = ok && rolled.gain ? ` +${optionCost(w, rolled).gain >= 1000 ? `$${(optionCost(w, rolled).gain / 1000).toFixed(1)}M` : `$${optionCost(w, rolled).gain}K`}.` : "";
+  push(`${card.icon} ${card.title}: you chose "${o.label}".${res.length ? ` 🎲 How it turned out: ${res.map((e) => e.t).join(", ")}.` : ""}${money}`);
 }
 
 function laterOf(f) {
