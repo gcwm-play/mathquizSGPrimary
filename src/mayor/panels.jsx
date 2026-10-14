@@ -491,7 +491,7 @@ export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHel
           ["💰", "Finances", onFinance],
           ["📊", "Mayors' league", onRivals],
           ["❓", "How to play", onHelp],
-          ["🏠", "Title screen", onQuit],
+          ["🏠", "Switch region / title", onQuit],
         ].map(([i, l, f]) => (
           <button key={l} onClick={f} className="city-btn flex items-center gap-2 rounded-2xl bg-[var(--soft)] px-3 py-3 text-left font-bold">
             <span className="text-2xl">{i}</span>
