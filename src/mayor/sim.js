@@ -21,7 +21,10 @@ const canLose = (w) => w.mode !== "sandbox" && !w.sandbox;
 
 // Fill in anything an older save is missing.
 export function ensureWorld(w) {
-  if (w.v3) return w;
+  if (w.v3) {
+    for (const sg of w.segs) if (sg.type === "avenue") sg.type = "road";
+    return w;
+  }
   if (w.v2) {
     w.v3 = true;
     ensurePurposes(w);
@@ -59,6 +62,8 @@ export function ensureWorld(w) {
 
 // Town purposes and the Sentosa office arrived later; fill them in for old saves.
 function ensurePurposes(w) {
+  // avenues were retired: older saves get ordinary roads instead
+  for (const sg of w.segs) if (sg.type === "avenue") sg.type = "road";
   const R = REGIONS[w.region];
   for (const [i, t] of w.towns.entries()) {
     t.maint = t.maint ?? 100;
