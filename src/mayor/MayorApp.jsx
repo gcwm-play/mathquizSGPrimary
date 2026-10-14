@@ -653,8 +653,8 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         onTouchStart={() => tray && setTray(null)}
       />
 
-      <div className="city-hud-top pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col items-start gap-2">
+      <div className="city-hud-top pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2 landscape:flex-nowrap">
+        <div className="flex min-w-0 flex-col items-start gap-2 landscape:flex-1">
           <div className="pointer-events-auto flex min-w-0 max-w-full items-center gap-1.5">
             <button onClick={() => setPanel({ id: "menu" })} aria-label="Menu" className="city-btn city-sticker flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--card)] text-xl">
               ☰
@@ -679,7 +679,12 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
               onClick={() => setPanel({ id: "election" })}
               className={`city-btn city-sticker whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-bold ${season ? "city-pulse bg-[var(--brand)] text-white" : "bg-[var(--card)]"}`}
             >
-              🗳️ {season ? `Election season! Vote ${tToDate(w, w.election.next)}` : `Next election ${tToDate(w, w.election.next).split(" ")[1]} · ${yearsMonths(months)}`}
+              🗳️ {season ? `Election season! Vote ${tToDate(w, w.election.next)}` : (
+                <>
+                  <span className="hidden lg:inline">Next election </span>
+                  {`${tToDate(w, w.election.next).split(" ")[1]} · ${yearsMonths(months)}`}
+                </>
+              )}
             </button>
             <button onClick={() => setPanel({ id: "rivals" })} aria-label="Mayors' league" className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--card)] px-3 py-1.5 text-[13px] font-bold">
               📊 {w.yearly?.length ? `#${myRank(w)} of ${(w.rivals?.length || 0) + 1}` : "League"}
