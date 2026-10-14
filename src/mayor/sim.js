@@ -137,7 +137,7 @@ export function analyze(w) {
   const stations = [];
   for (const s of w.structs) {
     const S = STRUCTS[s.type];
-    if (s.state === "build") continue; // still a building site
+    if (s.state === "build" || s.off) continue; // still a building site, or inside a danger zone
     if (!S.fixed && S.upkeep) {
       upkeep += S.upkeep * fund;
       upkeepTown[townOf(w, s.x, s.y)] += S.upkeep * fund;
@@ -948,7 +948,7 @@ export function stepMonth(w, rng = Math.random) {
   w.waitlist = Math.max(0, Math.round(w.waitlist));
 
   // new construction on zoned lots
-  const empty = w.lots.filter((l) => l.zone && !l.b);
+  const empty = w.lots.filter((l) => l.zone && !l.b && !l.ruin);
   for (let k = empty.length - 1; k > 0; k--) {
     const j = Math.floor(rng() * (k + 1));
     [empty[k], empty[j]] = [empty[j], empty[k]];
@@ -1266,6 +1266,11 @@ export function describe(w, A, hit) {
     const l = hit.l;
     const town = w.towns[l.town].name;
     const I = A?.info.get(l.id);
+    if (!l.b && l.ruin) {
+      const why = { zombie: "Overrun by zombies and abandoned.", radiation: "Evacuated: radioactive fallout.", disaster: "Wrecked in a disaster." }[l.ruin] || "Ruins.";
+      const danger = (w.fantasy?.zones || []).some((z) => Math.hypot(l.x - z.x, l.y - z.y) <= z.r);
+      return { title: `Ruins in ${town}`, icon: "🏚️", lines: [why, danger ? "⚠️ Still inside the danger zone. Nothing can be built here." : "Bulldoze 🚜 the ruins so new buildings can go up."] };
+    }
     if (!l.b) {
       const lines = [l.zone ? `Zoned for ${l.zone === "hdb" ? "HDB" : l.zone === "pte" ? "private housing" : l.zone === "com" ? "shops & offices" : "industry"}. Waiting for demand.` : "Empty lot. Paint a zone on it with 🏘️ Zones."];
       if (I) lines.push(`Land value ${Math.round(I.lv)} · Pollution ${Math.round(I.p)}`);

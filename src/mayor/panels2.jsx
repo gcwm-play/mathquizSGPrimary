@@ -5,6 +5,7 @@ import { fmtMoney, fmtNum, projectFinance, REV_LABELS, EXP_LABELS, tToDate, wear
 import { STRUCTS, PURPOSES, MALL_NAMES, ALL_TOOLS as ALL_TOOLS_REF } from "./defs.js";
 import { setPurpose } from "./world.js";
 import { CRISES, getDecision } from "./events.js";
+import { situation, setFantasy } from "./fantasy.js";
 import { objectiveProgress } from "./objectives.js";
 import { STYLES } from "./rivals.js";
 import { METRICS, mayorScore, grade } from "./society.js";
@@ -303,20 +304,21 @@ function yearRows(w, hist, proj, pick) {
 export function DecisionPanel({ world: w, onPick }) {
   const card = getDecision(w);
   if (!card) return null;
-  const crisis = card.kind !== "dilemma";
+  const fantasy = card.kind.startsWith("fantasy");
+  const crisis = !fantasy && card.kind !== "dilemma";
   return (
     <Panel title={`${card.icon} ${card.tag}`} onClose={() => {}} closable={false}>
-      <div className={`rounded-2xl p-3 ${crisis ? "bg-[var(--bad-bg)]" : "bg-[var(--soft)]"}`}>
+      <div className={`rounded-2xl p-3 ${crisis ? "bg-[var(--bad-bg)]" : fantasy ? "" : "bg-[var(--soft)]"}`} style={fantasy ? { background: "rgba(151,117,250,0.16)" } : undefined}>
         <div className="flex items-start gap-3">
           <span className="text-5xl leading-none">{card.icon}</span>
           <div className="min-w-0">
             <div className="text-[12px] font-bold uppercase tracking-wide text-[var(--brand)]">
-              {crisis ? "⚠️ " : "🤔 "}
+              {crisis ? "⚠️ " : fantasy ? "🐉 " : "🤔 "}
               {card.tag} · {dateLabel(w)}
             </div>
             <div className="text-xl font-bold leading-tight">{card.title}</div>
             <p className="mt-1 text-[15px] leading-snug">{card.text}</p>
-            {card.hint && <p className="mt-1 text-[13px] font-semibold text-[var(--muted)]">💡 {card.hint}</p>}
+            {card.hint && <p className="mt-1 text-[13px] font-semibold text-[var(--muted)]">{fantasy ? "" : "💡 "}{card.hint}</p>}
           </div>
         </div>
       </div>
@@ -336,7 +338,7 @@ export function DecisionPanel({ world: w, onPick }) {
               {o.effects?.length > 0 && (
                 <span className="mt-1 flex flex-wrap gap-1 text-[11.5px] font-semibold leading-tight">
                   {o.effects.map((e, i) => (
-                    <span key={i} className="rounded-md border px-1.5 py-0.5" style={{ borderColor: e.good ? "rgba(47,191,113,0.5)" : "rgba(255,90,90,0.45)", color: e.good ? "var(--good)" : "var(--bad)" }}>
+                    <span key={i} className="rounded-md border px-1.5 py-0.5" style={e.neutral ? { borderColor: "rgba(151,117,250,0.5)", color: "#7048e8" } : { borderColor: e.good ? "rgba(47,191,113,0.5)" : "rgba(255,90,90,0.45)", color: e.good ? "var(--good)" : "var(--bad)" }}>
                       {e.t}
                     </span>
                   ))}
@@ -354,12 +356,13 @@ export function DecisionPanel({ world: w, onPick }) {
                   </li>
                 ))}
               </ul>
+              {o.tip && <span className="mt-1 text-[12px] text-[var(--muted)]">{o.tip}</span>}
               {poor && <span className="mt-1 text-[12px] font-bold text-[var(--bad)]">Not enough money</span>}
             </button>
           );
         })}
       </div>
-      <p className="mt-2 text-[12px] text-[var(--muted)]">The clock is paused until you decide. Choices can have consequences years later.</p>
+      <p className="mt-2 text-[12px] text-[var(--muted)]">{fantasy ? "The clock is paused until you decide. 🎲 Odds are rolled when you choose. What you pick shapes what can happen next." : "The clock is paused until you decide. Choices can have consequences years later."}</p>
     </Panel>
   );
 }
@@ -1082,6 +1085,57 @@ export function ElectionReport({ world: w, rec, onClose, actions }) {
       ) : (
         <button onClick={onClose} className="city-btn city-sticker mt-4 w-full rounded-2xl bg-[var(--brand)] py-2 font-bold text-white">
           Back to work
+        </button>
+      )}
+    </Panel>
+  );
+}
+
+// ---------------- fantasy chronicle ----------------
+export function ChroniclePanel({ world: w, onClose, onToggle }) {
+  const F = w.fantasy || {};
+  const sit = situation(w);
+  const zones = F.zones || [];
+  const ruins = w.lots.filter((l) => l.ruin).length;
+  return (
+    <Panel title="🐉 Fantasy chronicle" onClose={onClose}>
+      <p className="text-[14px] leading-snug text-[var(--muted)]">{F.on ? "Anything can happen. Every story you live through changes which ones can come next." : "Fantasy Mode is off. Turn it on to let wild stories happen."}</p>
+      <h3 className="mb-1 mt-3 font-bold">The world right now</h3>
+      {sit.length ? (
+        <ul className="space-y-1 text-[14px]">
+          {sit.map((x) => (
+            <li key={x.short} className="flex gap-2">
+              <span aria-hidden="true">{x.icon}</span>
+              <span>{x.text}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[14px]">All calm, for now.</p>
+      )}
+      {(zones.length > 0 || ruins > 0) && (
+        <p className="mt-1 text-[13px] text-[var(--muted)]">
+          {zones.length > 0 && `${zones.length} danger zone${zones.length > 1 ? "s" : ""} on the map (nothing works or gets built inside). `}
+          {ruins > 0 && `${ruins} ruined lots: bulldoze 🚜 them once the danger has passed.`}
+        </p>
+      )}
+      <h3 className="mb-1 mt-3 font-bold">What has happened</h3>
+      {F.chron?.length ? (
+        <ol className="max-h-[40vh] space-y-1 overflow-y-auto text-[14px]">
+          {[...F.chron].reverse().map((c, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="w-12 shrink-0 tabular-nums text-[var(--muted)]">{c.year}</span>
+              <span aria-hidden="true">{c.icon}</span>
+              <span>{c.text}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="text-[14px]">Nothing yet.</p>
+      )}
+      {w.year >= 2027 && (
+        <button onClick={onToggle} className="city-btn mt-3 w-full rounded-2xl bg-[var(--soft)] py-2 font-bold">
+          {F.on ? "Stop new fantasy stories" : "🐉 Turn on Fantasy Mode"}
         </button>
       )}
     </Panel>

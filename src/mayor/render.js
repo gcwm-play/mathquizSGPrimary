@@ -4,7 +4,7 @@
 import { MAP } from "./regions.js";
 import { terrain, TERRAIN_GRID, RES, segPts, terrainAt } from "./world.js";
 import { ROAD_TYPES, STRUCTS, LOT_TYPES } from "./defs.js";
-import { PX, PY, INK, inkStyle, drawLotBuilding, drawConstruction, drawAttap, drawStruct, structHeight, LOT_HEIGHT, blobTree, prism } from "./art.js";
+import { PX, PY, INK, inkStyle, drawLotBuilding, drawConstruction, drawAttap, drawStruct, structHeight, LOT_HEIGHT, blobTree, prism, boxUV } from "./art.js";
 import { tree as cityTree, palm } from "../city/art.js";
 import { createAgents, updateAgents, agentPose, drawCar, drawTrain, initSea, moveSea, drawBoat, drawClouds } from "./agents.js";
 
@@ -165,7 +165,10 @@ const TREE_PALS = [["#3fb85f", "#7be08a"], ["#2fa05a", "#63cf7d"], ["#58c24a", "
 function buildList(R, w) {
   const list = [];
   const qmax = (q) => Math.max(q[0] + q[1], q[2] + q[3], q[4] + q[5], q[6] + q[7]);
-  for (const l of w.lots) if (l.b) list.push({ d: qmax(l.q) - 0.2, k: "lot", o: l, x: l.x, y: l.y });
+  for (const l of w.lots) {
+    if (l.b) list.push({ d: qmax(l.q) - 0.2, k: "lot", o: l, x: l.x, y: l.y });
+    else if (l.ruin) list.push({ d: qmax(l.q) - 0.2, k: "ruin", o: l, x: l.x, y: l.y });
+  }
   for (const s of w.structs) list.push({ d: qmax(s.q) - 0.2, k: "struct", o: s, x: s.x, y: s.y });
   for (const k of w.kampongs) k.houses.forEach((h, i) => list.push({ d: h[0] + h[1], k: "house", o: h, kid: k.id, i, x: h[0], y: h[1] }));
   for (const t of w.trees) list.push({ d: t[0] + t[1], k: "tree", o: t, x: t[0], y: t[1] });
@@ -185,6 +188,7 @@ function groundPaths(R, w) {
   const zoned = { hdb: new Path2D(), pte: new Path2D(), com: new Path2D(), ind: new Path2D() };
   const pads = { hdb: new Path2D(), pte: new Path2D(), com: new Path2D(), ind: new Path2D() };
   const empty = new Path2D();
+  const ruins = new Path2D();
   const quad = (p, q) => {
     p.moveTo(q[0], q[1]);
     p.lineTo(q[2], q[3]);
@@ -193,7 +197,8 @@ function groundPaths(R, w) {
     p.closePath();
   };
   for (const l of w.lots) {
-    if (l.b) quad(pads[l.zone] || pads.com, l.q);
+    if (l.ruin && !l.b) quad(ruins, l.q);
+    else if (l.b) quad(pads[l.zone] || pads.com, l.q);
     else if (l.zone) quad(zoned[l.zone], l.q);
     else quad(empty, l.q);
   }
@@ -211,7 +216,7 @@ function groundPaths(R, w) {
       kam.arc(h[0], h[1], 0.8, 0, Math.PI * 2);
     }
   }
-  R.g = { zoned, pads, empty, roads, kam };
+  R.g = { zoned, pads, empty, roads, kam, ruins };
   R.gRev = w.rev;
   return R.g;
 }
@@ -349,6 +354,8 @@ export function draw(ctx, R, w, A, cam, view) {
     ctx.fillStyle = PAD[zk];
     ctx.fill(g.pads[zk]);
   }
+  ctx.fillStyle = "#8a8378";
+  ctx.fill(g.ruins);
   for (const zk of Object.keys(g.zoned)) {
     ctx.fillStyle = ZONE_TINT[zk] + "55";
     ctx.fill(g.zoned[zk]);
@@ -463,6 +470,30 @@ export function draw(ctx, R, w, A, cam, view) {
   ctx.stroke(tb);
   ctx.setLineDash([]);
 
+  // fantasy danger zones
+  for (const z of w.fantasy?.zones || []) {
+    const zombie = z.kind === "zombie";
+    const pulse = motion ? 0.5 + 0.5 * Math.sin(time / 600 + z.id) : 0.5;
+    ctx.beginPath();
+    ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
+    ctx.fillStyle = zombie ? `rgba(112,40,160,${0.2 + pulse * 0.08})` : `rgba(170,230,40,${0.2 + pulse * 0.08})`;
+    ctx.fill();
+    if (zombie && w.fantasy.state?.wall) {
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+      ctx.strokeStyle = "#adb5bd";
+      ctx.lineWidth = 0.36;
+      ctx.stroke();
+    } else {
+      ctx.setLineDash([0.5, 0.35]);
+      ctx.strokeStyle = zombie ? "rgba(112,40,160,0.9)" : "rgba(120,160,0,0.95)";
+      ctx.lineWidth = 0.18;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
   // previews on the ground
   if (preview) drawPreviewGround(ctx, w, preview, time);
   if (selected) {
@@ -563,6 +594,7 @@ export function draw(ctx, R, w, A, cam, view) {
   }
   if (preview?.kind === "road") drawRoadHandles(ctx, preview, time);
 
+  for (const z of w.fantasy?.zones || []) badges.push({ ch: z.kind === "zombie" ? "🧟" : "☢️", x: PX(z.x, z.y), y: PY(z.x, z.y), bg: z.kind === "zombie" ? "#d0bfff" : "#d8f5a2" });
   for (const b of badges) badge(ctx, b.ch, b.x, b.y, 13, b.bg);
   if (motion) drawClouds(ctx, R.agents, Math.max(0, Math.min(0.85, 1.2 - cam.zoom * 1.1)));
 
@@ -597,6 +629,13 @@ export function draw(ctx, R, w, A, cam, view) {
       ctx.fillStyle = INK;
       ctx.fillText(label, sx, sy + 19.5);
     }
+  }
+  // a falling-ash haze, and the glass dome
+  const fs = w.fantasy?.state;
+  if (fs && ((fs.ashUntil || 0) > w.t || fs.dome)) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = (fs.ashUntil || 0) > w.t ? "rgba(110,105,100,0.22)" : "rgba(120,220,255,0.07)";
+    ctx.fillRect(0, 0, width, height);
   }
 }
 
@@ -697,6 +736,12 @@ function drawEntry(ctx, R, w, A, e, time, motion, badges, cam) {
       inkStyle(ctx);
       return;
     }
+    case "ruin": {
+      const l = e.o;
+      const bd = quadBounds(l.q, 20);
+      blit(ctx, sprite(R, `r${l.id}:${l.q[0]}`, bd.left, bd.top, bd.w, bd.h, (g) => drawRuin(g, l.q, l.id)));
+      return;
+    }
     case "jb": {
       const j = e.o;
       inkStyle(ctx, 1);
@@ -707,6 +752,18 @@ function drawEntry(ctx, R, w, A, e, time, motion, badges, cam) {
     }
     default:
   }
+}
+
+function drawRuin(g, q, seed) {
+  const r = (k) => ((Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453) % 1 + 1) % 1;
+  boxUV(g, q, 0.15, 0.2, 0.45, 0.35, 6 + r(1) * 10, "#9c958a");
+  boxUV(g, q, 0.15, 0.2, 0.25, 0.75, 4 + r(2) * 14, "#a8a196");
+  for (let k = 0; k < 5; k++) {
+    const u = 0.25 + r(k + 3) * 0.55;
+    const v = 0.3 + r(k + 9) * 0.55;
+    boxUV(g, q, u, v, u + 0.1, v + 0.08, 2 + r(k + 20) * 3, k % 2 ? "#6f675c" : "#b5ad9f");
+  }
+  inkStyle(g);
 }
 
 function terrainCoastal(w, x, y) {

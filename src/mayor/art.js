@@ -482,7 +482,7 @@ export function drawAttap(ctx, x, y, ang, v) {
 }
 
 // ---------- services & landmarks ----------
-const STRUCT_H = { mallHood: 40, mallCentre: 45, mallLux: 50, cableCar: 70, secondLink: 30, sentosaBridge: 30, keppelPort: 70, underwaterWorld: 40, vivoCity: 40, sentosaExpress: 40, resortsWorld: 140, fortSiloso: 40, hospital: 60, airbase: 30, navalBase: 40, changiAirport: 60, tampinesHub: 40, scienceCentre: 40, jurongIsland: 70, tuasPort: 70, merlion: 40, esplanade: 40, marinaBaySands: 140, gardensBay: 90, checkpoint: 30, causewayPoint: 40, rtsLink: 40, birdPark: 40, sports: 30, school: 30, mrt: 30 };
+const STRUCT_H = { olympicStadium: 50, alienEmbassy: 70, cureLab: 40, spaceElevator: 320, mallHood: 40, mallCentre: 45, mallLux: 50, cableCar: 70, secondLink: 30, sentosaBridge: 30, keppelPort: 70, underwaterWorld: 40, vivoCity: 40, sentosaExpress: 40, resortsWorld: 140, fortSiloso: 40, hospital: 60, airbase: 30, navalBase: 40, changiAirport: 60, tampinesHub: 40, scienceCentre: 40, jurongIsland: 70, tuasPort: 70, merlion: 40, esplanade: 40, marinaBaySands: 140, gardensBay: 90, checkpoint: 30, causewayPoint: 40, rtsLink: 40, birdPark: 40, sports: 30, school: 30, mrt: 30 };
 export const structHeight = (t) => STRUCT_H[t] || 30;
 
 // new landmarks reuse the closest existing drawing
@@ -826,6 +826,71 @@ export function drawStruct(ctx, q, type, time) {
       ctx.stroke();
       inkStyle(ctx);
       for (const [u, v] of [[0.2, 0.2], [0.3, 0.8], [0.6, 0.75], [0.8, 0.2], [0.9, 0.85]]) blobTree(ctx, ...quadPoint(q, u, v), 0.9, ["#2b8a3e", "#51cf66"]);
+      break;
+    }
+    case "olympicStadium": {
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#cfd6e2");
+      shadowUV(ctx, q, 0.05, 0.05, 0.95, 0.95, 30);
+      for (const [u0, v0, u1, v1] of [[0.05, 0.05, 0.95, 0.2], [0.05, 0.2, 0.2, 0.8], [0.8, 0.2, 0.95, 0.8]]) boxUV(ctx, q, u0, v0, u1, v1, 26, "#f1f3f8");
+      flatUV(ctx, q, 0.2, 0.2, 0.8, 0.8, "#ff8a65");
+      flatUV(ctx, q, 0.28, 0.3, 0.72, 0.7, "#69db7c", 0, false);
+      boxUV(ctx, q, 0.05, 0.8, 0.95, 0.95, 18, "#f1f3f8");
+      for (const [u, v, c] of [[0.2, 0.12, "#4dabf7"], [0.35, 0.12, "#212529"], [0.5, 0.12, "#ff5a5f"], [0.65, 0.12, "#fcc419"], [0.8, 0.12, "#51cf66"]]) {
+        const [x, y] = quadPoint(q, u, v);
+        const [sx, sy] = P(x, y, 32);
+        ctx.beginPath();
+        ctx.arc(sx, sy, 3.2, 0, Math.PI * 2);
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
+      inkStyle(ctx);
+      break;
+    }
+    case "alienEmbassy": {
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#b197fc");
+      const [x, y] = quadPoint(q, 0.5, 0.5);
+      cyl(ctx, x, y, 6, 26, "#adb5bd");
+      const [sx, sy] = P(x, y, 34);
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, 34, 11, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "#ced4da";
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(sx, sy - 6, 15, 12, 0, Math.PI, 0);
+      ctx.fillStyle = "#63e6be";
+      ctx.fill();
+      ctx.stroke();
+      for (let k = 0; k < 6; k++) {
+        ctx.beginPath();
+        ctx.arc(sx + Math.cos((k / 6) * Math.PI * 2) * 25, sy + Math.sin((k / 6) * Math.PI * 2) * 7, 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = k % 2 ? "#ffd43b" : "#ff6b6b";
+        ctx.fill();
+      }
+      break;
+    }
+    case "cureLab": {
+      shadowUV(ctx, q, 0.1, 0.1, 0.9, 0.9, 30);
+      const pr = boxUV(ctx, q, 0.1, 0.1, 0.9, 0.9, 30, "#f8f9fa");
+      windows(ctx, pr, { rows: 2, perUnit: 3, color: "#63e6be" });
+      const [x, y] = quadPoint(q, 0.5, 0.5);
+      const [sx, sy] = P(x, y, 30);
+      ctx.fillStyle = "#2fbf71";
+      ctx.fillRect(sx - 2.5, sy - 8, 5, 16);
+      ctx.fillRect(sx - 8, sy - 2.5, 16, 5);
+      break;
+    }
+    case "spaceElevator": {
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#dee2e6");
+      shadowUV(ctx, q, 0.15, 0.15, 0.85, 0.85, 20);
+      boxUV(ctx, q, 0.15, 0.15, 0.85, 0.85, 18, "#495057");
+      const [x, y] = quadPoint(q, 0.5, 0.5);
+      cyl(ctx, x, y, 4, 290, "#e9ecef", 18);
+      const [sx, sy] = P(x, y, 200);
+      ctx.fillStyle = "#ff5a5f";
+      ctx.fillRect(sx - 6, sy - 6, 12, 10);
+      ctx.strokeRect(sx - 6, sy - 6, 12, 10);
       break;
     }
     default: {

@@ -105,6 +105,11 @@ export const STRUCTS = {
   mallLux: { group: "mall", name: "High-end mall", kind: "High-end luxury mall", icon: "💎", cost: 15000, build: 30, upkeep: 14, w: 4.2, d: 3.2, year: 1985, landmark: true, cover: "food", r: 6, jobs: 1300, tourism: 330, prestige: 3, pricey: true, pros: ["Big tourist draw", "Raises land value and reputation"], cons: ["Very expensive, 2½ years to build", "Locals find it pricey: cost of living −6 in its town for 10 years", "Little everyday food"] },
 
   // fixed scenery at the start
+  // only appear through Fantasy Mode stories
+  olympicStadium: { hidden: true, fantasy: true, name: "Olympic Stadium", icon: "🏟️", cost: 0, build: 18, upkeep: 30, w: 5.4, d: 4.4, year: 2027, landmark: true, cover: "green", r: 14, alsoCover: "community", jobs: 600, tourism: 500, tip: "Built for the Games. A huge sports and events venue." },
+  alienEmbassy: { hidden: true, fantasy: true, name: "Alien Embassy", icon: "🛸", cost: 0, upkeep: 0, w: 3.2, d: 3.2, year: 2027, landmark: true, cover: "community", r: 16, jobs: 200, tourism: 450, tip: "A gift from friends in orbit. Visitors come from across the galaxy." },
+  cureLab: { hidden: true, fantasy: true, name: "Cure Research Lab", icon: "🧪", cost: 0, upkeep: 25, w: 3, d: 2.4, year: 2027, cover: "health", r: 20, jobs: 300, tip: "Scientists racing to cure the outbreak. Also a fine clinic." },
+  spaceElevator: { hidden: true, fantasy: true, name: "Space Elevator", icon: "🚀", cost: 0, build: 36, upkeep: 60, w: 3, d: 3, year: 2040, landmark: true, jobs: 1000, tourism: 900, trade: 600, tip: "A cable to orbit. Trade and tourists from all over the world." },
   fortSiloso: { name: "Fort Siloso", icon: "🏰", w: 3, d: 2.4, fixed: true, jobs: 150, sentosaAppeal: 0.2 },
   airbase: { name: "RAF Changi air base", icon: "🛩️", w: 7, d: 4, fixed: true, jobs: 600 },
   navalBase: { name: "Sembawang naval base", icon: "⚓", w: 6, d: 3.5, fixed: true, jobs: 800 },

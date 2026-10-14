@@ -448,6 +448,7 @@ export function HelpPanel({ onClose }) {
     ["🌟 Landmarks & malls", "Every landmark can be built in any region (a few are tied to geography). Name it, then pick a spot; big projects take years to build. Be first in Singapore for prestige, or residents may call yours a copycat. You can borrow for a landmark, but debt freezes other spending."],
     ["📐 Town purposes", "In 🏘️ Towns, plan each town as residential, commercial, industrial, heritage or mixed. It decides what grows there and what residents expect (no one asks for a wet market in a CBD)."],
     ["🏝️ Sentosa (South)", "The island is run for visitors: build links (cable car, bridge, monorail) and attractions, set the entry fee and marketing, and watch crowding."],
+    ["🐉 Fantasy Mode", "From 2027 you can let real history go: zombies, meteors, aliens, new islands and stranger things, at random times and sizes. Some are one card, others are stories that branch over years, with 🎲 odds. What happened before decides what can happen next, and the map can change for good. Turn it on or off in ☰ Menu."],
     ["📊 Mayors' league", "AI mayors run the other regions. Every 10 years you get a report card comparing happiness, housing, health, births, money and reputation."],
   ];
   return (
@@ -480,7 +481,7 @@ function Toggle({ id, label, hint, checked, onChange }) {
   );
 }
 
-export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHelp, onGoals, onQuit, saved, onFinance, onRivals }) {
+export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHelp, onGoals, onQuit, saved, onFinance, onRivals, onFantasy }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
   return (
     <Panel title="☰ Menu" onClose={onClose}>
@@ -492,7 +493,8 @@ export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHel
           ["📊", "Mayors' league", onRivals],
           ["❓", "How to play", onHelp],
           ["🏠", "Switch region / title", onQuit],
-        ].map(([i, l, f]) => (
+          onFantasy && ["🐉", world.fantasy?.on ? "Fantasy chronicle" : "Fantasy Mode", onFantasy],
+        ].filter(Boolean).map(([i, l, f]) => (
           <button key={l} onClick={f} className="city-btn flex items-center gap-2 rounded-2xl bg-[var(--soft)] px-3 py-3 text-left font-bold">
             <span className="text-2xl">{i}</span>
             {l}
