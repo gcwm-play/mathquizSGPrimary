@@ -11,7 +11,7 @@ import {
   newWorld, planRoad, commitRoad, snapPoint, planStruct, commitStruct, removeRoad, nearestSeg, segPts, paintZone, plantTrees,
   bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, savedCampaigns, deleteCampaign, clearPreview,
 } from "./world.js";
-import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis } from "./sim.js";
+import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis, toolInfo, estimateStruct } from "./sim.js";
 import { OVERLAYS, ZONE_TINT } from "./render.js";
 import { inQuad, dist } from "./geom.js";
 
@@ -23,6 +23,8 @@ const SPEEDS = [
 ];
 const SETTINGS_KEY = "lion-city-mayor-settings";
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// last spot estimate, so moving the camera doesn't recompute it
+const estCache = { key: null, v: null };
 
 function useSettings() {
   const read = () => {
@@ -253,6 +255,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const [overlay, setOverlay] = useState("none");
   const [inspect, setInspect] = useState(null);
   const [toastMsg, setToastMsg] = useState(null);
+  const [infoOpen, setInfoOpen] = useState(true);
   const [saved, setSaved] = useState(false);
   const [goalOpen, setGoalOpen] = useState(true);
   const toastT = useRef(null);
@@ -270,7 +273,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const toast = useCallback((m) => {
     setToastMsg(m);
     clearTimeout(toastT.current);
-    toastT.current = setTimeout(() => setToastMsg(null), 5500);
+    toastT.current = setTimeout(() => setToastMsg(null), 3200);
   }, []);
   const save = () => saveWorld(worldRef.current);
   const remember = (label) => {
@@ -299,7 +302,8 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       stepMonth(world);
       // a year before polling day, keep a save so a lost election can be replayed
       if (world.t === world.election.next - 12) savePrevote(world);
-      if (world.news[0] && world.news[0] !== before) toast(world.news[0].text);
+      // news is for reading later: the 📰 button counts it, no pop-up
+
       if (world.election.justHeld) {
         // only keep a checkpoint you'd want to go back to
         if (!world.gameOver) saveCheckpoint(world);
@@ -582,6 +586,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
 
   const pickTool = (id, direct) => {
     const T0 = ALL_TOOLS[id];
+    setInfoOpen(true);
     // landmarks and malls start with a project screen: name, kind, cost
     if (!direct && (T0?.mode === "project" || T0?.landmark)) {
       setTray(null);
@@ -630,6 +635,21 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
     dirtyRef.current = true;
   };
 
+  // what the selected tool does, or what this building would do right here
+  let info = null;
+  if (T && T.mode !== "look") {
+    if (p?.kind === "struct" && p.plan?.ok) {
+      const key = `${w.rev}:${p.type}:${p.plan.x.toFixed(2)}:${p.plan.y.toFixed(2)}`;
+      if (estCache.key !== key) {
+        estCache.key = key;
+        estCache.v = estimateStruct(w, { ...p.plan, type: p.type });
+      }
+      if (estCache.v) info = { title: `${STRUCTS[p.type].icon} Here in ${estCache.v.town}`, items: estCache.v.items, note: "Ranges: each building turns out 75–125% as effective." };
+    } else {
+      const ti = toolInfo(w, T.struct ? { ...T, struct: p?.type || T.struct } : T);
+      if (ti && (ti.tip || ti.items.length)) info = { title: `${T.icon} ${T.name}`, tip: ti.tip, items: ti.items, note: ti.note };
+    }
+  }
   let confirmUI = null;
   if (p && !(p.kind === "road" && p.stage === "start")) {
     let ok = true;
@@ -850,7 +870,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
               🗺️
             </button>
             <button onClick={() => setPanel({ id: "news" })} aria-label={`News${unread ? `, ${unread} new` : ""}`} className="city-btn city-sticker relative flex h-11 w-11 items-center justify-center rounded-full bg-[var(--card)] text-xl">
-              {unread > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[11px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
+              {unread > 0 && (
+                <span key={unread} className="city-badge-pop absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[11px] font-bold text-white">
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
               📰
             </button>
           </div>
@@ -873,10 +897,9 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             setToastMsg(null);
             setPanel({ id: "news" });
           }}
-          className="absolute left-1/2 top-[3.75rem] z-30 w-max max-w-[min(26rem,80vw)] -translate-x-1/2 rounded-2xl bg-[var(--ink)] px-3 py-2 text-center text-[14px] font-semibold text-white shadow-lg"
+          className="city-clamp absolute left-1/2 top-[3.75rem] z-30 w-max max-w-[min(22rem,72vw)] -translate-x-1/2 rounded-full bg-[var(--ink)]/90 px-3 py-1 text-center text-[12.5px] font-semibold leading-snug text-white shadow-lg"
         >
           {toastMsg}
-          <span className="mt-0.5 block text-[11px] font-semibold text-white/70">Tap to read all news</span>
         </button>
       )}
 
@@ -895,6 +918,25 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             </div>
           )}
         {tray && <Tray world={w} group={groups.find((g) => g.id === tray)} tool={tool} onPick={pickTool} />}
+        {!tray && info && infoOpen && (
+          <div className="city-card pointer-events-auto relative mx-2 max-h-[34vh] w-[min(34rem,calc(100%-1rem))] overflow-y-auto px-3 py-2 text-[12.5px] leading-snug">
+            <button onClick={() => setInfoOpen(false)} aria-label="Hide building info" className="city-btn absolute right-1.5 top-1.5 h-7 w-7 rounded-full bg-[var(--soft)] text-[12px] font-bold">
+              ✕
+            </button>
+            <div className="pr-8 text-[13.5px] font-bold">{info.title}</div>
+            {info.tip && <div className="text-[var(--muted)]">{info.tip}</div>}
+            {info.items.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {info.items.map((e, i) => (
+                  <span key={i} className="rounded-md border px-1.5 py-0.5 font-semibold" style={{ borderColor: e.good ? "rgba(47,191,113,0.5)" : "rgba(255,90,90,0.45)", color: e.good ? "var(--good)" : "var(--bad)" }}>
+                    {e.t}
+                  </span>
+                ))}
+              </div>
+            )}
+            {info.note && <div className="mt-1 text-[11.5px] text-[var(--muted)]">{info.note}</div>}
+          </div>
+        )}
         {!tray && (
           <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 px-2">
             {undoRef.current.length > 0 && !confirmUI && (
@@ -912,6 +954,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
                   </span>
                   <span className="block truncate text-[12px] text-[var(--muted)]">{hint}</span>
                 </span>
+                {info && !infoOpen && (
+                  <button onClick={() => setInfoOpen(true)} aria-label="What does this do?" className="city-btn h-9 w-9 shrink-0 rounded-full bg-[var(--soft)] font-bold">
+                    ⓘ
+                  </button>
+                )}
                 <button onClick={() => pickTool("look")} aria-label="Stop" className="city-btn h-9 w-9 shrink-0 rounded-full bg-[var(--soft)] font-bold">
                   ✕
                 </button>
