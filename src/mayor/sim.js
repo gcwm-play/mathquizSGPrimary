@@ -43,7 +43,7 @@ export function ensureWorld(w) {
   w.reports = w.reports || [];
   w.rep = w.rep ?? 55;
   w.tfrLag = w.tfrLag ?? baseTfr(w.year - 20);
-  w.nextDilemma = w.nextDilemma ?? w.t + 8;
+  w.nextDilemma = w.nextDilemma ?? w.t + 14;
   const rng = makeRng((w.seed || 1) + 7);
   // past 2026 the future is unwritten: imagined crises at random times
   w.nextFuture = w.nextFuture ?? (2027 - 1965) * 12 + Math.floor(rng() * 120);
