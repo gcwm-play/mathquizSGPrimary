@@ -1145,7 +1145,79 @@ export function applyRenew(w, target, optId) {
 }
 
 // ---------- save / load / undo ----------
+// One campaign per region: each has its own save, election checkpoint and
+// pre-vote save. A small index lists them so the title screen loads fast.
 const SAVE_KEY = "lion-city-mayor-save";
+const CHECK_KEY = "lion-city-mayor-election";
+const PREVOTE_KEY = "lion-city-mayor-prevote";
+const INDEX_KEY = "lion-city-mayor-slots";
+const key = (base, region) => `${base}:${region}`;
+
+function readIndex() {
+  try {
+    return JSON.parse(localStorage.getItem(INDEX_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+function writeIndex(ix) {
+  try {
+    localStorage.setItem(INDEX_KEY, JSON.stringify(ix));
+  } catch {
+    // ignore
+  }
+}
+
+// Saves from before regions had their own slots move into theirs once.
+function migrateLegacy() {
+  try {
+    for (const base of [SAVE_KEY, CHECK_KEY, PREVOTE_KEY]) {
+      const raw = localStorage.getItem(base);
+      if (!raw) continue;
+      const region = JSON.parse(raw).region;
+      if (region && !localStorage.getItem(key(base, region))) localStorage.setItem(key(base, region), raw);
+      localStorage.removeItem(base);
+      if (base === SAVE_KEY && region) {
+        const d = JSON.parse(raw);
+        const ix = readIndex();
+        ix[region] = slotInfo(d);
+        writeIndex(ix);
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+const slotInfo = (d) => ({ name: d.name, region: d.region, year: d.year, month: d.month, pop: d.stats?.pop || 0, mode: d.mode || "campaign", difficulty: d.difficulty, over: !!d.gameOver, updated: Date.now() });
+
+// Write, and if storage is full, free space by dropping other regions' backups.
+function put(k, value, region) {
+  try {
+    localStorage.setItem(k, value);
+    return true;
+  } catch {
+    try {
+      for (const r of Object.keys(readIndex())) {
+        if (r === region) continue;
+        localStorage.removeItem(key(PREVOTE_KEY, r));
+        localStorage.removeItem(key(CHECK_KEY, r));
+      }
+      localStorage.setItem(k, value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+function get(k) {
+  try {
+    const raw = localStorage.getItem(k);
+    return raw ? restore(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 export function snapshot(w) {
   return JSON.stringify(w, (k, v) => (k.startsWith("_") ? undefined : v));
@@ -1158,85 +1230,78 @@ export function restore(json) {
   return w;
 }
 export function saveWorld(w) {
+  const ok = put(key(SAVE_KEY, w.region), snapshot(w), w.region);
+  if (ok) {
+    const ix = readIndex();
+    ix[w.region] = slotInfo(w);
+    writeIndex(ix);
+  }
+  return ok;
+}
+export function loadWorld(region) {
+  migrateLegacy();
+  return get(key(SAVE_KEY, region));
+}
+// every saved campaign, most recently played first
+export function savedCampaigns() {
+  migrateLegacy();
+  const ix = readIndex();
+  return Object.values(ix)
+    .filter((x) => {
+      try {
+        return !!localStorage.getItem(key(SAVE_KEY, x.region));
+      } catch {
+        return false;
+      }
+    })
+    .sort((a, b) => b.updated - a.updated);
+}
+export function deleteCampaign(region) {
   try {
-    localStorage.setItem(SAVE_KEY, snapshot(w));
-    return true;
+    for (const base of [SAVE_KEY, CHECK_KEY, PREVOTE_KEY]) localStorage.removeItem(key(base, region));
+    const ix = readIndex();
+    delete ix[region];
+    writeIndex(ix);
   } catch {
-    return false;
+    // ignore
   }
 }
-export function loadWorld() {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    return raw ? restore(raw) : null;
-  } catch {
-    return null;
-  }
+// kept for older callers: the most recent campaign
+export function saveInfo() {
+  return savedCampaigns()[0] || null;
 }
-// A separate save made right after each election, to go back to if needed.
-const CHECK_KEY = "lion-city-mayor-election";
+
+// A separate save made right after each election win, to go back to if needed.
 export function saveCheckpoint(w) {
-  try {
-    localStorage.setItem(CHECK_KEY, snapshot(w));
-    return true;
-  } catch {
-    return false;
-  }
+  return put(key(CHECK_KEY, w.region), snapshot(w), w.region);
 }
-export function loadCheckpoint() {
-  try {
-    const raw = localStorage.getItem(CHECK_KEY);
-    return raw ? restore(raw) : null;
-  } catch {
-    return null;
-  }
+export function loadCheckpoint(region) {
+  return get(key(CHECK_KEY, region));
 }
-export function checkpointInfo() {
+export function checkpointInfo(region) {
   try {
-    const raw = localStorage.getItem(CHECK_KEY);
+    const raw = localStorage.getItem(key(CHECK_KEY, region));
     if (!raw) return null;
     const d = JSON.parse(raw);
-    return { name: d.name, year: d.election?.last?.year || d.year, pop: d.stats?.pop || 0 };
+    return { name: d.name, year: d.election?.last?.year || d.year, pop: d.stats?.pop || 0, seed: d.seed };
   } catch {
     return null;
   }
 }
 
 // A save made a year before each polling day, so a lost election can be replayed.
-const PREVOTE_KEY = "lion-city-mayor-prevote";
 export function savePrevote(w) {
-  try {
-    localStorage.setItem(PREVOTE_KEY, snapshot(w));
-    return true;
-  } catch {
-    return false;
-  }
+  return put(key(PREVOTE_KEY, w.region), snapshot(w), w.region);
 }
-export function loadPrevote() {
-  try {
-    const raw = localStorage.getItem(PREVOTE_KEY);
-    return raw ? restore(raw) : null;
-  } catch {
-    return null;
-  }
+export function loadPrevote(region) {
+  return get(key(PREVOTE_KEY, region));
 }
-export function prevoteInfo() {
+export function prevoteInfo(region) {
   try {
-    const raw = localStorage.getItem(PREVOTE_KEY);
+    const raw = localStorage.getItem(key(PREVOTE_KEY, region));
     if (!raw) return null;
     const d = JSON.parse(raw);
     return { name: d.name, year: d.year, month: d.month, seed: d.seed };
-  } catch {
-    return null;
-  }
-}
-
-export function saveInfo() {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const d = JSON.parse(raw);
-    return { name: d.name, region: d.region, year: d.year, month: d.month, pop: d.stats?.pop || 0 };
   } catch {
     return null;
   }

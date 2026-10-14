@@ -8,7 +8,7 @@ import { DIFFICULTY, ALL_TOOLS, STRUCTS, ROAD_TYPES, toolGroups } from "./defs.j
 import {
   saveCheckpoint, loadCheckpoint, checkpointInfo, savePrevote, loadPrevote, prevoteInfo,
   newWorld, planRoad, commitRoad, snapPoint, planStruct, commitStruct, removeRoad, nearestSeg, segPts, paintZone, plantTrees,
-  bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, saveInfo, clearPreview,
+  bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, savedCampaigns, deleteCampaign, clearPreview,
 } from "./world.js";
 import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis } from "./sim.js";
 import { OVERLAYS, ZONE_TINT } from "./render.js";
@@ -76,8 +76,10 @@ function Title({ onStart }) {
   const [mode, setMode] = useState("campaign");
   const [help, setHelp] = useState(false);
   const [confirmNew, setConfirmNew] = useState(false);
-  const saved = saveInfo();
-  const check = checkpointInfo();
+  const [askDelete, setAskDelete] = useState(null);
+  const [, bump] = useState(0);
+  const campaigns = savedCampaigns();
+  const saved = campaigns.find((c) => c.region === region) || null;
   const make = () => onStart(newWorld({ region, difficulty, mode }));
   return (
     <div className="city-title city-scroll absolute inset-0 overflow-y-auto">
@@ -89,33 +91,64 @@ function Title({ onStart }) {
           <a href="city.html" className="mt-2 inline-block text-[13px] font-semibold text-white underline">Play the classic island-wide grid game instead</a>
         </div>
         <div className="city-card w-full max-w-xl space-y-2.5 p-3">
-          {saved && (
-            <button
-              onClick={() => {
-                const w = loadWorld();
-                if (w) onStart(w);
-              }}
-              className="city-btn city-sticker w-full rounded-2xl bg-[var(--good)] py-2 text-lg font-bold text-white"
-            >
-              ▶ Continue as mayor of {saved.name}
-              <span className="block text-[13px] font-semibold text-white/90">
-                {saved.year} · {fmtNum(saved.pop)} residents
-              </span>
-            </button>
-          )}
-          {check && (
-            <button
-              onClick={() => {
-                const w = loadCheckpoint();
-                if (w) onStart(w);
-              }}
-              className="city-btn w-full rounded-2xl bg-[var(--soft)] py-2 text-[14px] font-bold"
-            >
-              ↩ Go back to just after the {check.year} election
-              <span className="block text-[12px] font-semibold text-[var(--muted)]">
-                {check.name} · {fmtNum(check.pop)} residents
-              </span>
-            </button>
+          {campaigns.length > 0 && (
+            <div>
+              <div className="mb-1 text-sm font-bold">Your campaigns</div>
+              <div className="space-y-1.5">
+                {campaigns.map((c, k) => {
+                  const chk = checkpointInfo(c.region);
+                  return (
+                    <div key={c.region} className="flex items-stretch gap-1.5">
+                      <button
+                        onClick={() => {
+                          const w = loadWorld(c.region);
+                          if (w) onStart(w);
+                        }}
+                        className={`city-btn city-sticker min-w-0 flex-1 rounded-2xl px-3 py-1.5 text-left font-bold ${k === 0 ? "bg-[var(--good)] text-white" : "bg-[var(--soft)]"}`}
+                      >
+                        <span className="block truncate text-[15px]">
+                          ▶ {REGIONS[c.region]?.icon} {c.name}
+                        </span>
+                        <span className={`block text-[12px] font-semibold ${k === 0 ? "text-white/90" : "text-[var(--muted)]"}`}>
+                          {MONTH_NAMES[c.month]} {c.year} · {fmtNum(c.pop)} residents · {MODES[c.mode]?.name || "Campaign"}
+                          {c.over ? " · game over" : ""}
+                        </span>
+                      </button>
+                      {chk && (
+                        <button
+                          onClick={() => {
+                            const w = loadCheckpoint(c.region);
+                            if (w) onStart(w);
+                          }}
+                          title={`Go back to just after the ${chk.year} election`}
+                          aria-label={`Go back to just after the ${chk.year} election`}
+                          className="city-btn shrink-0 rounded-2xl bg-[var(--soft)] px-2.5 text-[12px] font-bold leading-tight"
+                        >
+                          ↩<span className="block">{chk.year}</span>
+                        </button>
+                      )}
+                      {askDelete === c.region ? (
+                        <button
+                          onClick={() => {
+                            deleteCampaign(c.region);
+                            setAskDelete(null);
+                            bump((v) => v + 1);
+                          }}
+                          className="city-btn shrink-0 rounded-2xl bg-[var(--bad)] px-2.5 text-[12px] font-bold text-white"
+                        >
+                          Delete?
+                        </button>
+                      ) : (
+                        <button onClick={() => setAskDelete(c.region)} aria-label={`Delete ${c.name} campaign`} className="city-btn shrink-0 rounded-2xl bg-[var(--soft)] px-2.5 text-[15px]">
+                          🗑
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-1 text-[12px] text-[var(--muted)]">Each region keeps its own campaign, so you can jump between them. ↩ goes back to just after that region's last election win.</div>
+            </div>
           )}
           <div className="text-sm font-bold">Choose your region</div>
           <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Region">
@@ -127,6 +160,7 @@ function Title({ onStart }) {
                   <div className="flex items-center gap-1.5">
                     <span className="text-2xl">{R.icon}</span>
                     <span className="font-bold leading-tight">{R.name}</span>
+                    {campaigns.some((c) => c.region === id) && <span className="ml-auto shrink-0 rounded-full bg-[var(--good)] px-1.5 text-[10px] font-bold text-white">saved</span>}
                   </div>
                   <div className="city-clamp mt-0.5 text-[12px] leading-snug text-[var(--muted)]">{on ? R.blurb : R.tip}</div>
                 </button>
@@ -153,7 +187,7 @@ function Title({ onStart }) {
           </div>
           {confirmNew ? (
             <div className="rounded-2xl bg-[var(--bad-bg)] p-2 text-center text-sm">
-              <div className="font-bold text-[var(--bad)]">This replaces your saved game ({saved.name}).</div>
+              <div className="font-bold text-[var(--bad)]">This replaces your {saved?.name} campaign ({saved?.year}). Your other regions are kept.</div>
               <div className="mt-1.5 flex gap-1.5">
                 <button onClick={() => setConfirmNew(false)} className="city-btn flex-1 rounded-xl bg-white py-2 font-bold">
                   Keep it
@@ -166,7 +200,7 @@ function Title({ onStart }) {
           ) : (
             <div className="flex gap-2">
               <button onClick={() => (saved ? setConfirmNew(true) : make())} className="city-btn city-sticker flex-1 rounded-2xl bg-[var(--brand)] py-2.5 text-lg font-bold text-white">
-                🆕 Become mayor of {REGIONS[region].short}
+                🆕 {saved ? "Restart" : "Become mayor of"} {REGIONS[region].short}
               </button>
               <button onClick={() => setHelp(true)} aria-label="How to play" className="city-btn city-sticker rounded-2xl bg-[var(--soft)] px-4 text-lg font-bold">
                 ❓
@@ -637,18 +671,18 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   }
   // ways to carry on after losing an election
   const lostActions = () => {
-    const pre = prevoteInfo();
-    const chk = checkpointInfo();
+    const pre = prevoteInfo(w.region);
+    const chk = checkpointInfo(w.region);
     const btn = "city-btn city-sticker rounded-2xl px-3 py-2.5 text-left font-bold";
     return [
       pre && pre.name === w.name && pre.seed === w.seed && pre.year <= w.year && (
-        <button key="pre" onClick={() => { const nw = loadPrevote(); if (nw) onRestart(nw); }} className={`${btn} bg-[var(--brand)] text-white`}>
+        <button key="pre" onClick={() => { const nw = loadPrevote(w.region); if (nw) onRestart(nw); }} className={`${btn} bg-[var(--brand)] text-white`}>
           ↩ Replay the year before the vote
           <span className="block text-[12px] font-semibold opacity-90">From {MONTH_NAMES[pre.month]} {pre.year}: fix what the report card says</span>
         </button>
       ),
       chk && chk.year < w.election.last.year && (
-        <button key="chk" onClick={() => { const nw = loadCheckpoint(); if (nw) onRestart(nw); }} className={`${btn} bg-[var(--soft)]`}>
+        <button key="chk" onClick={() => { const nw = loadCheckpoint(w.region); if (nw) onRestart(nw); }} className={`${btn} bg-[var(--soft)]`}>
           ↩ Go back to just after the {chk.year} election
           <span className="block text-[12px] font-semibold text-[var(--muted)]">Replay the whole term</span>
         </button>
