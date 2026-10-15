@@ -301,10 +301,15 @@ export function stopProgramme(w, id, push, why = null) {
 }
 
 // every month: costs, effects, and anything that should wind down
-export function stepProgrammes(w, push) {
+export function stepProgrammes(w, push, opts = {}) {
   w.boosts = (w.boosts || []).filter((b) => b.src !== "prog");
   w.effects = (w.effects || []).filter((e) => !String(e.id).startsWith("prog:"));
   if (!w.prog) return;
+  // deep in debt: the newest programme is paused (no penalty), one a month
+  if (opts.overDebt) {
+    const newest = PROGRAMMES.filter((P) => w.prog[P.id]?.on).sort((a, b) => w.prog[b.id].since - w.prog[a.id].since)[0];
+    if (newest) stopProgramme(w, newest.id, push, "the region is too deep in debt to pay for it");
+  }
   for (const P of PROGRAMMES) {
     const st = w.prog[P.id];
     if (!st) continue;
