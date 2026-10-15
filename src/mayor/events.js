@@ -288,7 +288,7 @@ export const FUTURE = ["seas", "ageing", "pandemicX", "aiJobs", "energy"];
 // town: how the affected town is chosen: "worst:<need>", "random", "biggest", "kampong" or none
 export const DILEMMAS = [
   {
-    id: "hawkers", icon: "🍢", title: "Street hawkers", from: 1966, to: 1990, town: "random",
+    id: "hawkers", icon: "🍢", title: "Street hawkers", from: 1971, to: 1990, town: "random",
     text: (c) => `Hundreds of street hawkers line the roads of ${c.town}. They're cheap and popular, but block traffic and dirty the drains.`,
     options: [
       { id: "move", label: "Move them into a hawker centre", pros: ["Cleaner streets", "Food stays cheap"], cons: ["Costly", "Some hawkers upset"], cost: 450, anger: 0.4, needs: { food: 12, environment: 6, months: 120 }, log: "moved {town}'s street hawkers into hawker centres" },

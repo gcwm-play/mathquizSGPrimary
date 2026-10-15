@@ -855,7 +855,7 @@ const FIX_HINTS = {
   "Housing quality": "Upgrade or rebuild old blocks (🏗️ Renew) and keep estate maintenance up.",
   Jobs: "Zone shops, offices and factories so people can work near home.",
   "Cost of living": "Ease property tax and S&CC charges, and keep private housing below about a third of homes.",
-  "Food nearby": "Build hawker centres or markets near homes.",
+  "Food nearby": "Build wet markets or hawker centres (from 1971) near homes.",
   Schools: "Build primary and secondary schools near homes.",
   Healthcare: "Build polyclinics, or a hospital for a wide area.",
   Safety: "Build police posts and fire stations.",
@@ -1372,7 +1372,7 @@ export function stepMonth(w, rng = Math.random) {
     town.approval = clamp(town.approval * 0.8 + t.happy * 0.2, 0, 100);
     town.anger = Math.max(0, town.anger * 0.975 - 0.01);
     town.support = townSupport(w, i);
-    town.feedback = feedbackFor(t, i + w.t, town);
+    town.feedback = feedbackFor(t, i + w.t, town, w.year);
     town.tfr = townTfr(w.year, t.needs, town.approval, t.unhoused, (w.policy.fert || 0) + effectAdd(w, "fert"));
     town.life = townLife(w.year, t.needs, w.policy.health || 0, lifeHit);
     tfrSum += town.tfr * town.pop;
@@ -1535,7 +1535,10 @@ export function autoPlayDecision(w, rng = Math.random) {
   if (w.decision) autoDecide(w, (t) => pushNews(w, t), rng);
 }
 
-function feedbackFor(t, seed, town) {
+// comments that name something not built in Singapore yet are held back
+const notYet = (text, year) => (year < STRUCTS.hawker.year && /hawker/i.test(text)) || (year < 1983 && /MRT/.test(text));
+
+function feedbackFor(t, seed, town, year = 9999) {
   const out = [];
   for (const x of town?.thanks || []) out.push({ need: x.need, v: x.to, kind: "thanks", text: `Thank you! ${NEEDS[x.need]?.name || x.need} is much better now (${x.from}→${x.to}).` });
   if (t.unhoused > 0.2) out.push({ need: "housing", v: Math.round(t.needs.housing), text: "We're still waiting for a flat! Build more homes." });
@@ -1552,6 +1555,8 @@ function feedbackFor(t, seed, town) {
       const lvl = t.schools.indexOf(Math.min(...t.schools));
       list = COMPLAINTS[`school${lvl + 1}`] || list;
     }
+    list = list.filter((x) => !notYet(x, year));
+    if (!list.length) continue;
     const extra = k === "housing" && t.kpop > t.pop * 0.5 ? 1 : 0;
     out.push({ need: k, v: Math.round(v), text: list[(seed + extra + k.length) % list.length] });
     complaints++;
