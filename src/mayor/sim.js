@@ -325,7 +325,7 @@ export function analyze(w) {
   // some people commute to jobs in other regions
   const unemployment = workforce > 0 ? Math.max(0, workforce - jobs - workforce * 0.3) / workforce : 0;
   const pteShare = pop ? ptePop / pop : 0;
-  const costNeed = clamp(100 - Math.max(0, w.taxes.property - 8) * 4 - Math.max(0, pteShare - 0.3) * 120 + (w.hdbGrant - 50) * 0.25, 0, 100);
+  const costNeed = clamp(100 - Math.max(0, w.taxes.property - 8) * 4 - Math.max(0, pteShare - 0.3) * 120, 0, 100);
   // a young region gives its new mayor some benefit of the doubt
   const grace = Math.min(1, pop / 30000);
   // families still waiting for a home are voters too, and unhappy ones
@@ -808,7 +808,7 @@ export function electionAnalysis(w, A) {
 const FIX_HINTS = {
   "Housing quality": "Upgrade or rebuild old blocks (🏗️ Renew) and keep estate maintenance up.",
   Jobs: "Zone shops, offices and factories so people can work near home.",
-  "Cost of living": "Ease property tax and S&CC charges, or offer a bigger HDB grant.",
+  "Cost of living": "Ease property tax and S&CC charges, and keep private housing below about a third of homes.",
   "Food nearby": "Build hawker centres or markets near homes.",
   Schools: "Build primary and secondary schools near homes.",
   Healthcare: "Build polyclinics, or a hospital for a wide area.",
@@ -1182,7 +1182,8 @@ export function stepMonth(w, rng = Math.random) {
     const outsiders = free * 0.06 * attract * era;
     let movers = Math.floor(Math.min(w.waitlist + outsiders, free, Math.max(250, free * 0.35)));
     vac.sort((a, b) => quality(w, b.b) + w.towns[b.town].approval * 0.3 - (quality(w, a.b) + w.towns[a.town].approval * 0.3));
-    const hdbPrice = 0.55 * (0.9 - 0.4 * (w.hdbGrant / 100));
+    // flat prices and grants are set by the national government
+    const hdbPrice = 0.385;
     for (const l of vac) {
       if (movers <= 0) break;
       const T = LOT_TYPES[l.b.type];

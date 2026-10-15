@@ -453,7 +453,6 @@ export function BudgetPanel({ world: w, analysis: A, onChange, onClose }) {
       </div>
       <h3 className="mb-1 mt-4 font-bold">Your choices</h3>
       <Slider id="m-tax" label="🏠 Property tax" value={w.taxes.property} min={0} max={20} onChange={(v) => set(() => (w.taxes.property = v))} hint="More money, but above 8% residents feel the pinch." />
-      <Slider id="m-grant" label="🔑 HDB grant" value={w.hdbGrant} min={0} max={100} step={5} onChange={(v) => set(() => (w.hdbGrant = v))} hint="Bigger grants make flats cheaper for families but bring in less from flat sales." />
       <Slider id="m-fund" label="🛠️ Services funding" value={w.funding} min={40} max={120} step={5} onChange={(v) => set(() => (w.funding = v))} hint="Less funding saves money but services reach fewer homes." />
     </Panel>
   );

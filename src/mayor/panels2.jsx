@@ -198,7 +198,6 @@ export function FinancePanel({ world: w, analysis: A, onChange, onClose }) {
         <>
           <Slider id="f-tax" label="🏠 Property tax" value={w.taxes.property} min={0} max={20} onChange={(v) => set(() => (w.taxes.property = v))} hint={`More money, but above 8% residents feel the pinch.${w.taxes.property > 12 ? " ⚠️ Cost of living complaints rising." : ""}`} />
           <Slider id="f-fund" label="🛠️ Services funding" value={w.funding} min={40} max={120} step={5} onChange={(v) => set(() => (w.funding = v))} hint="Less funding saves money but clinics, schools and police reach fewer homes." />
-          <Slider id="f-grant" label="🔑 HDB grant" value={w.hdbGrant} min={0} max={100} step={5} onChange={(v) => set(() => (w.hdbGrant = v))} hint="Bigger grants make flats cheaper for families but bring in less from flat sales." />
         </>
       ) : (
         <>
