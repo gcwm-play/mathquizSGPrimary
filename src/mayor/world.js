@@ -213,7 +213,6 @@ export function newWorld({ region = "east", difficulty = "normal", name, seed = 
     trust: 60,
     taxes: { property: 10 },
     funding: 100,
-    hdbGrant: 50,
     effects: [],
     pledges: [],
     // first poll in April 1968, like the real general election
