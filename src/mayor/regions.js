@@ -195,7 +195,8 @@ export const REGIONS = {
     ],
     causeway: [[-6, -17], [-6, -26]],
     oldTown: [{ e: -6, s: -5, r: 2.5, zone: "com" }],
-    structs: [{ type: "navalBase", e: 26, s: -4, ang: -0.78 }],
+    // on the Strait shore, as the real one is: placed on the nearest bit of coast
+    structs: [{ type: "navalBase", e: 18, s: -12.5, ang: -0.78, shore: [0, -1] }],
     landmarks: ["checkpoint", "causewayPoint", "sungeiBuloh", "rtsLink"],
     purposes: { Kranji: "industrial", Woodlands: "mixed", Sembawang: "residential", Yishun: "residential" },
     events: [
