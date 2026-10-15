@@ -3,7 +3,9 @@
 // sprites for buildings, trees and kampong houses.
 import { MAP } from "./regions.js";
 import { terrain, TERRAIN_GRID, RES, segPts, terrainAt } from "./world.js";
-import { ROAD_TYPES, STRUCTS, LOT_TYPES } from "./defs.js";
+import { ROAD_TYPES, STRUCTS, LOT_TYPES, purposeOf } from "./defs.js";
+
+const PURPOSE_SHORT = { mixed: "Mixed", residential: "Homes", commercial: "CBD", industrial: "Industry", heritage: "Heritage", resort: "Resort" };
 import { PX, PY, INK, inkStyle, drawLotBuilding, drawConstruction, drawAttap, drawStruct, structHeight, LOT_HEIGHT, blobTree, prism, boxUV } from "./art.js";
 import { tree as cityTree, palm } from "../city/art.js";
 import { createAgents, updateAgents, agentPose, drawCar, drawTrain, initSea, moveSea, drawBoat, drawClouds } from "./agents.js";
@@ -611,13 +613,18 @@ export function draw(ctx, R, w, A, cam, view) {
       ctx.lineWidth = 5;
       ctx.strokeStyle = "rgba(47,43,74,0.85)";
       ctx.lineJoin = "round";
-      ctx.strokeText(t.name, sx, sy);
+      // what the town is planned for, as a reminder: icon beside the name, short name in the pill
+      const P = purposeOf(t);
+      const nw = ctx.measureText(t.name).width;
+      ctx.strokeText(t.name, sx + 10, sy);
       ctx.fillStyle = "#ffffff";
-      ctx.fillText(t.name, sx, sy);
+      ctx.fillText(t.name, sx + 10, sy);
+      ctx.font = '16px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+      ctx.fillText(P.icon, sx + 10 - nw / 2 - 12, sy + 1);
       const ap = Math.round(t.approval);
       const face = ap >= 65 ? "😄" : ap >= 50 ? "🙂" : ap >= 38 ? "😐" : "😟";
       ctx.font = '600 12px "Fredoka", ui-rounded, system-ui, sans-serif';
-      const label = `${face} ${ap}%`;
+      const label = `${PURPOSE_SHORT[t.purpose] || "Mixed"} · ${face} ${ap}%`;
       const tw = ctx.measureText(label).width + 14;
       ctx.fillStyle = "rgba(255,253,246,0.95)";
       ctx.beginPath();
