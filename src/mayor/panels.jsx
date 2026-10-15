@@ -4,6 +4,7 @@ import { NEEDS, TERM_YEARS, diffOf } from "./defs.js";
 import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS, modeOf, pledgeProgress, pledgeCred } from "./sim.js";
 import { housingByTown } from "./housing.js";
 import { METRICS } from "./society.js";
+import { spreadOf } from "./events.js";
 import { ImpactBox, ObjectiveRow, PurposePicker } from "./panels2.jsx";
 import { setPurpose, purposeCost } from "./world.js";
 
@@ -194,9 +195,9 @@ function NeedsCard({ town: t }) {
 }
 
 // "+0.4–1.6%" of the whole region's vote
-const fmtShare = (v) => {
-  const lo = v * 0.4;
-  const hi = v * 1.6;
+const fmtShare = (v, sp) => {
+  const lo = v * (1 - sp);
+  const hi = v * (1 + sp);
   const f = (x) => (x < 0.1 ? "<0.1" : x < 1 ? x.toFixed(1) : String(Math.round(x)));
   return f(lo) === f(hi) ? `+${f(lo)}%` : `+${f(lo)}–${f(hi)}%`;
 };
@@ -302,7 +303,7 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
                               )}
                               <div className="text-[12px] text-[var(--good)]">
                                 🗳️ {o.boostText} votes {o.all ? "everywhere" : `in ${w.towns[o.town]?.name}`}
-                                {!o.all && ` (about ${fmtShare(o.boost * pledgeCred(w) * sh)} of your total)`} · deliver within {o.years} years
+                                {!o.all && ` (about ${fmtShare(o.boost * pledgeCred(w) * sh, spreadOf(o.boost * pledgeCred(w)))} of your total)`} · deliver within {o.years} years
                               </div>
                               <div className="text-[12px] text-[var(--good)]">✅ If kept: {o.keptText}</div>
                               <div className="text-[12px] text-[var(--bad)]">💔 If broken: {o.penText}</div>

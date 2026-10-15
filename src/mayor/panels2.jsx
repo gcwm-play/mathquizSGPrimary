@@ -4,7 +4,7 @@ import { Panel } from "../city/panels.jsx";
 import { fmtMoney, fmtNum, projectFinance, REV_LABELS, REV_SUB, EXP_LABELS, tToDate, wearRate, dateLabel, sentosaState } from "./sim.js";
 import { STRUCTS, PURPOSES, MALL_NAMES, ALL_TOOLS as ALL_TOOLS_REF } from "./defs.js";
 import { setPurpose } from "./world.js";
-import { CRISES, getDecision, SPREAD } from "./events.js";
+import { CRISES, getDecision, MONEY_SPREAD } from "./events.js";
 import { situation, setFantasy } from "./fantasy.js";
 import { PROGRAMMES, programmeBenefits, progState, progCost, progMonthly, progAvailable, stopPenalty, startProgramme, stopProgramme } from "./programmes.js";
 import { objectiveProgress } from "./objectives.js";
@@ -355,7 +355,7 @@ export function DecisionPanel({ world: w, onPick }) {
               <span className="font-bold leading-tight">{o.label}</span>
               <span className="mt-1 flex flex-wrap gap-1 text-[12px] font-bold tabular-nums">
                 {o.cost > 0 && <span className="rounded-full bg-[var(--bad-bg)] px-2 py-0.5 text-[var(--bad)]">−{fmtMoney(o.cost)}</span>}
-                {o.gain > 0 && <span className="rounded-full px-2 py-0.5 text-[var(--good)]" style={{ background: "rgba(47,191,113,0.15)" }}>+{fmtMoney(o.gain * (1 - SPREAD))}–{fmtMoney(o.gain * (1 + SPREAD))}</span>}
+                {o.gain > 0 && <span className="rounded-full px-2 py-0.5 text-[var(--good)]" style={{ background: "rgba(47,191,113,0.15)" }}>+{fmtMoney(o.gain * (1 - MONEY_SPREAD))}–{fmtMoney(o.gain * (1 + MONEY_SPREAD))}</span>}
                 {o.monthly > 0 && <span className="rounded-full bg-[var(--bad-bg)] px-2 py-0.5 text-[var(--bad)]">−{fmtMoney(o.monthly)}/month</span>}
                 {o.monthly < 0 && <span className="rounded-full px-2 py-0.5 text-[var(--good)]" style={{ background: "rgba(47,191,113,0.15)" }}>+{fmtMoney(-o.monthly)}/month</span>}
                 {o.chance != null && <span className="rounded-full bg-[var(--soft)] px-2 py-0.5">🎲 {Math.round(o.chance * 100)}% chance</span>}
@@ -488,7 +488,7 @@ export function ObjectiveRow({ world: w, analysis: A, o }) {
         </div>
       )}
       <div className="mt-1 text-[12px] font-semibold text-[var(--muted)]">
-        Reward: +{fmtMoney((o.reward?.cash || 0) * (1 - SPREAD))}–{fmtMoney((o.reward?.cash || 0) * (1 + SPREAD))} grant · +trust · +reputation
+        Reward: +{fmtMoney((o.reward?.cash || 0) * (1 - MONEY_SPREAD))}–{fmtMoney((o.reward?.cash || 0) * (1 + MONEY_SPREAD))} grant · +trust · +reputation
       </div>
     </li>
   );
@@ -1190,7 +1190,7 @@ export function ProgrammesPanel({ world: w, analysis: A, onClose, onChange, push
   ];
   return (
     <Panel title="🎁 Programmes" onClose={onClose} tabs={tabs} tab={group} setTab={setGroup}>
-      <p className="text-[14px] leading-snug text-[var(--muted)]">Ongoing perks you pay for every month. Each starts working over about 6 months and turns out 40–160% as well as a typical scheme. Stopping one people rely on makes them angry, more so the longer it ran.</p>
+      <p className="text-[14px] leading-snug text-[var(--muted)]">Ongoing perks you pay for every month. Each starts working over about 6 months and turns out 70–130% as well as a typical scheme. Stopping one people rely on makes them angry, more so the longer it ran.</p>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Running now" value={`${fmtMoney(monthly)}/mo`} sub={income ? `${Math.round((monthly / income) * 100)}% of income` : ""} tone={net < 0 ? "bad" : null} />
         <Stat label={`This year (${w.year})`} value={fmtMoney(yearSum)} />
