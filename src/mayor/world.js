@@ -282,8 +282,9 @@ export function newWorld({ region = "east", difficulty = "normal", name, seed = 
 
   // Fixed scenery
   for (const st of R.structs || []) {
-    const [x, y] = es2w(st.e, st.s);
     const S = STRUCTS[st.type];
+    const spot = st.shore ? shoreSpot(w, st) : null;
+    const [x, y] = spot || es2w(st.e, st.s);
     const q = rectQuad(x, y, st.ang, S.w, S.d);
     removeLotsInQuad(w, q);
     w.structs.push({ id: w.nextId++, type: st.type, x, y, ang: st.ang, q, built: -300 });
@@ -650,6 +651,51 @@ export function genLots(w, seg) {
   touch(w);
   w._occ = null;
   return made;
+}
+
+// The nearest place to (e, s) where a fixed base sits wholly on land with
+// open sea just beyond its shore side (shore is a direction in e/s units).
+export function shoreSpot(w, st) {
+  const S = STRUCTS[st.type];
+  const [de, ds] = st.shore;
+  let best = null;
+  for (let oe = -6; oe <= 6; oe += 0.5) {
+    for (let os = -6; os <= 6; os += 0.5) {
+      const e = st.e + oe;
+      const s = st.s + os;
+      const [x, y] = es2w(e, s);
+      const q = rectQuad(x, y, st.ang, S.w, S.d);
+      let land = true;
+      for (let u = 0; u <= 1 && land; u += 0.25) for (let v = 0; v <= 1 && land; v += 0.25) if (terrainAt(w, q[0] + (q[2] - q[0]) * u + (q[6] - q[0]) * v, q[1] + (q[3] - q[1]) * u + (q[7] - q[1]) * v) !== "land") land = false;
+      if (!land) continue;
+      const [sx, sy] = es2w(e + de * (S.d / 2 + 1.2), s + ds * (S.d / 2 + 1.2));
+      if (terrainAt(w, sx, sy) !== "sea") continue;
+      const d = oe * oe + os * os;
+      if (!best || d < best.d) best = { d, x, y };
+    }
+  }
+  return best ? [best.x, best.y] : null;
+}
+
+// Older North saves had the naval base inland: move it to the shore.
+export function moveBaseToShore(w) {
+  const R = REGIONS[w.region];
+  for (const def of R.structs || []) {
+    if (!def.shore) continue;
+    const st = w.structs.find((x) => x.type === def.type);
+    const spot = shoreSpot(w, def);
+    if (!st || !spot || dist(st.x, st.y, spot[0], spot[1]) < 2) continue;
+    const S = STRUCTS[def.type];
+    const [ox, oy] = [st.x, st.y];
+    st.x = +spot[0].toFixed(3);
+    st.y = +spot[1].toFixed(3);
+    st.q = rectQuad(st.x, st.y, def.ang, S.w, S.d).map((v) => +v.toFixed(3));
+    const hit = w.lots.filter((l) => quadsOverlap(l.q, st.q));
+    if (hit.length) clearLots(w, hit);
+    w.segs.filter((sg) => segPts(w, sg).some((_, k, p) => k % 2 === 0 && inQuad(st.q, p[k], p[k + 1]))).forEach((sg) => removeRoad(w, sg.id));
+    touch(w);
+    refillLots(w, ox, oy, Math.max(S.w, S.d));
+  }
 }
 
 // ---------- exact overlap of two footprints ----------

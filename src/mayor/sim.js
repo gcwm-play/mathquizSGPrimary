@@ -2,7 +2,7 @@
 // happiness and feedback, money, elections and pledges.
 import { PURPOSES, purposeOf, MINOR, LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
 import { REGIONS } from "./regions.js";
-import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteImpactSim, fixOverlaps, charge } from "./world.js";
+import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteImpactSim, fixOverlaps, charge, moveBaseToShore } from "./world.js";
 import { dist, clamp, polyLength, nearestOnPoly, makeRng } from "./geom.js";
 import { residents, housingByTown, displace } from "./housing.js";
 import { townTfr, townLife, baseTfr, lifeIndex, tfrIndex, financeIndex } from "./society.js";
@@ -27,12 +27,15 @@ export function ensureWorld(w) {
     w.fixV = 1;
     fixOverlaps(w);
   }
+  // v7: the naval base belongs on the shore (no-op for new games)
+  if ((w.fixV || 0) < 3 && w.structs?.length) moveBaseToShore(w);
   // v6: services now wear out. Existing ones count as at most 20 years old,
   // so older saves don't see every service decay at once.
   if ((w.fixV || 0) < 2) {
     w.fixV = 2;
     for (const st of w.structs || []) if (st.built != null && w.t - st.built > 240) st.refurb = w.t - 240;
   }
+  w.fixV = Math.max(w.fixV || 0, 3);
   if (w.v3) {
     for (const sg of w.segs) if (sg.type === "avenue") sg.type = "road";
     return w;
