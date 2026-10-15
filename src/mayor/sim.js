@@ -334,11 +334,15 @@ export function analyze(w) {
   const jobs = (comJobs + indJobs + structJobs) * effect(w, "jobs");
   const workforce = pop * 0.5;
   // some people commute to jobs in other regions
-  const unemployment = workforce > 0 ? Math.max(0, workforce - jobs - workforce * 0.3) / workforce : 0;
+  // a region planned without factories (like the CBD) sends more workers to jobs elsewhere
+  const indPlan = w.towns.reduce((a, t) => a + (purposeOf(t).growth.ind ?? 1), 0) / Math.max(1, w.towns.length);
+  const commute = 0.3 + 0.2 * clamp(1 - indPlan, 0, 1);
+  const unemployment = workforce > 0 ? Math.max(0, workforce - jobs - workforce * commute) / workforce : 0;
   const pteShare = pop ? ptePop / pop : 0;
   const costNeed = clamp(100 - Math.max(0, w.taxes.property - 8) * 4 - Math.max(0, pteShare - 0.3) * 120, 0, 100);
   // a young region gives its new mayor some benefit of the doubt
-  const grace = Math.min(1, pop / 30000);
+  // a brand-new mayor gets the benefit of the doubt for the first decade, not forever
+  const grace = Math.max(Math.min(1, pop / 30000), Math.min(1, w.t / 120));
   // families still waiting for a home are voters too, and unhappy ones
   const unhoused = w.waitlist / Math.max(1, pop + w.waitlist);
   const uw = unhoused * Math.min(0.6, w.t / 120);
@@ -600,7 +604,18 @@ export const keptTrust = (gap) => 3 + gap * 0.06;
 // How much voters believe your promises: each broken one knocks it down,
 // each kept one wins some back.
 export const pledgeCred = (w) => w.pledgeCred ?? 1;
-const pledgePenalty = (gap) => ({ trust: 5 + gap * 0.22, anger: 0.6 + gap * 0.04 });
+const pledgePenalty = (gap) => ({ trust: 3 + gap * 0.12, anger: 0.4 + gap * 0.025 });
+const PLEDGE_TRUST_CAP = 20; // most trust broken promises can cost in one term
+// how far a pledge got, 0..1, for partial credit at the deadline
+function pledgeShare(w, p) {
+  if (p.kind === "raise") {
+    const now = w.towns[p.town]?.needs?.[p.need] ?? 0;
+    const from = p.from ?? now;
+    return p.target > from ? clamp((now - from) / (p.target - from), 0, 1) : 0;
+  }
+  if (p.kind === "homes") return clamp(((w.towns[p.town]?.pop || 0) - p.base) / Math.max(1, p.n), 0, 1);
+  return 0;
+}
 
 // How far along an open promise is, for the elections panel.
 export function pledgeProgress(w, p) {
@@ -691,6 +706,7 @@ export function makePledge(w, offer) {
     gap,
     need: offer.need,
     target: offer.target,
+    from: offer.cur,
     made: w.t,
     deadline: w.t + K.years * 12,
     base: offer.kind === "homes" ? w.towns[offer.town].pop : offer.kind === "taxfreeze" ? w.taxes.property : 0,
@@ -708,11 +724,15 @@ function checkPledges(w) {
     const K = PLEDGE_KINDS[p.kind];
     const towns = p.town != null ? [p.town] : w.towns.map((_, i) => i);
     const gap = p.gap ?? 20;
-    const breakIt = (why) => {
-      // the worse the town was doing, the angrier it is when you let it down
+    const breakIt = (why, share = 0) => {
+      // the worse the town was doing, the angrier it is when you let it down;
+      // getting part of the way there softens it, and one term can only cost so much
       const pen = pledgePenalty(gap);
-      const dt = rollIn(pen.trust);
-      const da = rollIn(pen.anger);
+      w.pledgeLost = w.pledgeLost || {};
+      const lostSoFar = w.pledgeLost[w.election.next] || 0;
+      const dt = Math.min(rollIn(pen.trust) * (1 - share), Math.max(0, PLEDGE_TRUST_CAP - lostSoFar));
+      w.pledgeLost[w.election.next] = lostSoFar + dt;
+      const da = rollIn(pen.anger) * (1 - share);
       p.status = "broken";
       p.brokeT = w.t;
       w.trust = clamp(w.trust - dt, 0, 100);
@@ -721,7 +741,7 @@ function checkPledges(w) {
       if (p.town != null) w.towns.forEach((t, i) => i !== p.town && (t.anger += da * 0.25));
       w.pledgeCred = Math.max(0.3, pledgeCred(w) * 0.7);
       const where = p.town != null ? w.towns[p.town].name : "every town";
-      pushNews(w, `💔 ${why}: "${p.text}". Trust −${Math.round(dt)}, and ${where} ${gap >= 30 ? "is furious" : "is unhappy"}.`);
+      pushNews(w, `💔 ${why}: "${p.text}".${share > 0 ? ` You got ${Math.round(share * 100)}% of the way, which softens it.` : ""} Trust −${Math.round(dt)}, and ${where} ${gap >= 30 && share < 0.3 ? "is furious" : "is unhappy"}.`);
     };
     if (K.broken && K.broken(w, p)) {
       breakIt("Broken promise");
@@ -745,7 +765,19 @@ function checkPledges(w) {
         w.trust = clamp(w.trust + dt, 0, 100);
         w.pledgeCred = Math.min(1, pledgeCred(w) + 0.35);
         pushNews(w, `✅ Promise kept: "${p.text}". Trust +${Math.round(dt)}.`);
-      } else breakIt("Deadline missed");
+      } else {
+        // halfway there counts as kept, with half the thanks
+        const share = pledgeShare(w, p);
+        if (share >= 0.5) {
+          const dt = rollIn(keptTrust(gap)) * 0.5;
+          p.status = "kept";
+          p.keptT = w.t;
+          p.partial = true;
+          w.trust = clamp(w.trust + dt, 0, 100);
+          w.pledgeCred = Math.min(1, pledgeCred(w) + 0.15);
+          pushNews(w, `✅ Mostly kept: "${p.text}" (${Math.round(share * 100)}% done). Trust +${Math.round(dt)}.`);
+        } else breakIt("Deadline missed", share);
+      }
     }
   }
 }
@@ -1411,8 +1443,11 @@ export function stepMonth(w, rng = Math.random) {
   const repTarget = w.approval * 0.35 + w.trust * 0.25 + w.stats.lifeIdx * 0.15 + finIdx * 0.1 + (1 - Math.min(1, w.waitlist / Math.max(1, A.pop * 0.3))) * 15;
   w.rep = clamp(w.rep + (repTarget - w.rep) * 0.02, 0, 100);
 
+  // trust fades back towards neutral unless you keep earning it (or losing it)
+  w.trust = clamp(w.trust + (50 - w.trust) * 0.0015, 0, 100);
+
   // pledges, crises, dilemmas, objectives
-  stepProgrammes(w, push);
+  stepProgrammes(w, push, { overDebt: w.cash < -debtLimit(w) * 0.8 && !w.sandbox });
   checkPledges(w);
   stepEvents(w, A, rng, push);
   stepObjectives(w, A, push);
@@ -1541,9 +1576,43 @@ export const GOALS = [
   { id: "pop80k", text: "Reach 80,000 residents", hint: "Bigger, modern estates and good transport.", test: (w) => w.stats.pop >= 80000 },
 ];
 
-export const nextGoal = (w) => GOALS.find((g) => !w.goalsDone[g.id]) || (w.objectives || []).find((o) => o.status === "open") || null;
+// A goal that has sat unreached for 10 years steps aside for the next one.
+export const nextGoal = (w) => {
+  const open = GOALS.filter((g) => !w.goalsDone[g.id]);
+  const fresh = open.find((g) => w.t - (w.goalSeen?.[g.id] ?? w.t) < 120);
+  return fresh || (w.objectives || []).find((o) => o.status === "open") || open[0] || null;
+};
+
+// The one thing most worth doing right now, shown under the goal.
+export function advice(w, A) {
+  if (!A) return null;
+  for (const p of w.pledges || []) {
+    if (p.status !== "open" || p.deadline - w.t > 12) continue;
+    const K = PLEDGE_KINDS[p.kind];
+    if (K.keepUntilDeadline || K.check?.(w, p)) continue;
+    const pr = pledgeProgress(w, p);
+    return { icon: "📣", text: `Promise due ${tToDate(w, p.deadline)}: ${p.text}.${pr?.text && !pr.text.startsWith("Not yet") ? ` ${pr.text}.` : ""}` };
+  }
+  if (A.pop > 2000 && A.unemployment > 0.1) return { icon: "💼", text: `${Math.round(A.unemployment * 100)}% of workers can't find a job. Zone shops and offices, or factories in industrial towns.` };
+  const unzoned = w.lots.filter((l) => !l.zone && !l.b && !l.ruin).length;
+  const waitingLots = w.lots.filter((l) => l.zone === "hdb" && !l.b).length;
+  if (w.waitlist > Math.max(800, A.pop * 0.1) && waitingLots < 3) return { icon: "🏠", text: `${fmtNum(w.waitlist)} families are waiting for a flat. Zone more HDB${unzoned ? ` (${unzoned} lots are still unzoned)` : " and build new roads for more lots"}.` };
+  const spend = w.ledger ? Object.values(w.ledger.exp).reduce((a, b) => a + b, 0) : 0;
+  if (spend > 0 && w.cash > spend * 60) {
+    let worst = null;
+    for (const t of A.towns) {
+      if (!t.pop) continue;
+      for (const [k, v] of Object.entries(t.needs)) if (!t.minor?.includes(k) && (!worst || v < worst.v)) worst = { k, v };
+    }
+    if (worst && worst.v < 60) return { icon: "💰", text: `You have ${Math.floor(w.cash / spend / 12)} years of savings sitting idle. Spend on ${NEEDS[worst.k]?.name.toLowerCase() || worst.k} (one town scores ${Math.round(worst.v)}) or start a 🎁 programme.` };
+  }
+  return null;
+}
 
 export function checkGoals(w) {
+  w.goalSeen = w.goalSeen || {};
+  const shown = GOALS.find((g) => !w.goalsDone[g.id] && w.t - (w.goalSeen[g.id] ?? w.t) < 120);
+  if (shown && w.goalSeen[shown.id] == null) w.goalSeen[shown.id] = w.t;
   let left = 0;
   for (const g of GOALS) {
     if (!w.goalsDone[g.id] && g.test(w)) {

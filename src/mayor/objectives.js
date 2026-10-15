@@ -191,7 +191,11 @@ function hintFor(k) {
   return h[k] || "";
 }
 
-export const REWARD = (w, o) => ({ cash: Math.round(300 * scaleOf(w) * (o.months / 48)), trust: 3, rep: 2 });
+// Money targets earn reputation; trust comes from doing things for residents.
+export const REWARD = (w, o) => {
+  const money = o.kind === "surplus" || o.kind === "reserves";
+  return { cash: Math.round(300 * scaleOf(w) * (o.months / 48)), trust: money ? 0 : 3, rep: money ? 4 : 2 };
+};
 
 // keep up to 3 objectives active once the starter goals are mostly done
 export function stepObjectives(w, A, push) {
@@ -213,7 +217,7 @@ export function stepObjectives(w, A, push) {
       w.trust = clamp(w.trust + R.trust, 0, 100);
       w.rep = clamp((w.rep ?? 50) + R.rep, 0, 100);
       w.objCool[o.key] = w.t + 36;
-      push(`🎯 Objective complete: ${o.text}! Bonus grant of $${fmt(R.cash)}K, trust +${Math.round(R.trust)}, reputation +${Math.round(R.rep)}.`);
+      push(`🎯 Objective complete: ${o.text}! Bonus grant of $${fmt(R.cash)}K${R.trust >= 0.5 ? `, trust +${Math.round(R.trust)}` : ""}, reputation +${Math.round(R.rep)}.`);
       w.log.push({ year: w.year, text: o.text.toLowerCase(), tone: "good" });
     } else if (w.t >= o.deadline || P.fail) {
       o.status = "missed";

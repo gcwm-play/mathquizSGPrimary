@@ -11,7 +11,7 @@ import {
   newWorld, planRoad, commitRoad, snapPoint, planStruct, commitStruct, removeRoad, nearestSeg, segPts, paintZone, plantTrees,
   bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, savedCampaigns, deleteCampaign, clearPreview,
 } from "./world.js";
-import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis, toolInfo, estimateStruct, refurbish } from "./sim.js";
+import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis, toolInfo, estimateStruct, refurbish, advice } from "./sim.js";
 import { OVERLAYS, ZONE_TINT } from "./render.js";
 import { inQuad, dist } from "./geom.js";
 
@@ -621,6 +621,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const T = ALL_TOOLS[tool];
   const p = pendingRef.current;
   const goal = nextGoal(w);
+  const tip = advice(w, A);
   const ap = Math.round(w.approval);
   const unread = w.news.filter((n) => n.t >= (w.newsSeen ?? 0)).length;
   const recentFin = (w.fin || []).slice(-6);
@@ -756,8 +757,8 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         onTouchStart={() => tray && setTray(null)}
       />
 
-      <div className="city-hud-top pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2 landscape:flex-nowrap">
-        <div className="flex min-w-0 flex-col items-start gap-2 landscape:flex-1">
+      <div className="city-hud-top pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2 landscape:flex-nowrap max-[480px]:flex-nowrap">
+        <div className="flex min-w-0 flex-col items-start gap-2 landscape:flex-1 max-[480px]:flex-1">
           <div className="pointer-events-auto flex min-w-0 max-w-full items-center gap-1.5">
             <button onClick={() => setPanel({ id: "menu" })} aria-label="Menu" className="city-btn city-sticker flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--card)] text-xl">
               ☰
@@ -766,7 +767,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
               <span className="hidden items-center whitespace-nowrap px-3 md:flex">📅 {dateLabel(w)}</span>
               <Seg onClick={() => setPanel({ id: "finance" })} label={`Finances ${fmtMoney(w.cash)}, ${netMo >= 0 ? "gaining" : "losing"} ${fmtMoney(Math.abs(netMo))} a month`} bad={w.cash < 0}>
                 💰 {fmtMoney(w.cash)}
-                {w.fin?.length > 2 && <span className={`ml-1 text-[11px] ${netMo >= 0 ? "text-[var(--good)]" : "text-[var(--bad)]"}`}>{netMo >= 0 ? "▲" : "▼"}{fmtMoney(Math.abs(netMo))}/mo</span>}
+                {w.fin?.length > 2 && <span className={`ml-1 text-[11px] max-[480px]:hidden ${netMo >= 0 ? "text-[var(--good)]" : "text-[var(--bad)]"}`}>{netMo >= 0 ? "▲" : "▼"}{fmtMoney(Math.abs(netMo))}/mo</span>}
               </Seg>
               <Seg onClick={() => setPanel({ id: "towns" })} label={`Population ${fmtNum(w.stats.pop || 0)}`}>
                 👥 {fmtNum(w.stats.pop || 0)}
@@ -778,6 +779,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             </div>
           </div>
           <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5">
+            <span className="city-sticker whitespace-nowrap rounded-full bg-[var(--card)] px-3 py-1.5 text-[13px] font-bold tabular-nums md:hidden">📅 {dateLabel(w)}</span>
             <button
               onClick={() => setPanel({ id: "election" })}
               className={`city-btn city-sticker whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-bold ${season ? "city-pulse bg-[var(--brand)] text-white" : "bg-[var(--card)]"}`}
@@ -855,6 +857,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
                   </div>
                   <div className="font-bold leading-tight">{goal.text}</div>
                   <div className="city-clamp mt-0.5 text-[13px] leading-snug text-[var(--muted)]">{goal.hint}</div>
+                  {tip && (
+                    <div className="mt-1 rounded-lg px-2 py-1 text-[12.5px] font-semibold leading-snug" style={{ background: "rgba(255,90,95,0.12)", color: "var(--ink)" }}>
+                      {tip.icon} {tip.text}
+                    </div>
+                  )}
                 </div>
                 <button onClick={() => setGoalOpen(false)} aria-label="Hide goal" className="city-btn h-8 w-8 shrink-0 rounded-full bg-[var(--soft)] text-sm font-bold">
                   ✕
@@ -868,7 +875,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           ) : null}
         </div>
         <div className="pointer-events-none ml-auto flex shrink-0 flex-col items-end gap-2">
-          <div className="pointer-events-auto flex items-center gap-1.5">
+          <div className="pointer-events-auto flex items-center gap-1.5 max-[480px]:flex-col">
             <button
               onClick={() => {
                 if (speed === 0) setSpeed(lastSpeed.current || 1);
@@ -996,7 +1003,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
                 key={g.id}
                 onClick={() => (g.id === "look" ? pickTool("look") : setTray(tray === g.id ? null : g.id))}
                 aria-expanded={g.id === "look" ? undefined : tray === g.id}
-                className={`city-btn flex h-12 min-w-[3.5rem] shrink-0 flex-col items-center justify-center rounded-full px-2 leading-none ${active ? "bg-[var(--brand)] text-white" : ""}`}
+                className={`city-btn flex h-12 min-w-[3.5rem] shrink-0 flex-col items-center justify-center rounded-full px-2 leading-none max-[420px]:min-w-[2.9rem] max-[420px]:px-1 ${active ? "bg-[var(--brand)] text-white" : ""}`}
               >
                 <span className="text-xl">{g.id === cur && g.id !== "look" ? ALL_TOOLS[tool].icon : g.icon}</span>
                 <span className="mt-0.5 text-[11px] font-bold">{g.name}</span>
