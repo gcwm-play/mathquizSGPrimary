@@ -6,6 +6,7 @@ import { STRUCTS, PURPOSES, MALL_NAMES, ALL_TOOLS as ALL_TOOLS_REF } from "./def
 import { setPurpose } from "./world.js";
 import { CRISES, getDecision, SPREAD } from "./events.js";
 import { situation, setFantasy } from "./fantasy.js";
+import { PROGRAMMES, programmeBenefits, progState, progCost, progMonthly, progAvailable, stopPenalty, startProgramme, stopProgramme } from "./programmes.js";
 import { objectiveProgress } from "./objectives.js";
 import { STYLES } from "./rivals.js";
 import { METRICS, mayorScore, grade } from "./society.js";
@@ -53,7 +54,7 @@ function Slider({ id, label, value, min, max, step = 1, suffix = "%", onChange, 
 }
 
 // ---------------- finances ----------------
-export function FinancePanel({ world: w, analysis: A, onChange, onClose }) {
+export function FinancePanel({ world: w, analysis: A, onChange, onClose, onProgrammes }) {
   const [scope, setScope] = useState("region");
   const [table, setTable] = useState(false);
   const base = useRef(null);
@@ -245,6 +246,18 @@ export function FinancePanel({ world: w, analysis: A, onChange, onClose }) {
         </div>
       )}
 
+      {ti == null && onProgrammes && (
+        <button onClick={onProgrammes} className="city-btn mt-3 flex w-full items-center gap-3 rounded-2xl border-2 border-[var(--ink)]/10 px-3 py-2 text-left">
+          <span className="text-2xl">🎁</span>
+          <span className="min-w-0 flex-1 leading-tight">
+            <b>Programmes</b>
+            <span className="block text-[13px] text-[var(--muted)]">
+              {progMonthly(w) > 0 ? `${fmtMoney(progMonthly(w))}/month now · ${fmtMoney(PROGRAMMES.reduce((a, P) => a + (w.prog?.[P.id]?.cur || 0), 0))} this year · ${fmtMoney(PROGRAMMES.reduce((a, P) => a + (w.prog?.[P.id]?.total || 0), 0))} in all` : "Perks for families and businesses: baby gifts, vouchers, downturn help…"}
+            </span>
+          </span>
+          <span className="font-bold text-[var(--brand)]">Manage →</span>
+        </button>
+      )}
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
           <h3 className="mb-1 flex items-center gap-1.5 font-bold">
@@ -1158,6 +1171,88 @@ export function ChroniclePanel({ world: w, onClose, onToggle }) {
           {F.on ? "Stop new fantasy stories" : "🐉 Turn on Fantasy Mode"}
         </button>
       )}
+    </Panel>
+  );
+}
+
+// ---------------- programmes ----------------
+export function ProgrammesPanel({ world: w, analysis: A, onClose, onChange, push }) {
+  const [group, setGroup] = useState("families");
+  const income = w.ledger ? Object.values(w.ledger.rev).reduce((a, b) => a + b, 0) : 0;
+  const net = w.ledger ? income - Object.values(w.ledger.exp).reduce((a, b) => a + b, 0) : 0;
+  const monthly = progMonthly(w);
+  const yearSum = PROGRAMMES.reduce((a, P) => a + (w.prog?.[P.id]?.cur || 0), 0);
+  const lastSum = PROGRAMMES.reduce((a, P) => a + (w.prog?.[P.id]?.yr === w.year ? w.prog[P.id].last || 0 : 0), 0);
+  const life = PROGRAMMES.reduce((a, P) => a + (w.prog?.[P.id]?.total || 0), 0);
+  const tabs = [
+    ["families", "👪 Families & residents"],
+    ["business", "🏪 Businesses"],
+  ];
+  return (
+    <Panel title="🎁 Programmes" onClose={onClose} tabs={tabs} tab={group} setTab={setGroup}>
+      <p className="text-[14px] leading-snug text-[var(--muted)]">Ongoing perks you pay for every month. Each starts working over about 6 months and turns out 40–160% as well as a typical scheme. Stopping one people rely on makes them angry, more so the longer it ran.</p>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="Running now" value={`${fmtMoney(monthly)}/mo`} sub={income ? `${Math.round((monthly / income) * 100)}% of income` : ""} tone={net < 0 ? "bad" : null} />
+        <Stat label={`This year (${w.year})`} value={fmtMoney(yearSum)} />
+        <Stat label="Last year" value={fmtMoney(lastSum)} />
+        <Stat label="All years" value={fmtMoney(life)} />
+      </div>
+      {net < 0 && <p className="mt-2 rounded-xl bg-[var(--bad-bg)] px-2.5 py-1.5 text-[13px] font-semibold text-[var(--bad)]">You're spending more than you earn each month. New programmes will dig the hole deeper.</p>}
+      <div className="mt-3 space-y-2">
+        {PROGRAMMES.filter((P) => P.group === group).map((P) => {
+          const st = w.prog?.[P.id];
+          const on = !!st?.on;
+          const av = progAvailable(w, P);
+          const cost = progCost(w, P.id);
+          const pen = on ? stopPenalty(w, P.id) : null;
+          return (
+            <div key={P.id} className={`rounded-2xl border-2 p-2.5 ${on ? "border-[var(--good)]" : "border-[var(--ink)]/10"} ${!av.ok && !on ? "opacity-60" : ""}`}>
+              <div className="flex items-start gap-2">
+                <span className="text-2xl leading-none">{P.icon}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold leading-tight">
+                    {P.name}
+                    {on && <span className="ml-1.5 rounded-full bg-[var(--good)] px-2 py-0.5 text-[11px] text-white">Running · {Math.round((st.k ?? 1) * 100)}% effective</span>}
+                  </div>
+                  <div className="text-[13px] text-[var(--muted)]">{P.desc}</div>
+                </div>
+                <button
+                  disabled={!on && !av.ok}
+                  onClick={() => {
+                    if (on) stopProgramme(w, P.id, push);
+                    else startProgramme(w, P.id, push);
+                    onChange();
+                  }}
+                  className={`city-btn shrink-0 rounded-full px-3 py-1.5 text-sm font-bold text-white disabled:bg-[var(--muted)] ${on ? "bg-[var(--bad)]" : "bg-[var(--brand)]"}`}
+                >
+                  {on ? "Stop" : av.ok ? "Start" : av.why}
+                </button>
+              </div>
+              <div className="mt-1.5 text-[12px] font-bold uppercase tracking-wide text-[var(--good)]">Benefits</div>
+              <div className="mt-0.5 flex flex-wrap gap-1 text-[12px] font-semibold">
+                {programmeBenefits(P).map((e, i) => (
+                  <span key={i} className="rounded-md border px-1.5 py-0.5" style={{ borderColor: e.good ? "rgba(47,191,113,0.5)" : "rgba(255,90,90,0.45)", color: e.good ? "var(--good)" : "var(--bad)" }}>
+                    {e.t}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-1.5 text-[12px] font-bold uppercase tracking-wide text-[var(--bad)]">Costs</div>
+              <div className="text-[13px] leading-snug">
+                <b>{fmtMoney(cost)}/month now</b> <span className="text-[var(--muted)]">({P.costNote}{income ? `; ${Math.round((cost / income) * 100)}% of your income` : ""})</span>
+                <br />
+                <span className="text-[var(--muted)]">
+                  {on ? `If you stop it now: trust −${Math.round(pen.trust)}${pen.anger > 0.05 ? ", and residents in every town get angry" : ""}.` : "Stopping it later costs trust, and anger once people rely on it (up to 2 years)."}
+                </span>
+              </div>
+              {(st?.total || 0) > 0 && (
+                <div className="mt-1 text-[12px] tabular-nums text-[var(--muted)]">
+                  Spent: {fmtMoney(st.cur || 0)} this year · {fmtMoney(st.last || 0)} last year · {fmtMoney(st.total)} in all{on ? ` · running since ${tToDate(w, st.since)}` : ""}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </Panel>
   );
 }

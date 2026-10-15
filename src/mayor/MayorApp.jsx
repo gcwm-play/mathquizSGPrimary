@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MapView, { zoomAt, lookAt } from "./MapView.jsx";
 import { TownsPanel, ElectionPanel, RenewSheet, NewsPanel, GoalsPanel, HelpPanel, MenuPanel, Panel, yearsMonths } from "./panels.jsx";
-import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel, ProjectPanel, ElectionReport, ChroniclePanel } from "./panels2.jsx";
+import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel, ProjectPanel, ElectionReport, ChroniclePanel, ProgrammesPanel } from "./panels2.jsx";
 import { situation, setFantasy } from "./fantasy.js";
 import { decide, CRISES } from "./events.js";
 import { REGIONS, REGION_ORDER } from "./regions.js";
@@ -251,7 +251,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const [tray, setTray] = useState(null);
   const [speed, setSpeed] = useState(1);
   const lastSpeed = useRef(1); // ▶ resumes at the speed you were using
-  const [panel, setPanel] = useState(initial.decision ? { id: "decision" } : initial.t === 0 ? { id: initial.planned ? "help" : "plan" } : null);
+  const [panel, setPanel] = useState(initial.decision ? { id: "decision" } : initial.t === 0 && !initial.planned ? { id: "plan" } : null);
   const [overlay, setOverlay] = useState("none");
   const [inspect, setInspect] = useState(null);
   const [toastMsg, setToastMsg] = useState(null);
@@ -897,7 +897,8 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
             setToastMsg(null);
             setPanel({ id: "news" });
           }}
-          className="city-clamp absolute left-1/2 top-[3.75rem] z-30 w-max max-w-[min(22rem,72vw)] -translate-x-1/2 rounded-full bg-[var(--ink)]/90 px-3 py-1 text-center text-[12.5px] font-semibold leading-snug text-white shadow-lg"
+          className="city-clamp absolute left-1/2 top-[3.75rem] z-30 w-max max-w-[min(22rem,72vw)] -translate-x-1/2 rounded-full px-3 py-1 text-center text-[12.5px] font-semibold leading-snug text-white shadow-lg"
+          style={{ background: "rgba(47,43,74,0.94)" }}
         >
           {toastMsg}
         </button>
@@ -1038,7 +1039,19 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           actions={w.gameOver && panel.index == null ? lostActions() : null}
         />
       )}
-      {panel?.id === "finance" && <FinancePanel world={w} analysis={A} onChange={afterChange} onClose={() => setPanel(null)} />}
+      {panel?.id === "finance" && <FinancePanel world={w} analysis={A} onChange={afterChange} onClose={() => setPanel(null)} onProgrammes={() => setPanel({ id: "programmes" })} />}
+      {panel?.id === "programmes" && (
+        <ProgrammesPanel
+          world={w}
+          analysis={A}
+          onChange={afterChange}
+          onClose={() => setPanel(null)}
+          push={(t) => {
+            w.news.unshift({ t: w.t, date: dateLabel(w), text: t });
+            toast(t);
+          }}
+        />
+      )}
       {panel?.id === "project" && (
         <ProjectPanel
           world={w}
@@ -1109,6 +1122,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       {panel?.id === "report" && <ReportPanel world={w} index={panel.index} onClose={() => setPanel(null)} />}
       {panel?.id === "news" && (
         <NewsPanel
+          onHelp={() => setPanel({ id: "help" })}
           world={w}
           onClose={() => {
             w.newsSeen = w.t + 1;
@@ -1122,8 +1136,10 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           toast={toast}
           onDone={() => {
             w.planned = true;
+            w.news.unshift({ t: w.t, date: dateLabel(w), text: "👋 Welcome, Mayor! New here? Open 📰 News any time and tap 📖 How to play." });
             afterChange();
-            setPanel({ id: "help" });
+            setPanel(null);
+            toast("👋 New here? 📰 News → 📖 How to play");
           }}
           onChange={afterChange}
         />
@@ -1207,6 +1223,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           onFinance={() => setPanel({ id: "finance" })}
           onRivals={() => setPanel({ id: "rivals" })}
           onFantasy={w.year >= 2027 ? () => setPanel({ id: "chronicle" }) : null}
+          onProgrammes={() => setPanel({ id: "programmes" })}
           onHelp={() => setPanel({ id: "help" })}
           onQuit={() => {
             save();
