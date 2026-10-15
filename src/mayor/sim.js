@@ -8,6 +8,7 @@ import { residents, housingByTown, displace } from "./housing.js";
 import { townTfr, townLife, baseTfr, lifeIndex, tfrIndex, financeIndex } from "./society.js";
 import { stepEvents, EFFECT_ADD, autoDecide, rollOutcome, rollIn, fmtRange } from "./events.js";
 import { stepObjectives } from "./objectives.js";
+import { stepProgrammes, progMonthly } from "./programmes.js";
 import { initRivals, stepRivals, decadeReport, finalReport } from "./rivals.js";
 
 export const MODES = {
@@ -385,7 +386,8 @@ export function monthlyBudget(w, A, ov = null) {
   const fundK = ov?.funding != null ? ov.funding / Math.max(1, w.funding) : 1;
   const z = () => w.towns.map(() => 0);
   const T = { property: z(), business: z(), scc: z(), grant: z(), tourism: z(), sentosa: z(), trade: z(), schemes: z(), landSales: z(), hdbSales: z() };
-  const X = { services: z(), maintenance: z(), sentosa: z(), hdbBuild: z(), policies: z(), interest: z(), construction: z() };
+  const X = { services: z(), maintenance: z(), sentosa: z(), hdbBuild: z(), policies: z(), programmes: z(), interest: z(), construction: z() };
+  const progM = progMonthly(w);
   const sl = w.sentosa?.last;
   const resortTown = w.towns.findIndex((t) => t.purpose === "resort");
   if (sl && resortTown >= 0) {
@@ -451,6 +453,7 @@ export function monthlyBudget(w, A, ov = null) {
     X.maintenance[i] = hdbCap[i] * 0.005 * maint * upk;
     X.hdbBuild[i] = pend?.[i]?.hdbBuild || 0;
     X.policies[i] = policy * share(i);
+    X.programmes[i] = progM * share(i);
     X.interest[i] = w.cash < 0 && !w.sandbox ? -w.cash * 0.006 * share(i) : 0;
     T.schemes[i] = scheme * share(i);
     X.construction[i] = w.spend?.towns?.[i] || 0;
@@ -546,6 +549,7 @@ export const EXP_LABELS = {
   sentosa: "🏝️ Sentosa upkeep & marketing",
   hdbBuild: "🏗️ HDB construction",
   policies: "📋 Ongoing schemes",
+  programmes: "🎁 Programmes",
   interest: "🏦 Interest on debt",
   construction: "🚧 Projects & compensation",
 };
@@ -1376,6 +1380,7 @@ export function stepMonth(w, rng = Math.random) {
   w.rep = clamp(w.rep + (repTarget - w.rep) * 0.02, 0, 100);
 
   // pledges, crises, dilemmas, objectives
+  stepProgrammes(w, push);
   checkPledges(w);
   stepEvents(w, A, rng, push);
   stepObjectives(w, A, push);

@@ -3,6 +3,7 @@ import { Panel } from "../city/panels.jsx";
 import { NEEDS, TERM_YEARS, diffOf } from "./defs.js";
 import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS, modeOf, pledgeProgress, pledgeCred } from "./sim.js";
 import { housingByTown } from "./housing.js";
+import { METRICS } from "./society.js";
 import { ImpactBox, ObjectiveRow, PurposePicker } from "./panels2.jsx";
 import { setPurpose, purposeCost } from "./world.js";
 
@@ -502,9 +503,18 @@ export function RenewSheet({ target, options, world: w, onPick, onClose }) {
   );
 }
 
-export function NewsPanel({ world, onClose }) {
+export function NewsPanel({ world, onClose, onHelp }) {
   return (
     <Panel title="📰 Town news" onClose={onClose}>
+      {onHelp && (
+        <button onClick={onHelp} className="city-btn mb-3 flex w-full items-center gap-3 rounded-2xl bg-[var(--soft)] px-3 py-2.5 text-left">
+          <span className="text-2xl">📖</span>
+          <span className="leading-tight">
+            <b>How to play</b>
+            <span className="block text-[13px] text-[var(--muted)]">What makes a successful region, and how to get started</span>
+          </span>
+        </button>
+      )}
       {world.news.length === 0 && <p className="text-[var(--muted)]">No news yet.</p>}
       <ul className="space-y-2">
         {world.news.map((n, i) => (
@@ -575,21 +585,75 @@ export function HelpPanel({ onClose }) {
     ["📐 Town purposes", "In 🏘️ Towns, plan each town as residential, commercial, industrial, heritage or mixed. It decides what grows there and what residents expect (no one asks for a wet market in a CBD)."],
     ["🏝️ Sentosa (South)", "The island is run for visitors: build links (cable car, bridge, monorail) and attractions, set the entry fee and marketing, and watch crowding."],
     ["🐉 Fantasy Mode", "From 2027 you can let real history go: zombies, meteors, aliens, new islands and stranger things, at random times and sizes. Some are one card, others are stories that branch over years, with 🎲 odds. What happened before decides what can happen next, and the map can change for good. Turn it on or off in ☰ Menu."],
+    ["🎁 Programmes", "☰ Menu → Programmes (or 💰 Finances): baby gifts, childcare, vouchers, help for seniors and businesses. Each costs money every month and shows its benefits as a range. You can't start new ones while in debt, and stopping one people rely on makes them angry."],
     ["📊 Mayors' league", "AI mayors run the other regions. Every 10 years you get a report card comparing happiness, housing, health, births, money and reputation."],
   ];
+  const [all, setAll] = useState(false);
+  const drivers = {
+    happy: "Services near homes (food, schools, clinics, police), jobs, low cost of living, no long housing queue",
+    housing: "Enough homes for everyone waiting, newer flat types, renewing old blocks, good estate maintenance",
+    health: "Clinics and hospitals in reach, clean air (keep factories away from homes), greenery",
+    fert: "Good homes, a short queue, schools and community centres nearby, family programmes",
+    finance: "Months of savings in the treasury; avoid running in the red or borrowing",
+    rep: "Being first in Singapore with a landmark, handling crises well, keeping promises, tourism",
+  };
+  const start = [
+    ["🛣️", "Build a road", "Lots appear along both sides."],
+    ["🏢", "Zone HDB flats", "Paint over lots; flats go up when the H bar shows demand."],
+    ["🐟", "Add services near homes", "A market, a school and a clinic first. The blue circle shows who they reach."],
+    ["🏬", "Zone shops and factories", "People need jobs. Keep factories away from homes."],
+    ["🏘️", "Check your towns", "See what residents want and plan each town's purpose."],
+    ["🗳️", "Win the election", "Every 6 years. Pledge to fix what towns lack, then keep your word."],
+  ];
   return (
-    <Panel title="❓ How to be mayor" onClose={onClose}>
-      <p className="mb-3 text-[15px] leading-snug">
-        It's 1965 and you're the mayor of one region of a brand-new nation. Families are crowded into kampongs and waiting for homes. Plan roads, estates and services, renew old buildings as the decades pass, and keep your towns happy enough to win every election.
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {tips.map(([t, d]) => (
-          <div key={t} className="rounded-2xl border-2 border-[var(--ink)]/10 p-2.5">
-            <div className="font-bold">{t}</div>
-            <div className="text-[14px] text-[var(--muted)]">{d}</div>
+    <Panel title="📖 How to play" onClose={onClose}>
+      <p className="text-[15px] leading-snug">It's 1965 and you're the mayor of one region of a brand-new nation. Families are crowded into kampongs and waiting for homes. Build them a city, and keep them happy enough to re-elect you.</p>
+
+      <h3 className="mb-1 mt-3 font-bold">🏆 What makes a successful region</h3>
+      <ul className="space-y-1 text-[14px] leading-snug">
+        <li>🗳️ <b>Win every election</b>: more than half of all votes. Big towns count for more than small ones.</li>
+        <li>📊 <b>Score well in the decade reports</b>: every 10 years you're compared with the other regions' mayors on these:</li>
+      </ul>
+      <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+        {METRICS.map((m) => (
+          <div key={m.k} className="rounded-xl bg-[var(--soft)] px-2.5 py-1.5 text-[13px] leading-snug">
+            <div className="flex justify-between font-bold">
+              <span>
+                {m.icon} {m.name}
+              </span>
+              <span className="text-[var(--muted)]">{Math.round(m.w * 100)}% of score</span>
+            </div>
+            <div className="text-[var(--muted)]">{drivers[m.k]}</div>
           </div>
         ))}
       </div>
+
+      <h3 className="mb-1 mt-3 font-bold">🚀 Getting started</h3>
+      <ol className="space-y-1 text-[14px]">
+        {start.map(([i, t, d], k) => (
+          <li key={t} className="flex gap-2">
+            <span className="w-5 shrink-0 font-bold text-[var(--muted)]">{k + 1}.</span>
+            <span>
+              {i} <b>{t}</b>: {d}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 text-[13px] text-[var(--muted)]">🎯 The goal card on the left always suggests a next step. Tap any building for details, and 🗺️ map layers show coverage.</p>
+
+      <button onClick={() => setAll(!all)} aria-expanded={all} className="city-btn mt-3 w-full rounded-2xl bg-[var(--soft)] py-2 font-bold">
+        {all ? "Hide the details ▲" : "All the details ▼"}
+      </button>
+      {all && (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {tips.map(([t, d]) => (
+            <div key={t} className="rounded-2xl border-2 border-[var(--ink)]/10 p-2.5">
+              <div className="font-bold">{t}</div>
+              <div className="text-[14px] text-[var(--muted)]">{d}</div>
+            </div>
+          ))}
+        </div>
+      )}
       <p className="mt-3 text-[13px] text-[var(--muted)]">A game, not a real planning model. Singapore doesn't elect mayors this way; the regions, history and agencies are real, but the numbers are simplified for fun.</p>
     </Panel>
   );
@@ -607,7 +671,7 @@ function Toggle({ id, label, hint, checked, onChange }) {
   );
 }
 
-export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHelp, onGoals, onQuit, saved, onFinance, onRivals, onFantasy }) {
+export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHelp, onGoals, onQuit, saved, onFinance, onRivals, onFantasy, onProgrammes }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
   return (
     <Panel title="☰ Menu" onClose={onClose}>
@@ -616,6 +680,7 @@ export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHel
           ["💾", saved ? "Saved!" : "Save now", onSave],
           ["🎯", "Goals", onGoals],
           ["💰", "Finances", onFinance],
+          ["🎁", "Programmes", onProgrammes],
           ["📊", "Mayors' league", onRivals],
           ["❓", "How to play", onHelp],
           ["🏠", "Switch region / title", onQuit],
