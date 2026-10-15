@@ -170,7 +170,7 @@ export const TOOL_GROUPS = [
     icon: "🏗️",
     name: "Renew",
     tools: [
-      { id: "renew", icon: "🏗️", name: "Renew", mode: "pick", tip: "Tap an old block or kampong to upgrade, rebuild or resettle." },
+      { id: "renew", icon: "🏗️", name: "Renew", mode: "pick", tip: "Tap an old block or kampong to upgrade, rebuild or resettle, or an old service to refurbish it." },
       { id: "reclaim", icon: "🏝️", name: "Reclaim land", mode: "brush", cost: 120, select: true, tip: "Turn sea next to land into land." },
       { id: "trees", icon: "🌴", name: "Plant trees", mode: "brush", cost: 4, tip: "Greenery that cleans the air." },
       { id: "bulldoze", icon: "🚜", name: "Bulldoze", mode: "brush", select: true, tip: "Clear buildings, services and trees." },

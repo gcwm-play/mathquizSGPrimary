@@ -11,7 +11,7 @@ import {
   newWorld, planRoad, commitRoad, snapPoint, planStruct, commitStruct, removeRoad, nearestSeg, segPts, paintZone, plantTrees,
   bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, savedCampaigns, deleteCampaign, clearPreview,
 } from "./world.js";
-import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis, toolInfo, estimateStruct } from "./sim.js";
+import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis, toolInfo, estimateStruct, refurbish } from "./sim.js";
 import { OVERLAYS, ZONE_TINT } from "./render.js";
 import { inQuad, dist } from "./geom.js";
 
@@ -479,7 +479,10 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         if (hit && (hit.kind === "kampong" || (hit.kind === "lot" && hit.l.b))) {
           const info = describe(world, analysisRef.current, hit);
           setPanel({ id: "renew", hit, info });
-        } else toast("Tap an existing block, shophouse or kampong.");
+        } else if (hit?.kind === "struct") {
+          const info = describe(world, analysisRef.current, hit);
+          setInspect(info ? { ...info, hit } : null);
+        } else toast("Tap an existing block, shophouse, kampong or service.");
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -821,6 +824,22 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
                   <li key={i}>{l}</li>
                 ))}
               </ul>
+              {inspect.refurb && (
+                <button
+                  onClick={() => {
+                    const s0 = inspect.hit?.s;
+                    if (!s0) return;
+                    if (w.cash < 0 && !w.sandbox) return toast("🚫 You're in debt: refurbishing is frozen until your balance is positive again.");
+                    const c = refurbish(w, s0);
+                    toast(`🔧 Refurbished for ${fmtMoney(c)}: working at full strength again`);
+                    setInspect(null);
+                    afterChange();
+                  }}
+                  className="city-btn mt-2 rounded-full bg-[var(--brand)] px-3 py-1.5 text-[13px] font-bold text-white"
+                >
+                  🔧 Refurbish · {fmtMoney(inspect.refurb.cost)}
+                </button>
+              )}
               {inspect.renew && (
                 <button onClick={() => setPanel({ id: "renew", hit: inspect.hit, info: inspect })} className="city-btn mt-2 rounded-full bg-[var(--brand)] px-3 py-1.5 text-[13px] font-bold text-white">
                   🏗️ Renew options

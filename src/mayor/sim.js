@@ -2,7 +2,7 @@
 // happiness and feedback, money, elections and pledges.
 import { PURPOSES, purposeOf, MINOR, LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
 import { REGIONS } from "./regions.js";
-import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteImpactSim, fixOverlaps } from "./world.js";
+import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteImpactSim, fixOverlaps, charge } from "./world.js";
 import { dist, clamp, polyLength, nearestOnPoly, makeRng } from "./geom.js";
 import { residents, housingByTown, displace } from "./housing.js";
 import { townTfr, townLife, baseTfr, lifeIndex, tfrIndex, financeIndex } from "./society.js";
@@ -26,6 +26,12 @@ export function ensureWorld(w) {
   if ((w.fixV || 0) < 1) {
     w.fixV = 1;
     fixOverlaps(w);
+  }
+  // v6: services now wear out. Existing ones count as at most 20 years old,
+  // so older saves don't see every service decay at once.
+  if ((w.fixV || 0) < 2) {
+    w.fixV = 2;
+    for (const st of w.structs || []) if (st.built != null && w.t - st.built > 240) st.refurb = w.t - 240;
   }
   if (w.v3) {
     for (const sg of w.segs) if (sg.type === "avenue") sg.type = "road";
@@ -153,8 +159,8 @@ export function analyze(w) {
       if (!nearRail) continue;
       stations.push(s);
     }
-    // each building turns out a little better or worse than average
-    const eff = s.eff ?? 1;
+    // each building turns out a little better or worse than average, and wears with age
+    const eff = (s.eff ?? 1) * serviceCondition(w, s);
     // a wet market in the CBD is a novelty, not where office workers eat
     const cbdMarket = s.type === "market" && w.towns[townOf(w, s.x, s.y)]?.purpose === "commercial" ? 0.4 : 1;
     if (S.cover) services.push({ x: s.x, y: s.y, cover: S.cover, r: S.r, f: fund * eff * cbdMarket, type: s.type });
@@ -264,6 +270,7 @@ export function analyze(w) {
   // towns: residents' needs
   const T = w.towns.map(() => ({ pop: 0, kpop: 0, jobs: 0, sum: Object.fromEntries(Object.keys(NEEDS).map((k) => [k, 0])), lots: 0, old: 0, cap: 0, vacant: 0, hdbCap: 0, hdbOcc: 0, sch: [0, 0, 0] }));
   const healthHit = effect(w, "health");
+  const ageD = ageingNeed(w.year);
   let pop = 0;
   let comJobs = 0;
   let indJobs = 0;
@@ -283,11 +290,11 @@ export function analyze(w) {
     t.sch[0] += n * s1 * 100;
     t.sch[1] += n * s2 * 100;
     t.sch[2] += n * s3 * 100;
-    t.sum.health += n * Math.min(1, c.health * 1.2 + 0.08) * 100 * (c.health > 0 ? 1 - (1 - healthHit) * 0.4 : healthHit);
+    t.sum.health += n * Math.min(1, (c.health * 1.2) / ageD + 0.08) * 100 * (c.health > 0 ? 1 - (1 - healthHit) * 0.4 : healthHit);
     t.sum.safety += n * Math.min(1, (c.safety * 0.7 + c.fire * 0.3) * 1.25) * 100;
     t.sum.transport += n * Math.min(1, transport) * 100;
     t.sum.green += n * Math.min(1, c.green * 1.3 + 0.15) * 100;
-    t.sum.community += n * Math.min(1, c.community * 1.2 + 0.1) * 100;
+    t.sum.community += n * Math.min(1, (c.community * 1.2) / ageD + 0.1) * 100;
     t.sum.environment += n * clamp(100 - p * 1.6, 0, 100);
   };
   for (const l of lotsLive) {
@@ -913,6 +920,28 @@ export function sentosaState(w, A) {
 }
 
 // How far into the red the region may go before the government steps in.
+// ---------- ageing ----------
+// Services wear out: after 25 years they slowly lose effectiveness (down to
+// 60% at 45 years) until refurbished.
+export const SERVICE_LIFE = 25;
+export const serviceAge = (w, s) => Math.max(0, (w.t - (s.refurb ?? s.built ?? w.t)) / 12);
+export function serviceCondition(w, s) {
+  const S = STRUCTS[s.type];
+  if (!S?.cover || S.landmark || S.fixed || s.state === "build") return 1;
+  return clamp(1 - (serviceAge(w, s) - SERVICE_LIFE) * 0.02, 0.6, 1);
+}
+export const refurbCost = (s) => Math.round((STRUCTS[s.type].cost || 0) * 0.35);
+export function refurbish(w, s) {
+  const cost = refurbCost(s);
+  s.refurb = w.t;
+  charge(w, cost, s.x, s.y);
+  w.rev = (w.rev || 0) + 1;
+  return cost;
+}
+// An ageing population needs more healthcare and community care: from 1990
+// the same clinics and centres stretch further (60% more need by 2030).
+export const ageingNeed = (year) => 1 + 0.6 * clamp((year - 1990) / 40, 0, 1);
+
 // ---------- what a building or zone will do ----------
 export const EFF_LO = 0.75;
 export const EFF_HI = 1.25;
@@ -1419,6 +1448,9 @@ export function stepMonth(w, rng = Math.random) {
 
 // once a year: record how you're doing, move the AI mayors, decade reports
 function yearEnd(w, A, rng, finIdx) {
+  const worn = w.structs.filter((s) => serviceCondition(w, s) < 0.9).length;
+  if (worn && w.year % 3 === 0) pushNews(w, `🕰️ ${worn} service${worn > 1 ? "s are" : " is"} wearing out and reaching fewer people. Tap one to refurbish it.`);
+  if (w.year === 1990) pushNews(w, "🧓 Singapore is ageing. From now on residents need more healthcare and community care, so the same clinics and centres stretch further.");
   let hs = 0;
   let n = 0;
   for (const t of A.towns) {
@@ -1571,11 +1603,17 @@ export function describe(w, A, hit) {
     if (s.copy) lines.push(`🪞 A copy of ${s.copy.region}'s (${s.copy.year}): fewer tourists come`);
     if (s.name) lines.push(`Based on: ${S.name}`);
     if (s.eff && s.state !== "build") lines.push(`⚙️ Turned out ${Math.round(s.eff * 100)}% as effective as a typical one`);
+    const cond = serviceCondition(w, s);
+    const canRefurb = S.cover && !S.landmark && !S.fixed && s.state !== "build";
+    if (canRefurb) {
+      const age = Math.floor(serviceAge(w, s));
+      lines.push(cond < 1 ? `🕰️ ${age} years old: working at ${Math.round(cond * 100)}%. Refurbish to restore it.` : `🕰️ ${age} years old${age >= SERVICE_LIFE - 5 ? `: starts wearing out at ${SERVICE_LIFE}` : ""}`);
+    }
     if (S.cover) lines.push(`Serves homes within ${S.r * 50} m`);
     if (s.type === "mrt" && A && !A.stations.includes(s)) lines.push("⚠️ Not beside an MRT track");
     else if (s.type === "mrt" && A && !A.mrtRunning) lines.push("⚠️ Needs a second station on the line");
     if (S.upkeep) lines.push(`Upkeep ${fmtMoney(S.upkeep)}/month`);
-    return { title: s.name || S.name, icon: S.icon, lines };
+    return { title: s.name || S.name, icon: S.icon, lines, refurb: canRefurb && serviceAge(w, s) >= SERVICE_LIFE - 5 ? { cost: refurbCost(s), cond } : null };
   }
   if (hit.kind === "road") return { title: ROAD_TYPES[hit.s.type].name, icon: "🛣️", lines: ["Lots line both sides of roads. Zone them to build."] };
   return null;
