@@ -949,7 +949,7 @@ export function toolInfo(w, T) {
     if (S.sentosaLink) items.push({ t: "🚡 Easier to reach Sentosa", good: true });
     if (S.prestige) items.push({ t: `⭐ Reputation ${fmtRange(S.prestige)}`, good: true });
     if (S.poll) items.push({ t: `🏭 Pollution: clean air −${span2(S.poll * 0.6 * 1.6 * 0.5, S.poll * 0.6 * 1.6)} next door`, good: false });
-    if (S.pricey) items.push({ t: "🧾 Cost of living −2 to −10 in its town for 10 years", good: false });
+    if (S.pricey) items.push({ t: "🧾 Cost of living −4 to −8 in its town for 10 years", good: false });
     if (S.upkeep) items.push({ t: `🔧 Upkeep ${fmtMoney(S.upkeep)}/month`, good: false });
     if (S.build) items.push({ t: `🏗️ Takes ${S.build} months to build`, good: false });
     return { tip: S.tip || S.kind || "", items, note: "Each building turns out 75–125% as effective. Pick a spot to see what it does for that town." };
@@ -1095,8 +1095,8 @@ export function stepMonth(w, rng = Math.random) {
       note = " The first of its kind in Singapore: your reputation soars!";
       w.log.push({ year: w.year, text: `opened ${name}, a first for Singapore`, tone: "good" });
     }
-    if (S.prestige) w.rep = clamp((w.rep ?? 50) + S.prestige, 0, 100);
-    if (S.pricey) w.boosts.push({ town: ti, need: "cost", v: -rollIn(6, rng), until: w.t + 120 });
+    if (S.prestige) w.rep = clamp((w.rep ?? 50) + rollIn(S.prestige, rng), 0, 100);
+    if (S.pricey) w.boosts.push({ town: ti, need: "cost", v: -rollIn(6, rng), until: w.t + 120 }); // 4–8
     push(`🎉 ${name} opens in ${w.towns[ti].name}!${note}`);
     noteImpactSim(w, `${name} opened`, ti, S.cover === "food" ? "food" : S.cover === "green" ? "green" : S.cover === "community" ? "community" : null);
     w.rev = (w.rev || 0) + 1;
@@ -1266,7 +1266,7 @@ export function stepMonth(w, rng = Math.random) {
       } else {
         // how bad (or good) it is varies each time
         if (ev.months) w.effects.push({ id: ev.id, until: w.t + ev.months, effect: rollOutcome({ effect: ev.effect || {} }, rng).effect });
-        if (ev.cost) w.cash -= Math.round(rollIn(ev.cost, rng));
+        if (ev.cost) w.cash -= Math.round(rollIn(ev.cost, rng, 1e9));
         pushNews(w, ev.text);
       }
       break;

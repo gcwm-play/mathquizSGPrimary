@@ -4,7 +4,7 @@
 // it's started. Stopping one that people have come to rely on makes them angry.
 import { STRUCTS, LOT_TYPES } from "./defs.js";
 import { clamp } from "./geom.js";
-import { rollIn, fmtRange, SPREAD } from "./events.js";
+import { fmtRange } from "./events.js";
 
 const MULT = ["business", "tourism", "trade", "land", "jobs", "health", "upkeep", "growth"];
 const popOf = (w) => w.stats?.pop || 0;
@@ -235,17 +235,17 @@ const EFF_NAME = { business: "🏢 Business tax", tourism: "📸 Tourism", jobs:
 // benefit chips with ranges, for the panel
 export function programmeBenefits(P) {
   const out = [];
-  for (const [k, v] of Object.entries(P.needs || {})) out.push({ t: `${NEED_NAME[k]} ${fmtRange(v)} in every town`, good: true });
+  for (const [k, v] of Object.entries(P.needs || {})) out.push({ t: `${NEED_NAME[k]} ${fmtRange(v, { spread: 0.3 })} in every town`, good: true });
   for (const [k, v] of Object.entries(P.effect || {})) {
-    if (k === "fert") out.push({ t: `👶 Births ${fmtRange(v * 100, { unit: "%" })}`, good: true });
-    else if (k === "life") out.push({ t: `🩺 Life expectancy ${fmtRange(-v, { unit: " yrs", dp: 1 })}`, good: true });
-    else if (k === "mood") out.push({ t: `😊 Happiness ${fmtRange(v, { unit: "%" })}`, good: true });
+    if (k === "fert") out.push({ t: `👶 Births ${fmtRange(v * 100, { unit: "%", spread: 0.3 })}`, good: true });
+    else if (k === "life") out.push({ t: `🩺 Life expectancy ${fmtRange(-v, { unit: " yrs", dp: 1, spread: 0.3 })}`, good: true });
+    else if (k === "mood") out.push({ t: `😊 Happiness ${fmtRange(v, { unit: "%", spread: 0.3 })}`, good: true });
     else if (MULT.includes(k)) {
       const pct = (v - 1) * 100;
-      out.push({ t: `${EFF_NAME[k]} ${fmtRange(pct, { unit: "%" })}`, good: k === "upkeep" ? pct < 0 : pct > 0 });
-    } else if (EFF_NAME[k]) out.push({ t: `${EFF_NAME[k]} ${fmtRange(v * 100, { unit: "%" })}`, good: k === "indDemand" ? true : v > 0 });
+      out.push({ t: `${EFF_NAME[k]} ${fmtRange(pct, { unit: "%", spread: 0.3 })}`, good: k === "upkeep" ? pct < 0 : pct > 0 });
+    } else if (EFF_NAME[k]) out.push({ t: `${EFF_NAME[k]} ${fmtRange(v * 100, { unit: "%", spread: 0.3 })}`, good: k === "indDemand" ? true : v > 0 });
   }
-  for (const [k, v] of Object.entries(P.perYear || {})) out.push({ t: `${k === "trust" ? "🤝 Trust" : "⭐ Reputation"} ${fmtRange(v)} a year`, good: true });
+  for (const [k, v] of Object.entries(P.perYear || {})) out.push({ t: `${k === "trust" ? "🤝 Trust" : "⭐ Reputation"} ${fmtRange(v, { spread: 0.3 })} a year`, good: true });
   if (P.downturnBonus) out.push({ t: "💼 Extra jobs help in a downturn", good: true });
   if (P.crisisRelief) out.push({ t: "⚠️ Softens the current crisis", good: true });
   return out;
@@ -280,7 +280,7 @@ export function startProgramme(w, id, push, rng = Math.random) {
   if (st.on || !progAvailable(w, P).ok) return false;
   st.on = true;
   st.since = w.t;
-  st.k = Math.round(rollIn(1, rng) * 100) / 100; // how well it turns out this time
+  st.k = Math.round((0.7 + rng() * 0.6) * 100) / 100; // how well it turns out this time: 70–130%
   st.runs++;
   push(`${P.icon} You started ${P.name.toLowerCase()}: it's working ${Math.round(st.k * 100)}% as well as a typical scheme.`);
   return true;
@@ -337,4 +337,3 @@ export function stepProgrammes(w, push) {
   }
 }
 
-export const PROG_SPREAD = SPREAD;

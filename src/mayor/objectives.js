@@ -2,7 +2,7 @@
 // generated from whatever the region needs most right now.
 import { NEEDS, LOT_TYPES } from "./defs.js";
 import { clamp } from "./geom.js";
-import { scaleOf, rollIn, SPREAD } from "./events.js";
+import { scaleOf, rollIn } from "./events.js";
 import { townOf } from "./world.js";
 
 const fmt = (n) => Math.round(n).toLocaleString("en-SG");
@@ -208,7 +208,7 @@ export function stepObjectives(w, A, push) {
       o.status = "done";
       const R0 = o.reward || REWARD(w, o);
       // the bonus varies: the panel shows the range
-      const R = { cash: Math.round(rollIn(R0.cash)), trust: rollIn(R0.trust), rep: rollIn(R0.rep) };
+      const R = { cash: Math.round(rollIn(R0.cash, Math.random, 1e9)), trust: rollIn(R0.trust), rep: rollIn(R0.rep) };
       w.cash += R.cash;
       w.trust = clamp(w.trust + R.trust, 0, 100);
       w.rep = clamp((w.rep ?? 50) + R.rep, 0, 100);

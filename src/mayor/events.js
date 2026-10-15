@@ -570,18 +570,30 @@ export const fill = (text, w, town) => (text || "").replace(/\{town\}/g, town !=
 // ---------------- ranges ----------------
 // Effects are shown as a range (a 5% effect reads 2–8%) and the real value is
 // rolled when the choice is made, so no two playthroughs go quite the same.
-export const SPREAD = 0.6;
-export const rollIn = (v, rng = Math.random) => v * (1 - SPREAD + rng() * 2 * SPREAD);
-const rollDev = (v, rng) => 1 + rollIn(v - 1, rng);
+// Small numbers swing more (a 2-point effect reads 1–3) than big ones
+// (a 20-point effect reads 14–26). Money always varies by ±30%.
+export const spreadOf = (mag) => {
+  const m = Math.abs(mag);
+  return m <= 3 ? 0.5 : m >= 10 ? 0.3 : 0.5 - ((m - 3) / 7) * 0.2;
+};
+export const MONEY_SPREAD = 0.3;
+const MONEY = 1e9; // "magnitude" that always picks the money spread
+export const rollIn = (v, rng = Math.random, mag = v) => {
+  const sp = spreadOf(mag);
+  return v * (1 - sp + rng() * 2 * sp);
+};
+// multipliers like 0.9 vary by the size of the change in %, not of the 0.9
+const rollDev = (v, rng) => 1 + rollIn(v - 1, rng, (v - 1) * 100);
 const ROLL_KEYS = ["trust", "rep", "fert", "health", "waitlist", "gain", "anger", "angerAll", "kill"];
 export function rollOutcome(o, rng = Math.random) {
   if (!o || o.rolled) return o;
   const out = { ...o, rolled: true };
-  for (const k of ROLL_KEYS) if (typeof o[k] === "number" && o[k]) out[k] = rollIn(o[k], rng);
+  const magOf = { fert: 100, kill: 100, gain: MONEY, waitlist: MONEY };
+  for (const k of ROLL_KEYS) if (typeof o[k] === "number" && o[k]) out[k] = rollIn(o[k], rng, magOf[k] === MONEY ? MONEY : o[k] * (magOf[k] || 1));
   if (o.mood) out.mood = [rollIn(o.mood[0], rng), o.mood[1]];
   if (o.effect) {
     out.effect = {};
-    for (const [k, v] of Object.entries(o.effect)) out.effect[k] = k === "months" ? v : MULT.includes(k) ? rollDev(v, rng) : rollIn(v, rng);
+    for (const [k, v] of Object.entries(o.effect)) out.effect[k] = k === "months" ? v : MULT.includes(k) ? rollDev(v, rng) : rollIn(v, rng, k.endsWith("Demand") ? v * 100 : v);
   }
   if (o.needs) {
     out.needs = {};
@@ -591,7 +603,8 @@ export function rollOutcome(o, rng = Math.random) {
   return out;
 }
 // "+2–8%" for a range around v, or "+5%" once rolled
-export function fmtRange(v, { exact = false, unit = "", dp = 0 } = {}) {
+export function fmtRange(v, { exact = false, unit = "", dp = 0, spread = null } = {}) {
+  const SPREAD = spread ?? spreadOf(v);
   const r = (x) => (dp ? Math.round(x * 10 ** dp) / 10 ** dp : Math.round(x));
   const sg = v > 0 ? "+" : "−";
   const a = Math.abs(v);
