@@ -554,7 +554,7 @@ export const EXP_LABELS = {
 const hasNewStruct = (w, p, types, town) => w.structs.some((s) => s.state !== "build" && types.includes(s.type) && s.built >= p.made && (town == null || townOf(w, s.x, s.y) === town));
 export const PLEDGE_KINDS = {
   clinic: { icon: "🩺", text: (t) => `A polyclinic for ${t}`, need: "health", boost: 6, years: 4, check: (w, p) => hasNewStruct(w, p, ["clinic", "hospital"], p.town) },
-  food: { icon: "🍜", text: (t) => `A hawker centre or market for ${t}`, need: "food", boost: 5, years: 3, check: (w, p) => hasNewStruct(w, p, ["hawker", "market", "causewayPoint"], p.town) },
+  food: { icon: "🍜", text: (t, n, o, w) => (w && w.year < STRUCTS.hawker.year ? `A wet market for ${t}` : `A hawker centre or market for ${t}`), need: "food", boost: 5, years: 3, check: (w, p) => hasNewStruct(w, p, ["hawker", "market", "causewayPoint"], p.town) },
   school: { icon: "🏫", text: (t) => `A new school in ${t}`, need: "school", boost: 5, years: 4, check: (w, p) => hasNewStruct(w, p, ["school", "secondary", "tertiary", "scienceCentre"], p.town) },
   cc: { icon: "🏓", text: (t) => `A community centre for ${t}`, need: "community", boost: 4, years: 3, check: (w, p) => hasNewStruct(w, p, ["cc", "sports", "tampinesHub", "esplanade"], p.town) },
   transport: { icon: "🚌", text: (t) => `Better transport for ${t}`, need: "transport", boost: 6, years: 4, check: (w, p) => hasNewStruct(w, p, w.year >= 1987 ? ["mrt", "bus"] : ["bus"], p.town) },
@@ -618,6 +618,8 @@ export function pledgeOffers(w, A) {
     const mine = [];
     for (const n of needs) {
       if (mine.length >= 2) break;
+      // nothing can fix transport before buses arrive in 1970
+      if (n.k === "transport" && w.year < STRUCTS.bus.year) continue;
       let kind = actionFor(w, i, n.k);
       if (kind && PLEDGE_KINDS[kind].minYear && w.year < PLEDGE_KINDS[kind].minYear) kind = null;
       if (!kind) kind = "raise";
@@ -650,7 +652,7 @@ function describePledge(w, A, o) {
     gap: o.gap,
     support: o.support,
     icon: o.kind === "raise" ? NEEDS[o.need]?.icon || K.icon : K.icon,
-    text: K.text(tname, n, o),
+    text: K.text(tname, n, o, w),
     boost,
     boostText: fmtRange(boost * pledgeCred(w), { unit: "%" }),
     penText: `trust ${fmtRange(-pen.trust)}/100${o.town != null ? `, anger in ${tname}` : ", anger everywhere"}`,
@@ -1125,8 +1127,12 @@ export function stepMonth(w, rng = Math.random) {
     if (T.cap) pipe.res += T.cap;
     if (T.jobs) pipe[T.zone === "ind" ? "ind" : "com"] += T.jobs;
   }
-  const comTarget = A.pop * 0.18 + A.tourism * 0.5;
-  const indTarget = A.pop * 0.17 + A.trade * 0.8 + (REGIONS[w.region].indBoost || 0) * A.pop * 0.3;
+  // factories go where towns are planned for them: a region of shopping and
+  // housing towns wants few, and its workers look for office and shop jobs instead
+  const indRoom = clamp(w.towns.reduce((a, t) => a + (purposeOf(t).growth.ind ?? 1), 0) / Math.max(1, w.towns.length), 0.15, 1.3);
+  const indFull = A.pop * 0.17 + A.trade * 0.8 + (REGIONS[w.region].indBoost || 0) * A.pop * 0.3;
+  const indTarget = indFull * Math.min(1, indRoom);
+  const comTarget = A.pop * 0.18 + A.tourism * 0.5 + (indFull - indTarget) * 0.8;
   // families elsewhere in Singapore who would move here if there were homes
   const attract = clamp(w.approval / 60, 0.3, 1.3);
   const era = w.year < 1990 ? 1 : w.year < 2030 ? 0.7 : 0.45;
