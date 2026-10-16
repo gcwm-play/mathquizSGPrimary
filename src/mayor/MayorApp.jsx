@@ -260,7 +260,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
   const [goalOpen, setGoalOpen] = useState(true);
   const toastT = useRef(null);
   const w = worldRef.current;
-  const groups = toolGroups(w.region);
+  const groups = toolGroups(w.region, w);
   // handy for automated tests and debugging in the console
   if (typeof window !== "undefined") window.__lionMayor = { worldRef, camRef, setPanel };
 
@@ -470,7 +470,8 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
       }
       if (tool === "unroad") {
         const n = nearestSeg(world, pt.x, pt.y, null, 1.2);
-        if (n) setPending({ kind: "unroad", seg: n.seg.id });
+        if (n && ROAD_TYPES[n.seg.type].fixed) toast("🚂 That's the railway: it isn't yours to remove.");
+        else if (n) setPending({ kind: "unroad", seg: n.seg.id });
         else toast("Tap right on a road to remove it.");
         return;
       }

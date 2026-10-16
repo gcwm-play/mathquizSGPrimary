@@ -2,8 +2,9 @@
 // random dilemmas that ask the mayor to choose between trade-offs.
 // Everything stored in the save is plain data (ids); behaviour lives here.
 import { clamp } from "./geom.js";
-import { LOT_TYPES } from "./defs.js";
-import { charge, noteImpact } from "./world.js";
+import { LOT_TYPES, STRUCTS } from "./defs.js";
+import { charge, noteImpact, genLots, refillLots } from "./world.js";
+import { REGIONS } from "./regions.js";
 import { fantasyCard, decideFantasy, stepFantasy, fantasyOn, fantasySevere } from "./fantasy.js";
 
 const MULT = ["business", "tourism", "trade", "land", "jobs", "health", "upkeep", "growth"];
@@ -287,6 +288,63 @@ export const FUTURE = ["seas", "ageing", "pandemicX", "aiJobs", "energy"];
 // ---------------- dilemmas ----------------
 // town: how the affected town is chosen: "worst:<need>", "random", "biggest", "kampong" or none
 export const DILEMMAS = [
+  {
+    id: "offerNjc", scheduled: true, region: "bukit", icon: "🎓", title: "A site for National Junior College",
+    text: () => "The Ministry of Education is opening Singapore's first junior college and wants a site in your region: about 4 lots of land. If you agree, you have 3 years to place it from 🌟 Landmarks; homes on the site are demolished.",
+    options: [
+      { id: "yes", label: "Offer a site", pros: ["Top students from across the island", "Nearby homes become more sought-after"], cons: [`Needs room for ${STRUCTS.njc.w > 6 ? "a whole hillside" : "a big campus"}`, `About $${(STRUCTS.njc.cost / 1000).toFixed(1)}M to place`], offer: "njc", log: "offered land to " + STRUCTS.njc.name },
+      { id: "no", label: "No room here", pros: ["Keeps the land for homes"], cons: ["It goes to another region"], rep: -1, tone: "neutral", log: "turned away " + STRUCTS.njc.name },
+    ],
+  },
+  {
+    id: "offerPoly", scheduled: true, region: "bukit", icon: "🛠️", title: "Singapore Polytechnic wants to move to Dover",
+    text: () => "Singapore Polytechnic is outgrowing Prince Edward Road and wants a big new campus here: about 10 lots, with workshops and halls. If you agree, you have 3 years to place it from 🌟 Landmarks; homes on the site are demolished.",
+    options: [
+      { id: "yes", label: "Offer a site", pros: ["Hundreds of jobs and young residents", "Nearby homes become more sought-after"], cons: [`Needs room for ${STRUCTS.sPoly.w > 6 ? "a whole hillside" : "a big campus"}`, `About $${(STRUCTS.sPoly.cost / 1000).toFixed(1)}M to place`], offer: "sPoly", log: "offered land to " + STRUCTS.sPoly.name },
+      { id: "no", label: "No room here", pros: ["Keeps the land for homes"], cons: ["It goes to another region"], rep: -1, tone: "neutral", log: "turned away " + STRUCTS.sPoly.name },
+    ],
+  },
+  {
+    id: "offerNus", scheduled: true, region: "bukit", icon: "🏛️", title: "A home for the national university",
+    text: () => "The university wants to build its new campus on the Kent Ridge hills: about 22 lots of land, a whole hillside. It is the biggest campus Singapore will ever build. If you agree, you have 3 years to place it from 🌟 Landmarks; homes on the site are demolished.",
+    options: [
+      { id: "yes", label: "Offer a site", pros: ["Thousands of jobs, and the most prestigious address in the country", "Nearby homes become more sought-after"], cons: [`Needs room for ${STRUCTS.nus.w > 6 ? "a whole hillside" : "a big campus"}`, `About $${(STRUCTS.nus.cost / 1000).toFixed(1)}M to place`], offer: "nus", log: "offered land to " + STRUCTS.nus.name },
+      { id: "no", label: "No room here", pros: ["Keeps the land for homes"], cons: ["It goes to another region"], rep: -1, tone: "neutral", log: "turned away " + STRUCTS.nus.name },
+    ],
+  },
+  {
+    id: "offerSji", scheduled: true, region: "bukit", icon: "⛪", title: "St Joseph's Institution is moving",
+    text: () => "The old mission school at Bras Basah has run out of space and wants about 5 lots for a new campus with a field and chapel. If you agree, you have 3 years to place it from 🌟 Landmarks; homes on the site are demolished.",
+    options: [
+      { id: "yes", label: "Offer a site", pros: ["A famous school with loyal old boys", "Nearby homes become more sought-after"], cons: [`Needs room for ${STRUCTS.sji.w > 6 ? "a whole hillside" : "a big campus"}`, `About $${(STRUCTS.sji.cost / 1000).toFixed(1)}M to place`], offer: "sji", log: "offered land to " + STRUCTS.sji.name },
+      { id: "no", label: "No room here", pros: ["Keeps the land for homes"], cons: ["It goes to another region"], rep: -1, tone: "neutral", log: "turned away " + STRUCTS.sji.name },
+    ],
+  },
+  {
+    id: "offerMgs", scheduled: true, region: "bukit", icon: "⛪", title: "Methodist Girls' School is moving",
+    text: () => "Methodist Girls' School is leaving Mount Sophia after 67 years and wants about 5 lots for a new campus. If you agree, you have 3 years to place it from 🌟 Landmarks; homes on the site are demolished.",
+    options: [
+      { id: "yes", label: "Offer a site", pros: ["A sought-after school for daughters", "Nearby homes become more sought-after"], cons: [`Needs room for ${STRUCTS.mgs.w > 6 ? "a whole hillside" : "a big campus"}`, `About $${(STRUCTS.mgs.cost / 1000).toFixed(1)}M to place`], offer: "mgs", log: "offered land to " + STRUCTS.mgs.name },
+      { id: "no", label: "No room here", pros: ["Keeps the land for homes"], cons: ["It goes to another region"], rep: -1, tone: "neutral", log: "turned away " + STRUCTS.mgs.name },
+    ],
+  },
+  {
+    id: "quarryEnd", scheduled: true, region: "bukit", icon: "⛏️", title: "The quarries are worked out",
+    text: () => "The granite in the Bukit Batok quarries is running out and quarrying will stop. What should happen to the deep pits left behind?",
+    options: [
+      { id: "park", label: "Turn them into lake parks", pros: ["Greenery and visitors", "Like Little Guilin"], cons: ["Costs money", "Quarry jobs end"], cost: 700, rep: 2, quarry: "quarryPark", log: "turned the old quarries into lake parks" },
+      { id: "fill", label: "Fill them in for housing", pros: ["Flat land for new homes"], cons: ["Costly earthworks", "Quarry jobs end"], cost: 900, quarry: "fill", log: "filled in the old quarries for housing" },
+      { id: "leave", label: "Leave them as they are", pros: ["Costs nothing"], cons: ["Quarry jobs end", "Fenced-off pits"], quarry: "quarryOld", tone: "neutral" },
+    ],
+  },
+  {
+    id: "ktmClose", scheduled: true, region: "bukit", icon: "🚂", title: "The railway closes",
+    text: () => "From July 2011, Malaysia's trains stop at Woodlands. The old KTM line through your region, and Bukit Timah station, come back to you.",
+    options: [
+      { id: "trail", label: "Make it the Rail Corridor", pros: ["A green trail the whole way", "Residents and nature groups love it"], cons: ["Costs to build", "No new homes on it"], cost: 800, rep: 3, ktm: "corridor", log: "turned the old railway into the Rail Corridor" },
+      { id: "homes", label: "Sell the land for homes", pros: ["A big land sale", "New lots along the old line"], cons: ["Nature groups object"], gain: 1500, rep: -2, ktm: "road", tone: "neutral", log: "sold the old railway land for housing" },
+    ],
+  },
   {
     id: "hawkers", icon: "🍢", title: "Street hawkers", from: 1971, to: 1990, town: "random",
     text: (c) => `Hundreds of street hawkers line the roads of ${c.town}. They're cheap and popular, but block traffic and dirty the drains.`,
@@ -658,6 +716,24 @@ export function applyOutcome(w, o, town, push, rng = Math.random) {
     for (const l of w.lots) if (l.b?.type === "farm") l.b = null;
     w.rev++;
   }
+  if (o.offer) w.offers = { ...(w.offers || {}), [o.offer]: w.t + 36 };
+  if (o.quarry) {
+    for (const st of w.structs.filter((x) => x.type === "quarry")) {
+      if (o.quarry === "fill") {
+        w.structs = w.structs.filter((x) => x !== st);
+        refillLots(w, st.x, st.y, 4);
+      } else st.type = o.quarry;
+    }
+    w.rev++;
+  }
+  if (o.ktm) {
+    for (const s of w.segs) if (s.type === "ktm") {
+      s.type = o.ktm;
+      if (o.ktm === "road") genLots(w, s);
+    }
+    w._occ = null;
+    w.rev++;
+  }
   if (o.crisis && w.crisis) w.crisis.sev = clamp(w.crisis.sev * o.crisis, 0.15, 2.5);
   if (o.crisisMonths && w.crisis) w.crisis.until = Math.max(w.t + 1, w.crisis.until + o.crisisMonths);
   if (o.okText) push(o.okText);
@@ -874,6 +950,20 @@ export function stepEvents(w, A, rng, push) {
 
   // random dilemmas: irregular gaps, never during a crisis or election season,
   // most happen only once a game and recurring ones need years between them
+  // decision cards due on their real dates in this region (not mid-campaign)
+  const inCampaign = w.election && w.t >= w.election.next - 6 && w.t < w.election.next;
+  for (const sc of REGIONS[w.region]?.scheduled || []) {
+    if (w.decision || inCampaign || w.year < sc.year || w.schedDone?.[sc.id] != null) continue;
+    w.schedDone = { ...(w.schedDone || {}), [sc.id]: w.t };
+    w.decision = { kind: "dilemma", id: sc.id, town: null };
+  }
+  // campuses that were promised land but never got it go elsewhere
+  for (const [k, until] of Object.entries(w.offers || {})) {
+    if (w.t < until) continue;
+    delete w.offers[k];
+    w.rep = clamp((w.rep ?? 50) - 2, 0, 100);
+    push(`🎓 ${STRUCTS[k].name} gave up waiting for a site and went to another region. Reputation −2.`);
+  }
   if (!w.decision && w.t >= w.nextDilemma) {
     const quiet = w.crisis || fantasySevere(w) || (w.election && w.t >= w.election.next - 6 && w.t < w.election.next) || (w.crisesPast.length && w.t - (w.crisisEndT ?? -99) < 6);
     if (quiet) {
@@ -884,7 +974,7 @@ export function stepEvents(w, A, rng, push) {
     for (const x of w.dilemmaLog) last[x.id] = x.t;
     const pool = DILEMMAS.filter((d) => {
       if (w.year < d.from || w.year > d.to) return false;
-      if (d.region && d.region !== w.region) return false;
+      if (d.scheduled || (d.region && d.region !== w.region)) return false;
       if (last[d.id] != null && (!d.repeat || w.t - last[d.id] < d.repeat * 12)) return false;
       return !d.cond || d.cond(w, A);
     });

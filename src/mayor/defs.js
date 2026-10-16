@@ -69,6 +69,18 @@ export const STRUCTS = {
   park: { name: "Park", icon: "🌳", cost: 120, upkeep: 1, w: 2.2, d: 2.2, cover: "green", r: 6, year: 1965, tip: "Greenery near homes." },
   bus: { name: "Bus interchange", icon: "🚌", cost: 600, upkeep: 6, w: 2.2, d: 1.6, cover: "transport", r: 9, year: 1970, tip: "Feeder buses for a whole town." },
   mrt: { name: "MRT station", icon: "🚉", cost: 1200, upkeep: 15, w: 2.4, d: 1.4, cover: "mrt", r: 9, year: 1987, rail: true, station: true, tip: "Place beside elevated MRT track. Needs 2 stations on the same line." },
+  // Bukit Timah / Clementi: schools already there in 1965, and campuses that ask for land later
+  chineseHigh: { start: true, name: "The Chinese High School", icon: "🕰️", cost: 0, upkeep: 10, w: 3.6, d: 3, cover: "school2", r: 16, alsoCover: "prestige", year: 1925, region: "bukit", tip: "On Bukit Timah Road since 1925, with its clock tower." },
+  ngeeAnn: { start: true, name: "Ngee Ann Technical College", icon: "🛠️", cost: 0, upkeep: 20, w: 4.6, d: 3.4, cover: "school3", r: 30, jobs: 250, year: 1963, region: "bukit", tip: "On Clementi Road since 1963." },
+  njc: { offer: true, landmark: true, regionOnly: true, region: "bukit", name: "National Junior College", icon: "🎓", cost: 1500, upkeep: 12, w: 3.4, d: 2.6, build: 12, cover: "school2", r: 18, alsoCover: "prestige", prestige: 3, year: 1969, tip: "Offered in 1969: Singapore's first junior college. About 4 lots of land." },
+  sPoly: { offer: true, landmark: true, regionOnly: true, region: "bukit", name: "Singapore Polytechnic (Dover)", icon: "🛠️", cost: 4000, upkeep: 30, w: 5.6, d: 4, build: 24, cover: "school3", r: 32, jobs: 700, year: 1976, tip: "Offered in 1976: a big campus with workshops and halls. About 10 lots of land." },
+  nus: { offer: true, landmark: true, regionOnly: true, region: "bukit", name: "NUS Kent Ridge campus", icon: "🏛️", cost: 9000, upkeep: 60, w: 8.2, d: 6, build: 36, cover: "school3", r: 44, alsoCover: "prestige", jobs: 2600, tourism: 40, prestige: 6, year: 1978, tip: "Offered in 1978: the national university's new home. About 22 lots of land: a whole hillside." },
+  sji: { offer: true, landmark: true, regionOnly: true, region: "bukit", name: "St Joseph's Institution", icon: "⛪", cost: 1800, upkeep: 12, w: 3.8, d: 2.9, build: 12, cover: "school2", r: 16, alsoCover: "prestige", prestige: 2, year: 1987, tip: "Offered in 1987: the mission school moves from Bras Basah. About 5 lots of land." },
+  mgs: { offer: true, landmark: true, regionOnly: true, region: "bukit", name: "Methodist Girls' School", icon: "⛪", cost: 1800, upkeep: 12, w: 3.8, d: 2.9, build: 12, cover: "school", r: 14, alsoCover: "prestige", prestige: 2, year: 1991, tip: "Offered in 1991: moving from Mount Sophia. About 5 lots of land." },
+  quarry: { fixed: true, name: "Granite quarry", icon: "⛏️", cost: 0, w: 4.2, d: 3.4, jobs: 300, poll: 16, trade: 45, region: "bukit", tip: "Granite for the new towns: jobs and money, but dust." },
+  quarryPark: { name: "Quarry park", icon: "🏞️", cost: 0, upkeep: 3, w: 4.2, d: 3.4, cover: "green", r: 12, tourism: 30, region: "bukit", tip: "A worked-out quarry turned into a lake park." },
+  quarryOld: { name: "Old quarry lake", icon: "🪨", cost: 0, w: 4.2, d: 3.4, region: "bukit", tip: "A disused quarry pit. Can be bulldozed and filled." },
+  ktmStation: { fixed: true, name: "Bukit Timah railway station", icon: "🚂", cost: 0, w: 2.2, d: 1.4, region: "bukit", tip: "A stop on the KTM line to Malaysia." },
   mrtUg: { name: "Underground station", icon: "Ⓜ️", cost: 2400, upkeep: 20, w: 1.3, d: 1.0, cover: "mrt", r: 9, year: 1987, rail: true, station: true, underground: true, tip: "Place beside an underground line. Only the small entrance takes land. Needs 2 stations on the same line." },
   sports: { name: "Sports complex", icon: "🏊", cost: 1500, upkeep: 10, w: 3, d: 2.4, cover: "green", r: 12, year: 1973, tip: "Pools and fields. Counts as greenery and community." },
 
@@ -120,7 +132,7 @@ export const STRUCTS = {
 for (const S of Object.values(STRUCTS)) if (S.upkeep) S.upkeep = Math.round(S.upkeep * 1.6);
 // landmarks are big-ticket projects that take years to build
 for (const S of Object.values(STRUCTS)) {
-  if (!S.landmark || S.group) continue;
+  if (!S.landmark || S.group || S.offer) continue; // campus offers keep their stated price
   S.cost = Math.max(4000, Math.round((S.cost * 1.6) / 100) * 100);
   S.build = S.build ?? Math.max(8, Math.min(48, Math.round(6 + S.cost / 1500)));
 }
@@ -138,6 +150,8 @@ export const ROAD_TYPES = {
   road: { name: "Road", half: 0.3, cost: 30, lots: true },
   avenue: { name: "Avenue", half: 0.45, cost: 55, lots: true, transport: 0.15 },
   rail: { name: "MRT track", half: 0.26, cost: 100, lots: false, rail: true, year: 1987 },
+  ktm: { name: "KTM railway", half: 0.24, cost: 0, lots: false, layer: "ktm", fixed: true },
+  corridor: { name: "Rail Corridor trail", half: 0.3, cost: 0, lots: false, layer: "ktm", fixed: true },
   tunnel: { name: "Underground MRT", half: 0.26, cost: 300, lots: false, rail: true, underground: true, year: 1987 },
 };
 
@@ -199,7 +213,7 @@ for (const g of TOOL_GROUPS) {
   }
 }
 
-export function toolGroups(regionId) {
+export function toolGroups(regionId, w = null) {
   return TOOL_GROUPS.map((g) =>
     g.id === "landmarks"
       ? {
@@ -207,7 +221,7 @@ export function toolGroups(regionId) {
           tools: [
             { id: "proj:mall", mode: "project", group: "mall", icon: "🛍️", name: "Shopping mall", cost: STRUCTS.mallHood.cost, year: STRUCTS.mallHood.year, tip: "Choose a name and the kind of mall." },
             ...Object.entries(STRUCTS)
-              .filter(([, s]) => s.landmark && !s.group && !s.hidden && (s.region === regionId || !s.regionOnly))
+              .filter(([k, s]) => s.landmark && !s.group && !s.hidden && (s.region === regionId || !s.regionOnly) && (!s.offer || (w?.offers?.[k] ?? -1) > (w?.t ?? 0)))
               .sort((a, b) => (b[1].region === regionId) - (a[1].region === regionId) || a[1].year - b[1].year)
               .map(([k, s]) => ({ id: `s:${k}`, mode: "place", struct: k, icon: s.icon, name: s.name, cost: s.cost, year: s.year, tip: s.tip, landmark: true, home: s.region === regionId })),
           ],

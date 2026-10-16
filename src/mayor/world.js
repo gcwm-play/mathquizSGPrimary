@@ -63,8 +63,43 @@ export function terrainAt(w, x, y) {
   if (sample(T.J, x, y) > 0) return "foreign";
   if (sample(T.L, x, y) <= 0) return "sea";
   if (sample(T.F, x, y) > 0) return "fresh";
+  const H = hillOf(w);
+  if (H && (x - H.x) ** 2 + (y - H.y) ** 2 < H.summit * H.summit) return "summit";
   return "land";
 }
+
+// ---------- the hill (Bukit Timah) ----------
+// A cone: 1 at the top, 0 at the foot. Slopes cost more; the forest around
+// it is a nature reserve; the summit itself can't be built on.
+export function hillOf(w) {
+  const H = REGIONS[w.region]?.hill;
+  if (!H) return null;
+  if (!w._hill) {
+    const [x, y] = es2w(H.e, H.s);
+    w._hill = { ...H, x, y };
+  }
+  return w._hill;
+}
+export function heightAt(w, x, y) {
+  const H = hillOf(w);
+  return H ? clamp(1 - dist(x, y, H.x, H.y) / H.r, 0, 1) : 0;
+}
+export const inReserve = (w, x, y) => {
+  const H = hillOf(w);
+  return !!H && dist(x, y, H.x, H.y) < H.reserve;
+};
+// building on a slope costs up to about twice as much
+export const slopeMult = (w, x, y) => 1 + heightAt(w, x, y) * 1.3;
+// Cutting into the reserve: reputation and greenery suffer.
+export function natureHit(w, x, y, size = 1) {
+  const rep = Math.min(6, 1.5 + size * 0.8);
+  w.rep = clamp((w.rep ?? 50) - rep, 0, 100);
+  const ti = townOf(w, x, y);
+  w.boosts = w.boosts || [];
+  w.boosts.push({ town: ti, need: "green", v: -Math.min(12, 3 + size * 2), until: w.t + 120 });
+  w.pendingNews = (w.pendingNews || []).concat([`🌳 Nature groups protest: you cut into the Bukit Timah nature reserve. Reputation −${Math.round(rep)}.`]);
+}
+const RESERVE_WARN = "⚠️ Cuts into the nature reserve: reputation and greenery fall";
 export const isLand = (w, x, y) => terrainAt(w, x, y) === "land";
 
 // ---------- roads ----------
@@ -86,7 +121,7 @@ export function nodeById(w, id) {
   }
   return w._nodes.get(id);
 }
-const layerOf = (type) => (ROAD_TYPES[type].rail ? "rail" : "road");
+const layerOf = (type) => ROAD_TYPES[type].layer || (ROAD_TYPES[type].rail ? "rail" : "road");
 const touch = (w) => {
   w.rev = (w.rev || 0) + 1;
 };
@@ -99,7 +134,7 @@ export function occ(w) {
   for (const s of w.segs) {
     const rt = ROAD_TYPES[s.type];
     if (rt.underground) continue; // tunnels don't take up land
-    markPath(o, segPts(w, s), rt.half + 0.12, rt.rail ? -4 : -1, true);
+    markPath(o, segPts(w, s), rt.half + 0.12, rt.rail || rt.layer ? -4 : -1, true);
   }
   for (const k of w.kampongs) for (const h of k.houses) markDisc(o, h[0], h[1], 0.55, -3);
   for (const st of w.structs) markQuad(o, st.q, -(10 + st.id));
@@ -260,6 +295,14 @@ export function newWorld({ region = "east", difficulty = "normal", name, seed = 
     const plan = planRoad(w, "road", { x: A[0], y: A[1] }, { x: B[0], y: B[1] }, { x: Cc[0], y: Cc[1] }, { init: true });
     if (plan.ok) commitRoad(w, plan, { free: true });
   }
+  // the KTM railway to Malaya
+  for (const [a, c, b] of R.railway || []) {
+    const A = inside(es2w(...a));
+    const Cc = es2w(...c);
+    const B = inside(es2w(...b));
+    const plan = planRoad(w, "ktm", { x: A[0], y: A[1] }, { x: B[0], y: B[1] }, { x: Cc[0], y: Cc[1] }, { init: true });
+    if (plan.ok) commitRoad(w, plan, { free: true });
+  }
   w.startSegs = w.segs.length;
   if (R.causeway) {
     const [a, b] = R.causeway.map((p) => es2w(...p));
@@ -270,8 +313,9 @@ export function newWorld({ region = "east", difficulty = "normal", name, seed = 
   for (const ot of R.oldTown || []) {
     const [ox, oy] = es2w(ot.e, ot.s);
     for (const l of w.lots) if (dist(l.x, l.y, ox, oy) < ot.r) {
-      l.zone = "com";
-      l.b = { type: "shophouse", state: "live", built: -360, v: Math.floor(rng() * 6) };
+      l.zone = ot.zone || "com";
+      l.b = { type: ot.type || "shophouse", state: "live", built: -360, v: Math.floor(rng() * 6) };
+      if (LOT_TYPES[l.b.type].cap) l.b.occ = LOT_TYPES[l.b.type].cap;
     }
   }
   for (const l of w.lots) {
@@ -298,10 +342,12 @@ export function newWorld({ region = "east", difficulty = "normal", name, seed = 
     for (let x = 0.6; x < MAP; x += 1.15) {
       const px = x + (rng() - 0.5) * 0.8;
       const py = y + (rng() - 0.5) * 0.8;
-      if (!isLand(w, px, py)) continue;
+      const tt = terrainAt(w, px, py);
+      if (tt !== "land" && tt !== "summit") continue;
       const ti = townOf(w, px, py);
       const nearTown = dist(px, py, w.towns[ti].x, w.towns[ti].y);
-      const density = fn(px, py) + Math.min(0.5, nearTown / 30) - 0.05;
+      // the reserve is thick forest
+      const density = fn(px, py) + Math.min(0.5, nearTown / 30) - 0.05 + (inReserve(w, px, py) ? 1 : 0);
       if (density < 0.2) continue;
       const o = occAt(w, px, py);
       if (o < 0 || (o > 0 && w.lots.find((l) => l.id === o)?.b)) continue;
@@ -371,16 +417,29 @@ export function planRoad(w, type, A, B, Cc, opts = {}) {
     const t = terrainAt(w, pts[k], pts[k + 1]);
     if (t === "off") return { ...base, msg: "Stay inside your region" };
     if (t === "foreign") return { ...base, msg: "That's Johor, across the border!" };
+    if (t === "summit" && !rt.underground && !opts.init) return { ...base, msg: "Too steep: that's the summit of Bukit Timah Hill" };
     if (t === "sea" || t === "fresh") {
       run += 0.3;
       water += 0.3;
       maxRun = Math.max(maxRun, run);
     } else run = 0;
   }
+  // the hill: slopes cost more, and the reserve is protected
+  let reserve = false;
+  let slope = 0;
+  if (hillOf(w) && !opts.init) {
+    for (let k = 0; k < pts.length; k += 2) {
+      if (inReserve(w, pts[k], pts[k + 1])) reserve = true;
+      slope = Math.max(slope, heightAt(w, pts[k], pts[k + 1]));
+    }
+    if (reserve && rt.rail && !rt.underground) return { ...base, msg: "Elevated track can't cross the nature reserve: use 🚇 Underground MRT" };
+    if (rt.underground) reserve = false; // tunnels pass under the forest
+  }
+  const hillCost = (c) => Math.round(c * (1 + slope * 1.3));
   if (rt.underground) {
     // a tunnel passes under everything: nothing to demolish
     if (maxRun > 24) return { ...base, msg: "Too long a tunnel under the sea" };
-    const cost = Math.round(len * rt.cost + water * rt.cost * 0.5);
+    const cost = hillCost(len * rt.cost + water * rt.cost * 0.5);
     return { ...base, ok: true, cost, bridge: 0, underground: true, demolish: { lots: [], built: 0, structs: [], houses: [] }, msg: "Underground: 1–2 years of works along the route" };
   }
   if (maxRun > 9) return { ...base, msg: "Too much water to bridge" };
@@ -402,14 +461,15 @@ export function planRoad(w, type, A, B, Cc, opts = {}) {
   for (const l of lots) if (l.b) comp += buildingComp(l);
   for (const s of structs) comp += (STRUCTS[s.type].cost || 0) * 0.2;
   comp += houses.length * 18;
-  const cost = Math.round(len * rt.cost + water * rt.cost * 3 + comp);
+  const cost = hillCost(len * rt.cost + water * rt.cost * 3) + Math.round(comp);
   return {
     ...base,
     ok: true,
     cost,
+    reserve,
     bridge: water,
     demolish: { lots: lots.map((l) => l.id), built: lots.filter((l) => l.b).length, structs: structs.map((s) => s.id), houses },
-    msg: houses.length ? `Resettles ${houses.length} kampong home${houses.length > 1 ? "s" : ""}` : lots.some((l) => l.b) ? plural(lots.filter((l) => l.b).length) : water > 0 ? "Includes a bridge" : null,
+    msg: reserve ? RESERVE_WARN : houses.length ? `Resettles ${houses.length} kampong home${houses.length > 1 ? "s" : ""}` : lots.some((l) => l.b) ? plural(lots.filter((l) => l.b).length) : water > 0 ? "Includes a bridge" : null,
   };
 }
 
@@ -504,6 +564,7 @@ const subControl = (p0, p1, p2, t0, t1) => p0 * (1 - t0) * (1 - t1) + p1 * ((1 -
 export function commitRoad(w, plan, opts = {}) {
   const { type, c } = plan;
   const layer = layerOf(type);
+  if (plan.reserve && !opts.free) natureHit(w, (plan.sa.x + plan.sb.x) / 2, (plan.sa.y + plan.sb.y) / 2, plan.len / 4);
   // clear what's in the way
   const hit = plan.demolish.lots.map((id) => w.lots.find((x) => x.id === id)).filter(Boolean);
   if (hit.length) clearLots(w, hit);
@@ -841,6 +902,7 @@ export function refillLots(w, x, y, r) {
 export function removeRoad(w, segId) {
   const s = w.segs.find((x) => x.id === segId);
   if (!s) return { ok: false };
+  if (ROAD_TYPES[s.type].fixed) return { ok: false, msg: "The railway isn't yours to remove" };
   clearLots(w, w.lots.filter((l) => l.seg === segId));
   w.segs = w.segs.filter((x) => x.id !== segId);
   w._pts?.delete(segId);
@@ -865,6 +927,7 @@ export function lotsNear(w, x, y, r) {
 }
 
 export function paintZone(w, zone, x, y, r) {
+  let inRes = 0;
   let n = 0;
   let skipped = 0;
   let blocked = null;
@@ -881,8 +944,10 @@ export function paintZone(w, zone, x, y, r) {
     if (l.zone !== z) {
       l.zone = z;
       n++;
+      if (z && hillOf(w) && inReserve(w, l.x, l.y)) inRes++;
     }
   }
+  if (inRes) natureHit(w, x, y, inRes * 0.5);
   const cost = zone === "none" ? 0 : n * 2;
   charge(w, cost, x, y);
   if (n) touch(w);
@@ -1013,7 +1078,7 @@ export function planStruct(w, type, x, y) {
         const px = q[0] + (q[2] - q[0]) * u + (q[6] - q[0]) * v;
         const py = q[1] + (q[3] - q[1]) * u + (q[7] - q[1]) * v;
         const t = terrainAt(w, px, py);
-        if (t !== "land") return { q, msg: t === "foreign" ? "That's Johor!" : "Needs dry land" };
+        if (t !== "land") return { q, msg: t === "foreign" ? "That's Johor!" : t === "summit" ? "Too steep: that's the summit of Bukit Timah Hill" : "Needs dry land" };
         const c = cellOf(px, py);
         const v0 = c < 0 ? -99 : o[c];
         if (v0 === -1 || v0 === -4) return { q, msg: "Overlaps a road" };
@@ -1071,8 +1136,10 @@ export function planStruct(w, type, x, y) {
   }
   const hit = [...lots].map((id) => w.lots.find((l) => l.id === id)).filter(Boolean);
   const built = hit.filter((l) => l.b);
-  const cost = S.cost + Math.round(built.reduce((a, l) => a + buildingComp(l), 0));
-  return { ...base, ok: true, cost, lots: hit.map((l) => l.id), msg: built.length ? plural(built.length) : null };
+  const reserve = hillOf(w) && [0, 1, 2, 3].some((k) => inReserve(w, q[k * 2], q[k * 2 + 1]));
+  const cost = Math.round(S.cost * slopeMult(w, cx, cy)) + Math.round(built.reduce((a, l) => a + buildingComp(l), 0));
+  const msgs = [reserve && RESERVE_WARN, built.length && plural(built.length), heightAt(w, cx, cy) > 0.05 && `⛰️ On the slope: ${Math.round((slopeMult(w, cx, cy) - 1) * 100)}% extra`].filter(Boolean);
+  return { ...base, ok: true, cost, reserve, lots: hit.map((l) => l.id), msg: msgs.length ? msgs.join(" · ") : null };
 }
 
 // Remember how things stood so the game can report the change 6 months on.
@@ -1126,6 +1193,9 @@ export function commitStruct(w, plan, opts = {}) {
   if (hit.length) clearLots(w, hit);
   const q = plan.q;
   const S = STRUCTS[plan.type];
+  if (plan.reserve) natureHit(w, plan.x, plan.y, (S.w * S.d) / 4);
+  // a campus that was offered land has now been given it
+  if (S.offer && w.offers) delete w.offers[plan.type];
   const ti = townOf(w, plan.x, plan.y);
   // how well it turns out: 75–125% as effective as a typical one
   const st = { id: w.nextId++, type: plan.type, x: +plan.x.toFixed(3), y: +plan.y.toFixed(3), ang: +plan.ang.toFixed(3), q, built: w.t, state: "live", eff: +(0.75 + Math.random() * 0.5).toFixed(2) };
@@ -1140,7 +1210,7 @@ export function commitStruct(w, plan, opts = {}) {
   const end = to && bridgeEnd(w, plan.x, plan.y, to);
   if (end) st.bridge = [st.x, st.y, +end[0].toFixed(2), +end[1].toFixed(2), plan.type === "cableCar" ? "cable" : plan.type === "sentosaExpress" ? "rail" : "road"];
   // first in Singapore, or a copy of someone else's?
-  if (S.landmark && !S.group) {
+  if (S.landmark && !S.group && !S.offer) {
     const first = landmarkFirst(w, plan.type);
     if (first && first.by !== "you") st.copy = { by: first.by, region: first.region, year: first.year };
     w.lmBuilt = w.lmBuilt || [];
