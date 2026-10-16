@@ -411,7 +411,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
     if (p.kind === "road" && p.plan?.ok) {
       remember(ALL_TOOLS[`road:${p.type}`].name);
       commitRoad(world, p.plan);
-      toast(`${ALL_TOOLS[`road:${p.type}`].icon} Built for ${fmtMoney(p.plan.cost)}`);
+      toast(p.plan.underground ? `🚧 Tunnelling started for ${fmtMoney(p.plan.cost)}: trains run in 12–24 months` : `${ALL_TOOLS[`road:${p.type}`].icon} Built for ${fmtMoney(p.plan.cost)}`);
       pendingRef.current = { kind: "road", type: p.type, stage: "start", a: { x: p.plan.sb.x, y: p.plan.sb.y } };
     } else if (p.kind === "struct" && p.plan?.ok) {
       remember(STRUCTS[p.type].name);

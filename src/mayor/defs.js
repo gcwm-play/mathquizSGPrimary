@@ -68,7 +68,8 @@ export const STRUCTS = {
   cc: { name: "Community centre", icon: "🏓", cost: 600, upkeep: 5, w: 1.8, d: 1.6, cover: "community", r: 10, year: 1965, tip: "Brings neighbours together. Good for votes." },
   park: { name: "Park", icon: "🌳", cost: 120, upkeep: 1, w: 2.2, d: 2.2, cover: "green", r: 6, year: 1965, tip: "Greenery near homes." },
   bus: { name: "Bus interchange", icon: "🚌", cost: 600, upkeep: 6, w: 2.2, d: 1.6, cover: "transport", r: 9, year: 1970, tip: "Feeder buses for a whole town." },
-  mrt: { name: "MRT station", icon: "🚇", cost: 1200, upkeep: 15, w: 2.4, d: 1.4, cover: "mrt", r: 9, year: 1987, rail: true, tip: "Place beside MRT track. Needs 2 stations on a line." },
+  mrt: { name: "MRT station", icon: "🚉", cost: 1200, upkeep: 15, w: 2.4, d: 1.4, cover: "mrt", r: 9, year: 1987, rail: true, station: true, tip: "Place beside elevated MRT track. Needs 2 stations on the same line." },
+  mrtUg: { name: "Underground station", icon: "Ⓜ️", cost: 2400, upkeep: 20, w: 1.3, d: 1.0, cover: "mrt", r: 9, year: 1987, rail: true, station: true, underground: true, tip: "Place beside an underground line. Only the small entrance takes land. Needs 2 stations on the same line." },
   sports: { name: "Sports complex", icon: "🏊", cost: 1500, upkeep: 10, w: 3, d: 2.4, cover: "green", r: 12, year: 1973, tip: "Pools and fields. Counts as greenery and community." },
 
   // region landmarks
@@ -137,6 +138,7 @@ export const ROAD_TYPES = {
   road: { name: "Road", half: 0.3, cost: 30, lots: true },
   avenue: { name: "Avenue", half: 0.45, cost: 55, lots: true, transport: 0.15 },
   rail: { name: "MRT track", half: 0.26, cost: 100, lots: false, rail: true, year: 1987 },
+  tunnel: { name: "Underground MRT", half: 0.26, cost: 300, lots: false, rail: true, underground: true, year: 1987 },
 };
 
 export const TOOL_GROUPS = [
@@ -147,7 +149,8 @@ export const TOOL_GROUPS = [
     name: "Roads",
     tools: [
       { id: "road:road", icon: "🛣️", name: "Road", mode: "road", tip: "Curvy roads. Lots appear along both sides." },
-      { id: "road:rail", icon: "🚆", name: "MRT track", mode: "road", year: 1987, tip: "Elevated track for MRT stations." },
+      { id: "road:rail", icon: "🚆", name: "MRT track", mode: "road", year: 1987, tip: "Elevated track: cheap, but it demolishes whatever is in its way." },
+      { id: "road:tunnel", icon: "🚇", name: "Underground MRT", mode: "road", year: 1987, tip: "Tunnels under homes, roads and sea: nothing is demolished. About 3× the cost of elevated track, and towns along it put up with 1–2 years of works." },
       { id: "unroad", icon: "✂️", name: "Remove road", mode: "pick", tip: "Tap a road to remove it and its lots." },
     ],
   },
@@ -163,7 +166,7 @@ export const TOOL_GROUPS = [
       { id: "zone:none", icon: "🧽", name: "Unzone", mode: "brush", cost: 0, tip: "Clear zoning from empty lots." },
     ],
   },
-  { id: "services", icon: "🍜", name: "Services", tools: ["market", "hawker", "school", "secondary", "tertiary", "clinic", "hospital", "police", "fire", "cc", "park", "bus", "sports", "mrt"].map((k) => ({ id: `s:${k}`, mode: "place", struct: k })) },
+  { id: "services", icon: "🍜", name: "Services", tools: ["market", "hawker", "school", "secondary", "tertiary", "clinic", "hospital", "police", "fire", "cc", "park", "bus", "sports", "mrt", "mrtUg"].map((k) => ({ id: `s:${k}`, mode: "place", struct: k })) },
   { id: "landmarks", icon: "🌟", name: "Landmarks", tools: [] },
   {
     id: "renew",

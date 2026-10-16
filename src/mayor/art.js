@@ -595,6 +595,16 @@ export function drawStruct(ctx, q, type, time) {
       gableUV(ctx, q, 0.02, 0.1, 0.98, 0.9, 14, 9, "#ff5a5a", "u");
       break;
     }
+    case "mrtUg": {
+      // a station entrance: glass canopy and the MRT sign
+      shadowUV(ctx, q, 0.1, 0.1, 0.9, 0.9, 10);
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#d5dae6");
+      const pr = boxUV(ctx, q, 0.15, 0.2, 0.85, 0.8, 8, "#a5d8ff");
+      windows(ctx, pr, { rows: 1, perUnit: 2, color: "#4dabf7", hf: 0.7 });
+      gableUV(ctx, q, 0.1, 0.15, 0.9, 0.85, 8, 5, "#ff5a5a", "u");
+      boxUV(ctx, q, 0.86, 0.4, 0.94, 0.5, 16, "#7048e8");
+      break;
+    }
     case "sports": {
       flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#7ed957");
       flatUV(ctx, q, 0.08, 0.1, 0.55, 0.6, "#ffffff");
