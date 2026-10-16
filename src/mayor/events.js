@@ -418,7 +418,7 @@ export const DILEMMAS = [
   },
   {
     // replaced by the 🍼 New-family gift and 🧸 Childcare programmes
-    id: "babyBonus", icon: "🍼", title: "Baby bonus", from: 1987, to: 1900, cond: (w) => (w.stats.tfr || 2) < 2,
+    id: "babyBonus", icon: "🍼", title: "Baby bonus", from: 1998, to: 2100, cond: (w) => (w.stats.tfr || 2) < 2,
     text: () => "Births are falling. You could give new parents cash and childcare help.",
     options: [
       { id: "generous", label: "Generous baby bonus & childcare", pros: ["More births"], cons: ["Ongoing cost"], costMonthly: 30, fert: 0.06, log: "introduced a generous baby bonus" },
