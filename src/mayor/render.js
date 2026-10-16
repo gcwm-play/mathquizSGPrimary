@@ -691,7 +691,7 @@ function drawEntry(ctx, R, w, A, e, time, motion, badges, cam) {
       const S = STRUCTS[s.type];
       const cx = PX(s.x, s.y);
       const cy = PY(s.x, s.y) - Math.min(H, 50) - 6;
-      if (s.type === "mrt" && A && !A.stations.includes(s)) badges.push({ ch: "⚠️", x: cx, y: cy, bg: "#ffe066" });
+      if (s.type === "mrt" && A && !(A.liveStations || A.stations).includes(s)) badges.push({ ch: "⚠️", x: cx, y: cy, bg: "#ffe066" });
       else if (!S.fixed && cam.zoom >= 0.75) badge(ctx, S.icon, cx, cy, Math.max(11, Math.min(15, 13 / Math.sqrt(cam.zoom))), "#ffffff");
       return;
     }

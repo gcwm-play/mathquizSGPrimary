@@ -127,13 +127,13 @@ export const OBJECTIVES = {
   mrt: {
     make(w, A) {
       if (w.year < 1987) return null;
-      const towns = liveTowns(w, A).filter((i) => !A.stations.some((s) => townOf(w, s.x, s.y) === i));
+      const towns = liveTowns(w, A).filter((i) => !A.liveStations.some((s) => townOf(w, s.x, s.y) === i));
       if (!towns.length) return null;
       const i = towns.reduce((a, b) => (townPop(A, b) > townPop(A, a) ? b : a), towns[0]);
       return { key: `mrt:${i}`, town: i, target: 1, months: 72, score: 35, text: `Bring the MRT to ${w.towns[i].name}`, hint: "Lay MRT track, then build a station beside it in the town (you need 2+ stations on a line)." };
     },
     progress: (w, A, o) => {
-      const done = A.mrtRunning && A.stations.some((s) => townOf(w, s.x, s.y) === o.town);
+      const done = A.mrtRunning && A.liveStations.some((s) => townOf(w, s.x, s.y) === o.town);
       return { cur: done ? 1 : 0, target: 1, done };
     },
   },

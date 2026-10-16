@@ -152,6 +152,7 @@ export function analyze(w) {
   const upkeepTown = w.towns.map(() => 0);
   const rails = w.segs.filter((s) => ROAD_TYPES[s.type].rail);
   const stations = [];
+  const stationSeg = new Map();
   for (const s of w.structs) {
     const S = STRUCTS[s.type];
     if (s.state === "build" || s.off) continue; // still a building site, or inside a danger zone
@@ -160,15 +161,20 @@ export function analyze(w) {
       upkeepTown[townOf(w, s.x, s.y)] += S.upkeep * fund;
     }
     if (s.type === "mrt") {
-      const nearRail = rails.some((r) => nearestOnPoly(segPts(w, r), s.x, s.y).d < 2.6);
-      if (!nearRail) continue;
+      let best = null;
+      for (const r of rails) {
+        const d = nearestOnPoly(segPts(w, r), s.x, s.y).d;
+        if (d < 2.6 && (!best || d < best.d)) best = { d, r };
+      }
+      if (!best) continue;
       stations.push(s);
+      stationSeg.set(s.id, best.r);
     }
     // each building turns out a little better or worse than average, and wears with age
     const eff = (s.eff ?? 1) * serviceCondition(w, s);
     // a wet market in the CBD is a novelty, not where office workers eat
     const cbdMarket = s.type === "market" && w.towns[townOf(w, s.x, s.y)]?.purpose === "commercial" ? 0.4 : 1;
-    if (S.cover) services.push({ x: s.x, y: s.y, cover: S.cover, r: S.r, f: fund * eff * cbdMarket, type: s.type });
+    if (S.cover) services.push({ x: s.x, y: s.y, cover: S.cover, r: S.r, f: fund * eff * cbdMarket, type: s.type, id: s.id });
     if (s.type === "sports") services.push({ x: s.x, y: s.y, cover: "community", r: S.r, f: fund * eff });
     if (S.alsoCover) services.push({ x: s.x, y: s.y, cover: S.alsoCover, r: S.r, f: fund * eff });
     // copies of someone else's landmark draw fewer visitors
@@ -178,7 +184,24 @@ export function analyze(w) {
     if (S.landmark) landmarks.push(s);
     if (S.poll) polluters.push({ x: s.x, y: s.y, p: S.poll, r: 8 });
   }
-  const mrtRunning = stations.length >= 2;
+  // a station only runs if another station sits on the same connected line
+  const root = new Map();
+  const find = (n) => {
+    while (root.has(n) && root.get(n) !== n) n = root.get(n);
+    return n;
+  };
+  for (const r of rails) {
+    const a = find(r.a);
+    const b = find(r.b);
+    root.set(a, a);
+    if (a !== b) root.set(b, a);
+  }
+  const lineOf = (st) => find(stationSeg.get(st.id).a);
+  const perLine = new Map();
+  for (const st of stations) perLine.set(lineOf(st), (perLine.get(lineOf(st)) || 0) + 1);
+  const liveStations = stations.filter((st) => perLine.get(lineOf(st)) >= 2);
+  const liveIds = new Set(liveStations.map((st) => st.id));
+  const mrtRunning = liveStations.length >= 2;
   let roadLen = 0;
   for (const s of w.segs) {
     const pts = segPts(w, s);
@@ -217,7 +240,7 @@ export function analyze(w) {
     for (const s of services) {
       const d = dist(x, y, s.x, s.y);
       if (d > s.r) continue;
-      if (s.cover === "mrt" && !mrtRunning) continue;
+      if (s.cover === "mrt" && (s.type === "mrt" ? !liveIds.has(s.id) : !mrtRunning)) continue;
       const v = s.f * (1 - 0.45 * (d / s.r));
       if (v > c[s.cover]) c[s.cover] = v;
     }
@@ -388,7 +411,7 @@ export function analyze(w) {
     return { ...t, needs, minor, schools, unhoused, fit, pws, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
   });
   const vacant = T.reduce((a, t) => a + t.vacant, 0);
-  return { lunch, info, want, towns, vacant, upkeepTown, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, coverAt, pollAt, services };
+  return { lunch, info, want, towns, vacant, upkeepTown, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, liveStations, coverAt, pollAt, services };
 }
 
 export function effect(w, key) {
@@ -1602,7 +1625,7 @@ export const GOALS = [
   { id: "win", text: "Win an election", hint: "Elections come every 6 years. Check 🗳️ for each town's support and make pledges in election season.", test: (w) => w.election.history.some((e) => e.won) },
   { id: "pop30k", text: "Reach 30,000 residents", hint: "Newer housing types hold more people. Rebuild old blocks with 🏗️ Renew.", test: (w) => w.stats.pop >= 30000 },
   { id: "upgrade", text: "Upgrade or rebuild an old block", hint: "From 1989, tap an old HDB block with 🏗️ Renew.", test: (w) => w.lots.some((l) => l.b?.up || l.b?.renewed) },
-  { id: "mrt", text: "Open two MRT stations on a line", hint: "From 1987: 🛣️ Roads → MRT track, then 🍜 Services → MRT station beside it at each end.", test: (w, A) => A?.mrtRunning || w.structs.filter((s) => s.type === "mrt").length >= 2 },
+  { id: "mrt", text: "Open two MRT stations on a line", hint: "From 1987: 🛣️ Roads → MRT track, then 🍜 Services → MRT station beside it at each end.", test: (w, A) => (A ? A.mrtRunning : w.structs.filter((s) => s.type === "mrt").length >= 2) },
   { id: "pop80k", text: "Reach 80,000 residents", hint: "Bigger, modern estates and good transport.", test: (w) => w.stats.pop >= 80000 },
 ];
 
@@ -1714,6 +1737,7 @@ export function describe(w, A, hit) {
     if (S.cover) lines.push(`Serves homes within ${S.r * 50} m`);
     if (s.type === "mrt" && A && !A.stations.includes(s)) lines.push("⚠️ Not beside an MRT track");
     else if (s.type === "mrt" && A && !A.mrtRunning) lines.push("⚠️ Needs a second station on the line");
+    else if (s.type === "mrt" && A && !A.liveStations.includes(s)) lines.push("⚠️ No other station on this line: connect the track to another station");
     if (S.upkeep) lines.push(`Upkeep ${fmtMoney(S.upkeep)}/month`);
     return { title: s.name || S.name, icon: S.icon, lines, refurb: canRefurb && serviceAge(w, s) >= SERVICE_LIFE - 5 ? { cost: refurbCost(s), cond } : null };
   }
