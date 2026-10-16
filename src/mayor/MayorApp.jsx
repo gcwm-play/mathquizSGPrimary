@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import MapView, { zoomAt, lookAt } from "./MapView.jsx";
 import { TownsPanel, ElectionPanel, RenewSheet, NewsPanel, GoalsPanel, HelpPanel, MenuPanel, Panel, yearsMonths } from "./panels.jsx";
-import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel, ProjectPanel, ElectionReport, ChroniclePanel, ProgrammesPanel } from "./panels2.jsx";
+import { FinancePanel, DecisionPanel, CrisisPanel, ReportPanel, RivalsPanel, FinalReport, myRank, SentosaPanel, PlanPanel, ProjectPanel, ElectionReport, ChroniclePanel, ProgrammesPanel, HistoryPanel } from "./panels2.jsx";
 import { situation, setFantasy } from "./fantasy.js";
 import { decide, CRISES } from "./events.js";
 import { REGIONS, REGION_ORDER } from "./regions.js";
@@ -1133,6 +1133,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
         />
       )}
       {panel?.id === "crisis" && <CrisisPanel world={w} onClose={() => setPanel(null)} />}
+      {panel?.id === "history" && <HistoryPanel world={w} onClose={() => setPanel(null)} />}
       {panel?.id === "chronicle" && (
         <ChroniclePanel
           world={w}
@@ -1251,6 +1252,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           onRivals={() => setPanel({ id: "rivals" })}
           onFantasy={w.year >= 2027 ? () => setPanel({ id: "chronicle" }) : null}
           onProgrammes={() => setPanel({ id: "programmes" })}
+          onHistory={() => setPanel({ id: "history" })}
           onHelp={() => setPanel({ id: "help" })}
           onQuit={() => {
             save();

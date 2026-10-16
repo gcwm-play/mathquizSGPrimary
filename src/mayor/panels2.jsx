@@ -4,7 +4,8 @@ import { Panel } from "../city/panels.jsx";
 import { fmtMoney, fmtNum, projectFinance, REV_LABELS, REV_SUB, EXP_LABELS, tToDate, wearRate, dateLabel, sentosaState } from "./sim.js";
 import { STRUCTS, PURPOSES, MALL_NAMES, ALL_TOOLS as ALL_TOOLS_REF } from "./defs.js";
 import { setPurpose } from "./world.js";
-import { CRISES, getDecision, MONEY_SPREAD } from "./events.js";
+import { CRISES, DILEMMA, getDecision, MONEY_SPREAD } from "./events.js";
+import { HISTORY, historyOf, pendingReveals, compareChoice } from "./history.js";
 import { situation, setFantasy } from "./fantasy.js";
 import { PROGRAMMES, programmeBenefits, progState, progCost, progMonthly, progAvailable, stopPenalty, startProgramme, stopProgramme } from "./programmes.js";
 import { objectiveProgress } from "./objectives.js";
@@ -347,6 +348,7 @@ export function DecisionPanel({ world: w, onPick }) {
           </div>
         </div>
       </div>
+      {!fantasy && <HistoryNote world={w} />}
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {card.options.map((o) => {
           const poor = o.cost > 0 && o.cost > w.cash && !w.sandbox;
@@ -388,6 +390,132 @@ export function DecisionPanel({ world: w, onPick }) {
         })}
       </div>
       <p className="mt-2 text-[12px] text-[var(--muted)]">{fantasy ? "The clock is paused until you decide. 🎲 Odds are rolled when you choose. What you pick shapes what can happen next." : "The clock is paused until you decide. Choices can have consequences years later."}</p>
+    </Panel>
+  );
+}
+
+// ---------------- history notes ----------------
+// The options a history card offered, by id, to name what Singapore did.
+function optionsOf(key) {
+  const [kind, id] = key.split(":");
+  if (kind === "dilemma") return DILEMMA[id]?.options || [];
+  const C = CRISES[id];
+  const def = kind === "crisis" ? C : kind === "crisisMid" ? C?.mid : C?.mid?.second;
+  return def?.choices || [];
+}
+const labelOf = (key, id) => optionsOf(key).find((o) => o.id === id)?.label || id;
+
+// What really happened, and how the player's choice compares.
+export function RevealCard({ h }) {
+  const H = HISTORY[h.key];
+  if (!H) return null;
+  const same = compareChoice(h) === "same";
+  return (
+    <div className="rounded-2xl border-2 border-[var(--ink)]/10 bg-[var(--card)] p-2.5 text-[14px] leading-snug">
+      <div className="font-bold">
+        {H.title} <span className="font-semibold text-[var(--muted)]">· {H.when}</span>
+      </div>
+      <div className="mt-1">
+        You chose <b>“{h.label || labelOf(h.key, h.choice)}”</b> in {h.year}.{" "}
+        <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] font-bold" style={{ background: same ? "rgba(47,191,113,0.15)" : "rgba(112,72,232,0.12)", color: same ? "var(--good)" : "#7048e8" }}>
+          {same ? "✅ Same as Singapore" : "↔️ Different from Singapore"}
+        </span>
+      </div>
+      <div className="mt-1.5">
+        <b>What Singapore did:</b> {H.did}
+      </div>
+      <div className="mt-1 text-[13px] text-[var(--muted)]">
+        Closest option in the game: {H.gov.map((id) => `“${labelOf(h.key, id)}”`).join(" and ")}.{H.note ? ` ${H.note}` : ""}
+      </div>
+      <div className="mt-1.5">
+        <b>How it turned out:</b> {H.outcome}
+      </div>
+      {H.sources?.length > 0 && (
+        <div className="mt-1.5 text-[12px] text-[var(--muted)]">
+          Read more:{" "}
+          {H.sources.map((s, i) => (
+            <span key={s.url}>
+              {i > 0 && " · "}
+              <a href={s.url} target="_blank" rel="noopener noreferrer" className="underline">
+                {s.name}
+              </a>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// "Learn more" on a history card: the background, never the answer. Any
+// earlier history decision is revealed here.
+function HistoryNote({ world: w }) {
+  const [open, setOpen] = useState(false);
+  const H = historyOf(w.decision);
+  if (!H) return null;
+  const pending = pendingReveals(w);
+  return (
+    <div className="mt-2">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="city-btn w-full rounded-2xl bg-[var(--soft)] px-3 py-2 text-left font-bold">
+        📖 Learn more about this moment in history {open ? "▲" : "▼"}
+        {!open && pending.length > 0 && <span className="block text-[12.5px] font-semibold text-[#7048e8]">📜 Also inside: what Singapore actually did about “{HISTORY[pending[0].key].title}”</span>}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          <div className="rounded-2xl bg-[var(--soft)] p-3 text-[14px] leading-snug">
+            <div className="text-[12px] font-bold uppercase tracking-wide text-[var(--muted)]">
+              {H.title} · {H.when}
+            </div>
+            {H.context.map((p, i) => (
+              <p key={i} className="mt-1.5">
+                {p}
+              </p>
+            ))}
+            <p className="mt-2 text-[13px] font-semibold text-[var(--muted)]">What would you do? What Singapore actually chose is revealed at the next moment in history.</p>
+          </div>
+          {pending.length > 0 && (
+            <div>
+              <div className="mb-1 font-bold">📜 Last time: what Singapore actually did</div>
+              <div className="space-y-2">
+                {pending.map((h) => (
+                  <RevealCard key={h.key} h={h} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Every history decision so far, side by side with what Singapore did.
+export function HistoryPanel({ world: w, onClose }) {
+  const log = [...(w.historyLog || [])].reverse();
+  const done = log.filter((h) => h.revealed || w.gameOver);
+  const same = done.filter((h) => compareChoice(h) === "same").length;
+  return (
+    <Panel title="📜 History notebook" onClose={onClose}>
+      <p className="text-[14px] leading-snug text-[var(--muted)]">
+        Some decisions in this game are based on real moments in Singapore's history. Tap 📖 Learn more on those cards for the background. What Singapore actually did is revealed at the next history moment, so you can decide for yourself first.
+      </p>
+      {done.length > 0 && (
+        <p className="mt-2 text-[14px] font-bold">
+          You've made the same call as Singapore {same} time{same === 1 ? "" : "s"} out of {done.length}.
+        </p>
+      )}
+      <div className="mt-2 space-y-2">
+        {log.map((h) =>
+          h.revealed || w.gameOver ? (
+            <RevealCard key={h.key} h={h} />
+          ) : (
+            <div key={h.key} className="rounded-2xl bg-[var(--soft)] p-2.5 text-[14px] leading-snug">
+              🔒 <b>{HISTORY[h.key]?.title}</b> ({h.year}): you chose “{h.label}”. What Singapore did is revealed at the next history moment.
+            </div>
+          )
+        )}
+        {!log.length && <p className="text-[14px]">No history decisions yet. They start with the British withdrawal in 1968.</p>}
+      </div>
     </Panel>
   );
 }
@@ -696,6 +824,7 @@ export function FinalReport({ final, onReports }) {
           📊 See every report card
         </button>
       )}
+      <p className="mt-2 text-[13px] text-[var(--muted)]">📜 Every history decision is now revealed in ☰ Menu → History notebook: see how your choices compare with what Singapore actually did.</p>
     </div>
   );
 }
