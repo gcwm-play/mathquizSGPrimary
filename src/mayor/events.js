@@ -6,6 +6,7 @@ import { LOT_TYPES, STRUCTS } from "./defs.js";
 import { charge, noteImpact, genLots, refillLots } from "./world.js";
 import { REGIONS } from "./regions.js";
 import { settlePetition } from "./character.js";
+import { recordHistory } from "./history.js";
 import { fantasyCard, decideFantasy, stepFantasy, fantasyOn, fantasySevere } from "./fantasy.js";
 
 const MULT = ["business", "tourism", "trade", "land", "jobs", "health", "upkeep", "growth"];
@@ -840,6 +841,7 @@ export function decide(w, optId, push, rng = Math.random) {
   const o = card?.options.find((x) => x.id === optId);
   w.decision = null;
   if (!o) return;
+  recordHistory(w, d, optId, o.label);
   let ok = true;
   if (o.chance != null && rng() > o.chance) {
     ok = false;

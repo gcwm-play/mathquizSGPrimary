@@ -720,7 +720,7 @@ function Toggle({ id, label, hint, checked, onChange }) {
   );
 }
 
-export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHelp, onGoals, onQuit, saved, onFinance, onRivals, onFantasy, onProgrammes }) {
+export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHelp, onGoals, onQuit, saved, onFinance, onRivals, onFantasy, onProgrammes, onHistory }) {
   const set = (k, v) => setSettings({ ...settings, [k]: v });
   return (
     <Panel title="☰ Menu" onClose={onClose}>
@@ -731,6 +731,7 @@ export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHel
           ["💰", "Finances", onFinance],
           ["🎁", "Programmes", onProgrammes],
           ["📊", "Mayors' league", onRivals],
+          ["📜", "History notebook", onHistory],
           ["❓", "How to play", onHelp],
           ["🏠", "Switch region / title", onQuit],
           onFantasy && ["🐉", world.fantasy?.on ? "Fantasy chronicle" : "Fantasy Mode", onFantasy],
