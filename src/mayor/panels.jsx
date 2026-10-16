@@ -133,6 +133,8 @@ function Stat({ label, value, tone }) {
   );
 }
 
+const PURPOSE_NAME = { industrial: "an industrial town", commercial: "a business district", heritage: "a heritage town" };
+
 // Every need for one town, out of 100, with the change over the last 6 months.
 function NeedsCard({ town: t }) {
   const [open, setOpen] = useState(false);
@@ -151,6 +153,11 @@ function NeedsCard({ town: t }) {
           </span>
         )}
       </button>
+      {open && t.fit != null && t.fit < 0.5 && ["industrial", "commercial", "heritage"].includes(t.purpose) && (
+        <div className="mt-1.5 rounded-lg bg-[var(--soft)] px-2 py-1 text-[12px] text-[var(--muted)]">
+          Planned as {PURPOSE_NAME[t.purpose] || t.purpose}, but it's mostly homes ({Math.round(t.fit * 100)}% of the way there), so residents still expect what any family town needs. Add more {t.purpose === "industrial" ? "factories" : "offices and shops"} to make the plan count.
+        </div>
+      )}
       {open && (
         <div className="mt-1.5 grid gap-x-4 gap-y-1 text-[13px] sm:grid-cols-2">
           {rows.map((r) => (
