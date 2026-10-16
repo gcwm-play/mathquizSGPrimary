@@ -112,6 +112,7 @@ export function TownsPanel({ world: w, onClose, onShow, onChange, toast }) {
                 {!t.feedback?.length && <li className="text-[13px] text-[var(--muted)]">No one lives here yet.</li>}
               </ul>
               {t.anger > 0.6 && <div className="mt-1 text-[13px] text-[var(--bad)]">😠 Still upset about recent demolitions and resettlement.</div>}
+              <CharacterRow town={t} onChange={onChange} />
               {t.needs && (t.pop || 0) > 0 && <NeedsCard town={t} />}
             </div>
           );
@@ -121,6 +122,45 @@ export function TownsPanel({ world: w, onClose, onShow, onChange, toast }) {
         Elections come every {TERM_YEARS} years. {D.voteMin && w.mode !== "sandbox" ? "Win more than half the votes across your towns to stay mayor." : "You can't be voted out, but residents still tell you what they think."} Unhappy towns slowly lose residents to other regions.
       </p>
     </Panel>
+  );
+}
+
+// Landed-estate pushback and education (Bukit Timah / Clementi only).
+function CharacterRow({ town: t, onChange }) {
+  const landed = (t.landed || 0) >= 6;
+  if (!landed && t.edu == null) return null;
+  const s = Math.round(t.charLoss || 0);
+  const mood = s >= 30 ? ["😠", "angry", "var(--bad)"] : s >= 12 ? ["😟", "uneasy", "#d97706"] : ["🙂", "calm", "#2f9e44"];
+  const e = t.edu != null ? Math.round(t.edu) : null;
+  const up = e != null ? Math.round(Math.max(0, (e - 50) / 50) * 20) : 0;
+  const down = e != null ? Math.round(Math.max(0, (e - 50) / 50) * 18) : 0;
+  return (
+    <div className="mt-2 space-y-1 rounded-xl bg-[var(--soft)] px-2.5 py-1.5 text-[13px] leading-snug">
+      {landed && (
+        <div>
+          🏡 <b>Landed estate</b> ({t.landed} homes): change over 10 years <b style={{ color: mood[2] }}>{s}% · {mood[0]} {mood[1]}</b>
+          <div className="text-[12px] text-[var(--muted)]">
+            Towers next door, felled forest, wider roads and lost houses all count; a park between towers and houses halves it. When angry: they sell up (less private property tax), petition you, and spread doubt about you in every town.
+          </div>
+          <button
+            onClick={() => {
+              t.lowRise = !t.lowRise;
+              onChange?.();
+            }}
+            className="city-btn mt-1 rounded-full bg-[var(--card)] px-2.5 py-1 text-[12px] font-bold"
+          >
+            {t.lowRise ? "✅" : "⬜"} Low-rise HDB next to the houses (about 40% fewer flats there)
+          </button>
+        </div>
+      )}
+      {e != null && (
+        <div>
+          🎓 <b>Education level {e}/100</b>
+          {up > 0 ? ` · incomes +${up}% · births −${down}%` : " · about average"}
+          <div className="text-[12px] text-[var(--muted)]">Rises slowly with top schools, a university or polytechnic in reach, and private housing.</div>
+        </div>
+      )}
+    </div>
   );
 }
 

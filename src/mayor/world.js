@@ -647,6 +647,8 @@ export function commitRoad(w, plan, opts = {}) {
     for (const s of made) Object.assign(s, { works: until, job: made[0]?.id });
   } else removeTreesNear(w, (x, y) => nearestOnPoly(pts, x, y).d < half + 0.3);
   for (const s of made) genLots(w, s);
+  // both ends snapped to the same junction: nothing was built, so nothing to pay
+  if (!made.length) return made;
   if (!opts.free) {
     const mid = segPts(w, made[Math.floor(made.length / 2)] || made[0]);
     charge(w, plan.cost, mid?.[Math.floor(mid.length / 4) * 2], mid?.[Math.floor(mid.length / 4) * 2 + 1]);

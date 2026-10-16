@@ -5,6 +5,7 @@ import { clamp } from "./geom.js";
 import { LOT_TYPES, STRUCTS } from "./defs.js";
 import { charge, noteImpact, genLots, refillLots } from "./world.js";
 import { REGIONS } from "./regions.js";
+import { settlePetition } from "./character.js";
 import { fantasyCard, decideFantasy, stepFantasy, fantasyOn, fantasySevere } from "./fantasy.js";
 
 const MULT = ["business", "tourism", "trade", "land", "jobs", "health", "upkeep", "growth"];
@@ -326,6 +327,15 @@ export const DILEMMAS = [
     options: [
       { id: "yes", label: "Offer a site", pros: ["A sought-after school for daughters", "Nearby homes become more sought-after"], cons: [`Needs room for ${STRUCTS.mgs.w > 6 ? "a whole hillside" : "a big campus"}`, `About $${(STRUCTS.mgs.cost / 1000).toFixed(1)}M to place`], offer: "mgs", log: "offered land to " + STRUCTS.mgs.name },
       { id: "no", label: "No room here", pros: ["Keeps the land for homes"], cons: ["It goes to another region"], rep: -1, tone: "neutral", log: "turned away " + STRUCTS.mgs.name },
+    ],
+  },
+  {
+    id: "petition", scheduled: true, region: "bukit", icon: "🏡", title: "A residents' petition",
+    text: (c) => `Residents of ${c.town}'s landed estates have signed a petition: "Our neighbourhood is being changed beyond recognition." They want new towers kept away from their streets, and the newspapers have noticed.`,
+    options: [
+      { id: "lowrise", label: "Keep new HDB near them low-rise", pros: ["Pushback eases", "The estate keeps its character"], cons: ["New blocks next to their streets hold ~40% fewer flats"], petition: "lowrise", log: "agreed to keep HDB low-rise near {town}'s landed estates" },
+      { id: "consult", label: "Hold a public consultation", pros: ["Residents feel heard", "Pushback eases for now"], cons: ["Costs money", "New building in the town slows for a year", "More towers will stir it up again"], cost: 250, petition: "consult", log: "held a public consultation in {town}" },
+      { id: "ignore", label: "Push ahead anyway", pros: ["Homes keep coming"], cons: ["Bad press", "Anger in the estate", "Doubt spreads to other towns"], rep: -3, trust: -1, anger: 0.5, tone: "bad", log: "pushed ahead despite a petition in {town}" },
     ],
   },
   {
@@ -716,6 +726,7 @@ export function applyOutcome(w, o, town, push, rng = Math.random) {
     for (const l of w.lots) if (l.b?.type === "farm") l.b = null;
     w.rev++;
   }
+  if (o.petition && town != null) settlePetition(w, town, o.petition);
   if (o.offer) w.offers = { ...(w.offers || {}), [o.offer]: w.t + 36 };
   if (o.quarry) {
     for (const st of w.structs.filter((x) => x.type === "quarry")) {

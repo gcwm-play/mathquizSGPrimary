@@ -314,6 +314,8 @@ export const REGIONS = {
       { type: "ktmStation", e: 0, s: 0.5, ang: -0.3 },
     ],
     landmarks: ["njc", "sPoly", "nus", "sji", "mgs"],
+    character: true, // landed residents push back on fast change
+    education: true, // campuses raise education: higher incomes, fewer babies
     purposes: { "Bukit Panjang": "mixed", "Bukit Batok": "residential", Clementi: "residential", "Bukit Timah": "residential" },
     // decision cards that arrive around their real dates
     scheduled: [
@@ -328,6 +330,7 @@ export const REGIONS = {
     events: [
       { year: 1965, month: 9, text: "⛰️ Bukit Timah Hill and its forest are a protected nature reserve. Building inside the reserve costs reputation, and slopes cost more to build on." },
       { year: 1974, month: 0, text: "🏙️ Clementi is chosen as a new town. HDB demand rises in the south." },
+      { year: 1980, month: 6, text: "🏡 Landed residents are getting organised. Change their streets too fast (towers next door, felled forest, wider roads) and they'll push back. Parks between towers and houses, low-rise HDB and patience all help." },
       { year: 1981, month: 0, text: "🏙️ Bukit Batok is planned as a new town." },
       { year: 1987, month: 0, text: "🚇 MRT arrives. Elevated track can't cross the nature reserve: go underground near the hill." },
     ],
