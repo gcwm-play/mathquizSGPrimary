@@ -1,6 +1,6 @@
 // Monthly simulation for Lion City Mayor: construction, ageing, demand, town
 // happiness and feedback, money, elections and pledges.
-import { PURPOSES, purposeOf, MINOR, LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
+import { PURPOSES, purposeOf, MINOR, LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, COMPLAINTS_BY_PURPOSE, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
 import { REGIONS } from "./regions.js";
 import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteImpactSim, fixOverlaps, charge, moveBaseToShore } from "./world.js";
 import { dist, clamp, polyLength, nearestOnPoly, makeRng } from "./geom.js";
@@ -321,6 +321,8 @@ export function analyze(w) {
       if (Ty.zone === "com") comJobs += Ty.jobs;
       else indJobs += Ty.jobs;
       T[l.town].jobs += Ty.jobs;
+      if (Ty.zone === "com") T[l.town].comJobs = (T[l.town].comJobs || 0) + Ty.jobs;
+      else T[l.town].indJobs = (T[l.town].indJobs || 0) + Ty.jobs;
     }
   }
   for (const k of w.kampongs) {
@@ -358,13 +360,17 @@ export function analyze(w) {
     needs.cost = clamp(costNeed - (scc - 1) * 18, 0, 100);
     if (t.hdbCap) needs.housing = clamp(needs.housing + (maint - 1) * 10, 0, 100);
     for (const b of w.boosts || []) if (b.town === i && needs[b.need] != null) needs[b.need] = clamp(needs[b.need] + b.v, 0, 100);
-    // what the town is planned for changes what residents expect
+    // what the town is planned for changes what residents expect, but only as
+    // far as the town really is that: a "CBD" that's all flats still needs schools
     const P = purposeOf(town);
+    const fit = purposeFit(town.purpose, t);
+    const pws = {};
     const minor = [];
     let tw = 0;
     let ta = 0;
     for (const [k, nd] of Object.entries(NEEDS)) {
-      const pw = P.weight[k] ?? 1;
+      const pw = 1 + ((P.weight[k] ?? 1) - 1) * fit;
+      pws[k] = pw;
       if (pw < MINOR) {
         minor.push(k);
         needs[k] = Math.max(needs[k], 65); // not expected here
@@ -377,7 +383,7 @@ export function analyze(w) {
     // island residents feel how the resort is doing
     if (town.purpose === "resort" && w.sentosa) base = base * 0.5 + w.sentosa.sat * 0.5;
     const schools = t.pop ? t.sch.map((v) => v / t.pop) : [50, 50, 50];
-    return { ...t, needs, minor, schools, unhoused, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
+    return { ...t, needs, minor, schools, unhoused, fit, pws, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
   });
   const vacant = T.reduce((a, t) => a + t.vacant, 0);
   return { lunch, info, want, towns, vacant, upkeepTown, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, coverAt, pollAt, services };
@@ -802,9 +808,9 @@ export function electionAnalysis(w, A) {
     const factors = [];
     const P = purposeOf(t);
     let tw = 0;
-    for (const [k, nd] of Object.entries(NEEDS)) tw += nd.weight * (P.weight[k] ?? 1);
+    for (const [k, nd] of Object.entries(NEEDS)) tw += nd.weight * (t.pws?.[k] ?? P.weight[k] ?? 1);
     for (const [k, nd] of Object.entries(NEEDS)) {
-      const pw = P.weight[k] ?? 1;
+      const pw = t.pws?.[k] ?? P.weight[k] ?? 1;
       if (pw < MINOR || t.needs?.[k] == null) continue;
       const pts = (t.needs[k] - 60) * ((nd.weight * pw) / tw) * 0.7;
       if (Math.abs(pts) >= 0.8) factors.push({ icon: nd.icon, label: `${nd.name} (${Math.round(t.needs[k])}/100)`, pts, need: k });
@@ -955,6 +961,17 @@ export function sentosaState(w, A) {
 }
 
 // How far into the red the region may go before the government steps in.
+// How much a town really is what it's planned as (0..1). Industrial and CBD
+// towns need jobs to match their residents; heritage towns need some shops.
+export function purposeFit(purpose, t) {
+  const pop = t.pop || 0;
+  if (pop < 300) return 1;
+  if (purpose === "industrial") return clamp((t.indJobs || 0) / (pop * 0.6), 0, 1);
+  if (purpose === "commercial") return clamp((t.comJobs || 0) / (pop * 0.6), 0, 1);
+  if (purpose === "heritage") return clamp((t.comJobs || 0) / (pop * 0.25), 0, 1);
+  return 1;
+}
+
 // ---------- ageing ----------
 // Services wear out: after 25 years they slowly lose effectiveness (down to
 // 60% at 45 years) until refurbished.
@@ -1363,6 +1380,8 @@ export function stepMonth(w, rng = Math.random) {
     town.kpop = t.kpop;
     town.needs = t.needs;
     town.minor = t.minor;
+    town.fit = t.fit;
+    town.pws = t.pws;
     // monthly needs for the last half-year, to show which way things are going
     town.nh = (town.nh || []).concat([Object.fromEntries(Object.entries(t.needs).map(([k, v]) => [k, Math.round(v)]))]).slice(-7);
     town.schools = t.schools;
@@ -1542,14 +1561,18 @@ function feedbackFor(t, seed, town, year = 9999) {
   const out = [];
   for (const x of town?.thanks || []) out.push({ need: x.need, v: x.to, kind: "thanks", text: `Thank you! ${NEEDS[x.need]?.name || x.need} is much better now (${x.from}→${x.to}).` });
   if (t.unhoused > 0.2) out.push({ need: "housing", v: Math.round(t.needs.housing), text: "We're still waiting for a flat! Build more homes." });
+  // complain first about what matters most to this kind of town, not just the lowest score
+  const P = purposeOf(town);
+  const weightOf = (k) => (NEEDS[k]?.weight || 1) * (t.pws?.[k] ?? P.weight[k] ?? 1);
   const worst = Object.entries(t.needs)
-    .filter(([k]) => COMPLAINTS[k] && !t.minor?.includes(k))
-    .sort((a, b) => a[1] - b[1]);
+    .filter(([k, v]) => COMPLAINTS[k] && !t.minor?.includes(k) && v < 55)
+    .sort((a, b) => (55 - b[1]) * weightOf(b[0]) - (55 - a[1]) * weightOf(a[0]));
   let complaints = 0;
   for (const [k, v] of worst.slice(0, 3)) {
-    if (v >= 55 || complaints >= 3) break;
+    if (complaints >= 3) break;
     if (k === "housing" && t.unhoused > 0.2) continue;
-    let list = COMPLAINTS[k];
+    // a town only talks like its label once it really is that kind of town
+    let list = ((t.fit ?? 1) >= 0.5 && COMPLAINTS_BY_PURPOSE[town?.purpose]?.[k]) || COMPLAINTS[k];
     // which level of school is missing?
     if (k === "school" && t.schools) {
       const lvl = t.schools.indexOf(Math.min(...t.schools));
