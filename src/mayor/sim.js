@@ -137,7 +137,7 @@ export function quality(w, b) {
 export const ageYears = (w, b) => Math.max(0, Math.floor((w.t - b.built) / 12));
 
 // ---------- analysis ----------
-const COVERS = ["food", "school", "school2", "school3", "health", "safety", "fire", "community", "green", "transport", "mrt"];
+const COVERS = ["food", "school", "school2", "school3", "health", "safety", "fire", "community", "green", "transport", "mrt", "prestige"];
 
 export function analyze(w) {
   const fund = clamp(w.funding / 100, 0, 1.2);
@@ -182,7 +182,7 @@ export function analyze(w) {
     if (S.tourism) tourism += S.tourism * (s.copy ? 0.6 : 1) * eff;
     if (S.trade) trade += S.trade * eff;
     if (S.jobs) structJobs += S.jobs * eff;
-    if (S.landmark) landmarks.push(s);
+    if (S.landmark && !S.offer) landmarks.push(s);
     if (S.poll) polluters.push({ x: s.x, y: s.y, p: S.poll, r: 8 });
   }
   // a station only runs if another station sits on the same connected line
@@ -205,7 +205,9 @@ export function analyze(w) {
   const mrtRunning = liveStations.length >= 2;
   let roadLen = 0;
   for (const s of w.segs) {
+    if (s.type === "ktm") continue; // run by Malayan Railways, not you
     const pts = segPts(w, s);
+    if (s.type === "corridor") for (let k = 0; k < pts.length; k += 26) services.push({ x: pts[k], y: pts[k + 1], cover: "green", r: 5, f: 0.75 * fund, type: "corridor" });
     const len = polyLength(pts) * (ROAD_TYPES[s.type].underground ? 4 : ROAD_TYPES[s.type].rail ? 3 : 1);
     roadLen += len;
     const mi = Math.floor(pts.length / 4) * 2;
@@ -276,7 +278,7 @@ export function analyze(w) {
       if (d < 12) lm += 14 * (1 - d / 12);
     }
     const transport = Math.max(c.mrt, c.transport * 0.75, 0.3) + (avenueNear.has(l.seg) ? 0.1 : 0);
-    const lv = clamp(24 + wet * 9 + green * 12 + c.mrt * 18 + c.transport * 5 + c.health * 4 + c.school * 4 + c.safety * 5 + Math.min(16, comNear * 1.4) + lm - p * 0.6, 0, 100);
+    const lv = clamp(24 + wet * 9 + green * 12 + c.mrt * 18 + c.transport * 5 + c.health * 4 + c.school * 4 + c.safety * 5 + c.prestige * 12 + Math.min(16, comNear * 1.4) + lm - p * 0.6, 0, 100);
     info.set(l.id, { c, p, lv, transport });
   }
   const want = (l, zone) => {
@@ -1179,6 +1181,8 @@ export function stepMonth(w, rng = Math.random) {
   const nT = w.towns.length;
   const pend = { land: 0, hdbSales: 0, hdbBuild: 0, towns: w.towns.map(() => ({ land: 0, hdbSales: 0, hdbBuild: 0 })) };
   w.pending = pend;
+  for (const t of w.pendingNews || []) pushNews(w, t);
+  w.pendingNews = null;
   const push = (text) => pushNews(w, text);
   let A = analyze(w);
   w.election.justHeld = null;
@@ -1229,7 +1233,7 @@ export function stepMonth(w, rng = Math.random) {
       w.towns[ti].anger += 0.4;
       note = ` Some residents call it a copycat of ${st.copy.region}'s (${st.copy.year}), and fewer tourists bother to come.`;
       w.log.push({ year: w.year, text: `opened a copy of ${S.name}`, tone: "bad" });
-    } else if (S.landmark && !S.group) {
+    } else if (S.landmark && !S.group && !S.offer) {
       w.rep = clamp((w.rep ?? 50) + 4, 0, 100);
       note = " The first of its kind in Singapore: your reputation soars!";
       w.log.push({ year: w.year, text: `opened ${name}, a first for Singapore`, tone: "good" });
@@ -1775,6 +1779,8 @@ export function describe(w, A, hit) {
     if (S.upkeep) lines.push(`Upkeep ${fmtMoney(S.upkeep)}/month`);
     return { title: s.name || S.name, icon: S.icon, lines, refurb: canRefurb && serviceAge(w, s) >= SERVICE_LIFE - 5 ? { cost: refurbCost(s), cond } : null };
   }
+  if (hit.kind === "road" && hit.s.type === "ktm") return { title: "KTM railway", icon: "🚂", lines: ["Trains to Malaya run here until 2011. It isn't yours to remove, and lots can't be built on it."] };
+  if (hit.kind === "road" && hit.s.type === "corridor") return { title: "Rail Corridor", icon: "🌿", lines: ["The old railway, now a green trail. Homes near it enjoy more greenery."] };
   if (hit.kind === "road" && ROAD_TYPES[hit.s.type].underground)
     return { title: "Underground MRT", icon: "🚇", lines: [hit.s.works > w.t ? `🚧 Being dug: trains in about ${hit.s.works - w.t} months` : "Runs under homes and roads.", "Trains stop only at stations: put an underground station at each place you want served."] };
   if (hit.kind === "road" && ROAD_TYPES[hit.s.type].rail) return { title: ROAD_TYPES[hit.s.type].name, icon: "🚆", lines: ["Trains stop only at stations: put a station beside the track at each place you want served."] };

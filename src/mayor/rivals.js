@@ -80,7 +80,7 @@ function rivalLandmark(w, r, rng, out) {
   const keen = { futurist: 0.2, showman: 0.2, gardener: 0.14, builder: 0.12, conservator: 0.1, accountant: 0.06 }[r.style] || 0.1;
   if (rng() > keen) return;
   r.built = r.built || [];
-  const ready = Object.entries(STRUCTS).filter(([k, S]) => S.landmark && !S.group && !S.hidden && S.year <= w.year && !r.built.includes(k) && (!S.regionOnly || S.region === r.region));
+  const ready = Object.entries(STRUCTS).filter(([k, S]) => S.landmark && !S.group && !S.offer && !S.hidden && S.year <= w.year && !r.built.includes(k) && (!S.regionOnly || S.region === r.region));
   // their own region's famous sights come first; copying others is rarer
   const home = ready.filter(([, S]) => S.region === r.region);
   const pool = home.length ? home : rng() < 0.35 ? ready : [];

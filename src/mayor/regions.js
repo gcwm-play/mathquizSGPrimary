@@ -260,6 +260,78 @@ export const REGIONS = {
     sentosa: true,
     indBoost: 0.1,
   },
+  bukit: {
+    id: "bukit",
+    name: "Bukit Timah / Clementi",
+    short: "Bt Timah",
+    icon: "⛰️",
+    blurb: "Rubber estates, granite quarries and Singapore's highest hill, crossed by the railway to Malaya. Protect the forest, decide which schools and campuses get land, and choose how far the old landed estates should change.",
+    tip: "Land-limited: a protected hill, big campuses and nature to weigh against homes.",
+    land: (e, s, n) => {
+      // inland, with a short stretch of the West Coast in the south-west
+      const coast = 27 + wave(e, 2, 0.17) + Math.max(0, e + 6) * 0.45 - s;
+      return coast + n * 1.6;
+    },
+    // Bukit Timah Hill: slopes cost more, the summit can't be built on,
+    // and the forest around it is a protected nature reserve
+    hill: { e: 8, s: -15, r: 10, reserve: 7, summit: 1.9 },
+    fresh: [
+      { kind: "river", w: 0.8, path: [[-8, 2], [-11, 10], [-14, 18], [-17, 28]] }, // Sungei Pandan
+      { kind: "river", w: 0.6, path: [[12, 4], [24, 6], [34, 8], [46, 9]] }, // Bukit Timah canal
+    ],
+    towns: [
+      { name: "Bukit Panjang", e: -12, s: -20 },
+      { name: "Bukit Batok", e: -24, s: 0 },
+      { name: "Clementi", e: -4, s: 14 },
+      { name: "Bukit Timah", e: 18, s: -2 },
+    ],
+    kampongs: [
+      { name: "Kampong Chantek", e: 14, s: -6, r: 2.6, pop: 380 },
+      { name: "Kampong Hillview", e: -8, s: -12, r: 3, pop: 460 },
+      { name: "Kampong Sungei Pandan", e: -10, s: 18, r: 3, pop: 480 },
+      { name: "Kampong Bukit Panjang", e: -18, s: -26, r: 3, pop: 420 },
+      { name: "Kampong Bukit Batok", e: -28, s: 4, r: 2.8, pop: 400 },
+    ],
+    roads: [
+      [[46, 4], [26, 2], [4, -2]], // Bukit Timah Road
+      [[4, -2], [-4, -10], [-12, -24]], // Upper Bukit Timah Road
+      [[-12, -24], [-16, -34], [-18, -46]],
+      [[0, -5], [-14, -2], [-46, 2]], // Jurong Road
+      [[4, -2], [2, 8], [-2, 26]], // Clementi Road
+    ],
+    // the KTM line to Malaya, with Bukit Timah station
+    railway: [
+      [[-26, -46], [-12, -14], [2, 4]],
+      [[2, 4], [22, 12], [46, 16]],
+    ],
+    // a small belt of landed homes along Bukit Timah Road, nearest town
+    oldTown: [{ e: 26, s: 0, r: 6.5, zone: "pte", type: "terrace" }],
+    structs: [
+      { type: "chineseHigh", e: 14, s: 4, ang: -0.78 },
+      { type: "ngeeAnn", e: -6, s: 9, ang: -0.78 },
+      { type: "quarry", e: -22, s: -9, ang: -0.6 },
+      { type: "quarry", e: -14, s: -8, ang: -0.9 },
+      { type: "ktmStation", e: 0, s: 0.5, ang: -0.3 },
+    ],
+    landmarks: ["njc", "sPoly", "nus", "sji", "mgs"],
+    purposes: { "Bukit Panjang": "mixed", "Bukit Batok": "residential", Clementi: "residential", "Bukit Timah": "residential" },
+    // decision cards that arrive around their real dates
+    scheduled: [
+      { year: 1969, id: "offerNjc" },
+      { year: 1976, id: "offerPoly" },
+      { year: 1978, id: "offerNus" },
+      { year: 1986, id: "quarryEnd" },
+      { year: 1987, id: "offerSji" },
+      { year: 1991, id: "offerMgs" },
+      { year: 2011, id: "ktmClose" },
+    ],
+    events: [
+      { year: 1965, month: 9, text: "⛰️ Bukit Timah Hill and its forest are a protected nature reserve. Building inside the reserve costs reputation, and slopes cost more to build on." },
+      { year: 1974, month: 0, text: "🏙️ Clementi is chosen as a new town. HDB demand rises in the south." },
+      { year: 1981, month: 0, text: "🏙️ Bukit Batok is planned as a new town." },
+      { year: 1987, month: 0, text: "🚇 MRT arrives. Elevated track can't cross the nature reserve: go underground near the hill." },
+    ],
+  },
 };
 
-export const REGION_ORDER = ["east", "west", "central", "south", "north"];
+export const REGION_ORDER = ["east", "west", "central", "south", "north", "bukit"];

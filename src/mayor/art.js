@@ -482,7 +482,7 @@ export function drawAttap(ctx, x, y, ang, v) {
 }
 
 // ---------- services & landmarks ----------
-const STRUCT_H = { olympicStadium: 50, alienEmbassy: 70, cureLab: 40, spaceElevator: 320, mallHood: 40, mallCentre: 45, mallLux: 50, cableCar: 70, secondLink: 30, sentosaBridge: 30, keppelPort: 70, underwaterWorld: 40, vivoCity: 40, sentosaExpress: 40, resortsWorld: 140, fortSiloso: 40, hospital: 60, airbase: 30, navalBase: 40, changiAirport: 60, tampinesHub: 40, scienceCentre: 40, jurongIsland: 70, tuasPort: 70, merlion: 40, esplanade: 40, marinaBaySands: 140, gardensBay: 90, checkpoint: 30, causewayPoint: 40, rtsLink: 40, birdPark: 40, sports: 30, school: 30, mrt: 30 };
+const STRUCT_H = { chineseHigh: 75, ngeeAnn: 40, sPoly: 40, njc: 34, sji: 40, mgs: 40, nus: 66, quarry: 50, quarryOld: 8, quarryPark: 20, ktmStation: 26, mrtUg: 24, olympicStadium: 50, alienEmbassy: 70, cureLab: 40, spaceElevator: 320, mallHood: 40, mallCentre: 45, mallLux: 50, cableCar: 70, secondLink: 30, sentosaBridge: 30, keppelPort: 70, underwaterWorld: 40, vivoCity: 40, sentosaExpress: 40, resortsWorld: 140, fortSiloso: 40, hospital: 60, airbase: 30, navalBase: 40, changiAirport: 60, tampinesHub: 40, scienceCentre: 40, jurongIsland: 70, tuasPort: 70, merlion: 40, esplanade: 40, marinaBaySands: 140, gardensBay: 90, checkpoint: 30, causewayPoint: 40, rtsLink: 40, birdPark: 40, sports: 30, school: 30, mrt: 30 };
 export const structHeight = (t) => STRUCT_H[t] || 30;
 
 // new landmarks reuse the closest existing drawing
@@ -603,6 +603,114 @@ export function drawStruct(ctx, q, type, time) {
       windows(ctx, pr, { rows: 1, perUnit: 2, color: "#4dabf7", hf: 0.7 });
       gableUV(ctx, q, 0.1, 0.15, 0.9, 0.85, 8, 5, "#ff5a5a", "u");
       boxUV(ctx, q, 0.86, 0.4, 0.94, 0.5, 16, "#7048e8");
+      break;
+    }
+    case "chineseHigh": {
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#7ed957");
+      flatUV(ctx, q, 0.55, 0.15, 0.95, 0.85, "#c8e6a0");
+      shadowUV(ctx, q, 0.05, 0.1, 0.5, 0.9, 26);
+      const pr = boxUV(ctx, q, 0.05, 0.1, 0.5, 0.9, 24, "#fdf6e3");
+      windows(ctx, pr, { rows: 3, perUnit: 3, color: "#8a5a44" });
+      gableUV(ctx, q, 0.03, 0.08, 0.52, 0.92, 24, 8, "#c0563f", "v");
+      // the clock tower
+      boxUV(ctx, q, 0.22, 0.42, 0.33, 0.58, 58, "#fdf6e3");
+      hipUV(ctx, q, 0.2, 0.4, 0.35, 0.6, 58, 12, "#c0563f");
+      const [cx, cy] = quadPoint(q, 0.275, 0.42);
+      const [sx, sy] = P(cx, cy, 48);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+    case "ngeeAnn":
+    case "sPoly": {
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#cfe8b8");
+      const tone = type === "sPoly" ? "#e3f2fd" : "#fff4e6";
+      for (const [u0, v0, u1, v1, h] of [[0.05, 0.08, 0.45, 0.4, 30], [0.55, 0.08, 0.95, 0.4, 22], [0.05, 0.58, 0.4, 0.92, 18]]) {
+        shadowUV(ctx, q, u0, v0, u1, v1, h);
+        const pr = boxUV(ctx, q, u0, v0, u1, v1, h, tone);
+        windows(ctx, pr, { rows: Math.round(h / 9), perUnit: 3, color: type === "sPoly" ? "#1971c2" : "#e8590c" });
+      }
+      // sports hall
+      const hall = boxUV(ctx, q, 0.52, 0.55, 0.95, 0.92, 16, "#f8f9fa");
+      windows(ctx, hall, { rows: 1, perUnit: 2, color: "#868e96", hf: 0.4 });
+      gableUV(ctx, q, 0.5, 0.53, 0.97, 0.94, 16, 7, type === "sPoly" ? "#1971c2" : "#e8590c", "u");
+      break;
+    }
+    case "njc":
+    case "sji":
+    case "mgs": {
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#7ed957");
+      // playing field with a running track
+      const [ex, ey] = quadPoint(q, 0.72, 0.5);
+      const [sx, sy] = P(ex, ey);
+      ctx.strokeStyle = type === "njc" ? "#e8590c" : "#ffffff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, 16, 8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      inkStyle(ctx);
+      const wall = type === "sji" ? "#c9734d" : type === "mgs" ? "#fde2e4" : "#e7f5ff";
+      shadowUV(ctx, q, 0.05, 0.08, 0.45, 0.92, 26);
+      const pr = boxUV(ctx, q, 0.05, 0.08, 0.45, 0.92, 24, wall);
+      windows(ctx, pr, { rows: 3, perUnit: 3, color: type === "njc" ? "#1c7ed6" : "#5c3d2e" });
+      if (type === "njc") boxUV(ctx, q, 0.04, 0.06, 0.46, 0.94, 3, "#1c7ed6", 24);
+      else {
+        gableUV(ctx, q, 0.03, 0.06, 0.47, 0.94, 24, 8, type === "sji" ? "#7f2f1d" : "#d6336c", "v");
+        // chapel with a cross
+        boxUV(ctx, q, 0.5, 0.06, 0.66, 0.3, 18, "#ffffff");
+        gableUV(ctx, q, 0.49, 0.05, 0.67, 0.31, 18, 12, "#495057", "v");
+        const [cx, cy] = quadPoint(q, 0.58, 0.18);
+        const [x2, y2] = P(cx, cy, 34);
+        ctx.fillStyle = "#ffd43b";
+        ctx.fillRect(x2 - 1, y2 - 7, 2, 9);
+        ctx.fillRect(x2 - 3.5, y2 - 4, 7, 2);
+      }
+      break;
+    }
+    case "nus": {
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#8fd16a");
+      // stadium
+      const [ex, ey] = quadPoint(q, 0.8, 0.78);
+      const [sx, sy] = P(ex, ey);
+      ctx.fillStyle = "#c3e6a8";
+      ctx.strokeStyle = "#e8590c";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, 22, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      inkStyle(ctx);
+      const blocks = [[0.05, 0.06, 0.25, 0.3, 40, "#f1f3f5"], [0.32, 0.06, 0.55, 0.26, 30, "#fff4e6"], [0.62, 0.06, 0.94, 0.3, 48, "#e7f5ff"], [0.05, 0.4, 0.22, 0.62, 26, "#fff4e6"], [0.3, 0.38, 0.52, 0.62, 56, "#f8f0fc"], [0.05, 0.72, 0.3, 0.94, 22, "#e7f5ff"], [0.36, 0.72, 0.58, 0.94, 34, "#f1f3f5"]];
+      for (const [u0, v0, u1, v1, h, c] of blocks) {
+        shadowUV(ctx, q, u0, v0, u1, v1, h);
+        const pr = boxUV(ctx, q, u0, v0, u1, v1, h, c);
+        windows(ctx, pr, { rows: Math.round(h / 9), perUnit: 3, color: "#1864ab" });
+      }
+      for (const [u, v, k] of [[0.6, 0.45, 1], [0.27, 0.68, 0.8], [0.9, 0.45, 0.9]]) blobTree(ctx, ...quadPoint(q, u, v), k, ["#2fa05a", "#63cf7d"]);
+      break;
+    }
+    case "quarry":
+    case "quarryOld":
+    case "quarryPark": {
+      const park = type === "quarryPark";
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, park ? "#7ed957" : "#b9b2a6");
+      flatUV(ctx, q, 0.12, 0.14, 0.88, 0.86, park ? "#8c8577" : "#8c8577", 0, false);
+      flatUV(ctx, q, 0.2, 0.24, 0.8, 0.78, type === "quarry" ? "#6f675b" : "#2fa39a", 0, false);
+      if (type === "quarry") {
+        boxUV(ctx, q, 0.82, 0.1, 0.95, 0.24, 14, "#ffd43b");
+        boxUV(ctx, q, 0.87, 0.14, 0.9, 0.18, 36, "#495057", 14);
+      } else if (park) for (const [u, v, k] of [[0.08, 0.5, 0.9], [0.9, 0.3, 0.8], [0.5, 0.92, 0.8], [0.1, 0.1, 0.7]]) blobTree(ctx, ...quadPoint(q, u, v), k, ["#2fa05a", "#63cf7d"]);
+      break;
+    }
+    case "ktmStation": {
+      flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#d8cbb3");
+      shadowUV(ctx, q, 0.1, 0.25, 0.9, 0.85, 14);
+      const pr = boxUV(ctx, q, 0.1, 0.25, 0.9, 0.85, 12, "#fff3d6");
+      windows(ctx, pr, { rows: 1, perUnit: 3, color: "#5c3d2e", hf: 0.6 });
+      gableUV(ctx, q, 0.06, 0.2, 0.94, 0.9, 12, 9, "#c0563f", "u");
       break;
     }
     case "sports": {

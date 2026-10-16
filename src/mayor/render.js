@@ -2,7 +2,7 @@
 // in world space through the isometric transform, plus depth-sorted cached
 // sprites for buildings, trees and kampong houses.
 import { MAP } from "./regions.js";
-import { terrain, TERRAIN_GRID, RES, segPts, terrainAt } from "./world.js";
+import { terrain, TERRAIN_GRID, RES, segPts, terrainAt, hillOf } from "./world.js";
 import { ROAD_TYPES, STRUCTS, LOT_TYPES, purposeOf } from "./defs.js";
 
 const PURPOSE_SHORT = { mixed: "Mixed", residential: "Homes", commercial: "CBD", industrial: "Industry", heritage: "Heritage", resort: "Resort" };
@@ -204,7 +204,7 @@ function groundPaths(R, w) {
     else if (l.zone) quad(zoned[l.zone], l.q);
     else quad(empty, l.q);
   }
-  const roads = { road: new Path2D(), avenue: new Path2D(), rail: new Path2D(), tunnel: new Path2D(), tunnelWorks: new Path2D() };
+  const roads = { ktm: new Path2D(), corridor: new Path2D(), road: new Path2D(), avenue: new Path2D(), rail: new Path2D(), tunnel: new Path2D(), tunnelWorks: new Path2D() };
   for (const s of w.segs) {
     const p = segPts(w, s);
     const path = s.type === "tunnel" && s.works ? roads.tunnelWorks : roads[s.type];
@@ -340,6 +340,35 @@ export function draw(ctx, R, w, A, cam, view) {
   ctx.lineWidth = 1.5;
   ctx.stroke(tp.land.lines);
   ctx.restore();
+  const H = hillOf(w);
+  if (H) {
+    // the reserve's forest floor, then contour rings up to the summit
+    ctx.save();
+    ctx.clip(tp.land.fill);
+    ctx.beginPath();
+    ctx.arc(H.x, H.y, H.reserve, 0, Math.PI * 2);
+    ctx.fillStyle = "#6fbf4f";
+    ctx.fill();
+    ctx.setLineDash([0.5, 0.35]);
+    ctx.strokeStyle = "rgba(47,120,40,0.9)";
+    ctx.lineWidth = 0.16;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const f of [0.8, 0.6, 0.42, 0.26]) {
+      ctx.beginPath();
+      ctx.arc(H.x, H.y, H.r * f, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(40,110,40,${0.1 + (1 - f) * 0.12})`;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 0.06;
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(H.x, H.y, H.summit, 0, Math.PI * 2);
+    ctx.fillStyle = "#3f8f3a";
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.fillStyle = "#5fcdf5";
   ctx.fill(tp.fresh.fill);
   ctx.strokeStyle = "#cdeffc";
@@ -368,6 +397,31 @@ export function draw(ctx, R, w, A, cam, view) {
     ctx.setLineDash([]);
   }
   for (const [type, path] of Object.entries(g.roads)) {
+    if (type === "ktm") {
+      // a single-track railway: ballast and sleepers
+      ctx.strokeStyle = "#8c7b6b";
+      ctx.lineWidth = 0.52;
+      ctx.stroke(path);
+      ctx.setLineDash([0.08, 0.22]);
+      ctx.strokeStyle = "#5b4636";
+      ctx.lineWidth = 0.42;
+      ctx.stroke(path);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#c9ced8";
+      ctx.lineWidth = 0.06;
+      ctx.stroke(path);
+      continue;
+    }
+    if (type === "corridor") {
+      // the old line as a green walking and cycling trail
+      ctx.strokeStyle = "#4f9d3a";
+      ctx.lineWidth = 0.7;
+      ctx.stroke(path);
+      ctx.strokeStyle = "#e9dcb5";
+      ctx.lineWidth = 0.22;
+      ctx.stroke(path);
+      continue;
+    }
     if (type === "tunnelWorks") {
       // hoardings along the route while it's being dug
       ctx.strokeStyle = INK;
@@ -636,6 +690,8 @@ export function draw(ctx, R, w, A, cam, view) {
   }
   if (preview?.kind === "road") drawRoadHandles(ctx, preview, time);
 
+  const hill = hillOf(w);
+  if (hill) badges.push({ ch: "⛰️", x: PX(hill.x, hill.y), y: PY(hill.x, hill.y), bg: "#d3f9d8" });
   for (const z of w.fantasy?.zones || []) badges.push({ ch: z.kind === "zombie" ? "🧟" : "☢️", x: PX(z.x, z.y), y: PY(z.x, z.y), bg: z.kind === "zombie" ? "#d0bfff" : "#d8f5a2" });
   for (const b of badges) badge(ctx, b.ch, b.x, b.y, 13, b.bg);
   if (motion) drawClouds(ctx, R.agents, Math.max(0, Math.min(0.85, 1.2 - cam.zoom * 1.1)));
