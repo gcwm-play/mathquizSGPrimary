@@ -378,6 +378,11 @@ export function planRoad(w, type, A, B, Cc, opts = {}) {
   }
   if (maxRun > 9) return { ...base, msg: "Too much water to bridge" };
   const hit = hitsAlong(w, pts, rt.half + 0.1);
+  // the grid can miss a lot the road only clips: check exactly too
+  const xs = pts.filter((_, k) => k % 2 === 0);
+  const ys = pts.filter((_, k) => k % 2 === 1);
+  const [x0, x1, y0, y1] = [Math.min(...xs) - 2, Math.max(...xs) + 2, Math.min(...ys) - 2, Math.max(...ys) + 2];
+  for (const l of w.lots) if (!hit.lots.has(l.id) && l.x > x0 && l.x < x1 && l.y > y0 && l.y < y1 && pathOnQuad(pts, rt.half - 0.04, l.q)) hit.lots.add(l.id);
   const lots = [...hit.lots].map((id) => w.lots.find((l) => l.id === id)).filter(Boolean);
   const structs = [...hit.structs].map((id) => w.structs.find((s) => s.id === id)).filter(Boolean);
   if (structs.some((s) => STRUCTS[s.type].fixed) && !opts.init) return { ...base, msg: "Can't build through that base" };
@@ -640,6 +645,7 @@ export function genLots(w, seg) {
       }
       if (!ok) continue;
       const [cx, cy] = quadCenter(q);
+      if (roadOnLot(w, q, cx, cy, seg.id)) continue;
       if (w.structs.some((st) => closeTo(st, cx, cy, 7) && quadsOverlap(q, st.q))) continue;
       if (w.lots.some((l) => closeTo(l, cx, cy, 2.6) && quadsOverlap(q, l.q))) continue;
       const lot = { id: w.nextId++, seg: seg.id, q, x: +cx.toFixed(3), y: +cy.toFixed(3), ang: +Math.atan2(p0.ty + p1.ty, p0.tx + p1.tx).toFixed(3), town: townOf(w, cx, cy), zone: null, b: null };
@@ -651,6 +657,44 @@ export function genLots(w, seg) {
   touch(w);
   w._occ = null;
   return made;
+}
+
+// Does another road or track run across this lot? The occupancy grid is
+// too coarse for this: a road could slip between its sample points, and the
+// lot got a block standing on the road.
+function roadOnLot(w, q, cx, cy, own) {
+  for (const sg of w.segs) {
+    if (sg.id === own) continue;
+    const pts = segPts(w, sg);
+    let near = false;
+    for (let k = 0; k < pts.length && !near; k += 2) near = Math.abs(pts[k] - cx) < 3 && Math.abs(pts[k + 1] - cy) < 3;
+    if (!near) continue;
+    if (pathOnQuad(pts, ROAD_TYPES[sg.type].half - 0.04, q)) return true;
+  }
+  return false;
+}
+function pathOnQuad(pts, r, q) {
+  for (let u = 0; u <= 1.001; u += 0.2)
+    for (let v = 0; v <= 1.001; v += 0.2) {
+      const ax = q[0] + (q[2] - q[0]) * u;
+      const ay = q[1] + (q[3] - q[1]) * u;
+      const x = ax + (q[6] + (q[4] - q[6]) * u - ax) * v;
+      const y = ay + (q[7] + (q[5] - q[7]) * u - ay) * v;
+      if (nearestOnPoly(pts, x, y).d < r) return true;
+    }
+  return false;
+}
+
+// Older saves can have lots built across another road: clear them.
+export function fixLotsOnRoads(w) {
+  const hit = w.lots.filter((l) => roadOnLot(w, l.q, l.x, l.y, l.seg));
+  if (!hit.length) return 0;
+  // quietly: their residents move to empty flats or join the queue
+  for (const l of hit) if (l.b?.type && LOT_TYPES[l.b.type]?.jobs) l.b.state = "gone";
+  clearLots(w, hit);
+  touch(w);
+  w._occ = null;
+  return hit.length;
 }
 
 // The nearest place to (e, s) where a fixed base sits wholly on land with

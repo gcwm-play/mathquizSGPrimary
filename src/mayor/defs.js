@@ -68,7 +68,7 @@ export const STRUCTS = {
   cc: { name: "Community centre", icon: "🏓", cost: 600, upkeep: 5, w: 1.8, d: 1.6, cover: "community", r: 10, year: 1965, tip: "Brings neighbours together. Good for votes." },
   park: { name: "Park", icon: "🌳", cost: 120, upkeep: 1, w: 2.2, d: 2.2, cover: "green", r: 6, year: 1965, tip: "Greenery near homes." },
   bus: { name: "Bus interchange", icon: "🚌", cost: 600, upkeep: 6, w: 2.2, d: 1.6, cover: "transport", r: 9, year: 1970, tip: "Feeder buses for a whole town." },
-  mrt: { name: "MRT station", icon: "🚇", cost: 2000, upkeep: 15, w: 2.4, d: 1.4, cover: "mrt", r: 9, year: 1987, rail: true, tip: "Place beside MRT track. Needs 2 stations on a line." },
+  mrt: { name: "MRT station", icon: "🚇", cost: 1200, upkeep: 15, w: 2.4, d: 1.4, cover: "mrt", r: 9, year: 1987, rail: true, tip: "Place beside MRT track. Needs 2 stations on a line." },
   sports: { name: "Sports complex", icon: "🏊", cost: 1500, upkeep: 10, w: 3, d: 2.4, cover: "green", r: 12, year: 1973, tip: "Pools and fields. Counts as greenery and community." },
 
   // region landmarks
@@ -136,7 +136,7 @@ export const MALL_NAMES = {
 export const ROAD_TYPES = {
   road: { name: "Road", half: 0.3, cost: 30, lots: true },
   avenue: { name: "Avenue", half: 0.45, cost: 55, lots: true, transport: 0.15 },
-  rail: { name: "MRT track", half: 0.26, cost: 160, lots: false, rail: true, year: 1987 },
+  rail: { name: "MRT track", half: 0.26, cost: 100, lots: false, rail: true, year: 1987 },
 };
 
 export const TOOL_GROUPS = [
