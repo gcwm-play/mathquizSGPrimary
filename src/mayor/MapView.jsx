@@ -96,6 +96,7 @@ export default function MapView({ worldRef, analysisRef, camRef, dirtyRef, previ
         time: clock,
         interacting: interacting.current,
         motion: animate,
+        tool: props.current.tool,
       });
       cost = cost * 0.9 + (performance.now() - t0) * 0.1;
     };

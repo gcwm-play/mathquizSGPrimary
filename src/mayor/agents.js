@@ -11,7 +11,7 @@ export function createAgents() {
 }
 
 function segsAt(w, node, rail) {
-  return w.segs.filter((s) => (s.a === node || s.b === node) && !!ROAD_TYPES[s.type].rail === rail);
+  return w.segs.filter((s) => (s.a === node || s.b === node) && !!ROAD_TYPES[s.type].rail === rail && !ROAD_TYPES[s.type].underground);
 }
 
 function place(w, list, rail, rng) {
@@ -22,7 +22,7 @@ function place(w, list, rail, rng) {
 
 function sync(ag, w, A, rng) {
   const roads = w.segs.filter((s) => !ROAD_TYPES[s.type].rail);
-  const rails = w.segs.filter((s) => ROAD_TYPES[s.type].rail);
+  const rails = w.segs.filter((s) => ROAD_TYPES[s.type].rail && !ROAD_TYPES[s.type].underground);
   const ids = new Set(w.segs.map((s) => s.id));
   ag.cars = ag.cars.filter((c) => ids.has(c.seg));
   ag.trains = ag.trains.filter((c) => ids.has(c.seg));

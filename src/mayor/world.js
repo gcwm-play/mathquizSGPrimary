@@ -98,6 +98,7 @@ export function occ(w) {
   const o = new Int32Array(C * C);
   for (const s of w.segs) {
     const rt = ROAD_TYPES[s.type];
+    if (rt.underground) continue; // tunnels don't take up land
     markPath(o, segPts(w, s), rt.half + 0.12, rt.rail ? -4 : -1, true);
   }
   for (const k of w.kampongs) for (const h of k.houses) markDisc(o, h[0], h[1], 0.55, -3);
@@ -376,6 +377,12 @@ export function planRoad(w, type, A, B, Cc, opts = {}) {
       maxRun = Math.max(maxRun, run);
     } else run = 0;
   }
+  if (rt.underground) {
+    // a tunnel passes under everything: nothing to demolish
+    if (maxRun > 24) return { ...base, msg: "Too long a tunnel under the sea" };
+    const cost = Math.round(len * rt.cost + water * rt.cost * 0.5);
+    return { ...base, ok: true, cost, bridge: 0, underground: true, demolish: { lots: [], built: 0, structs: [], houses: [] }, msg: "Underground: 1–2 years of works along the route" };
+  }
   if (maxRun > 9) return { ...base, msg: "Too much water to bridge" };
   const hit = hitsAlong(w, pts, rt.half + 0.1);
   // the grid can miss a lot the road only clips: check exactly too
@@ -479,8 +486,9 @@ export function splitSeg(w, segId, t) {
   const b = nodeById(w, s.b);
   const sp = bezSplit(a.x, a.y, s.cx, s.cy, b.x, b.y, t);
   const m = newNode(w, sp.mx, sp.my);
-  const s1 = { id: w.nextId++, a: s.a, b: m, cx: sp.c1x, cy: sp.c1y, type: s.type };
-  const s2 = { id: w.nextId++, a: m, b: s.b, cx: sp.c2x, cy: sp.c2y, type: s.type };
+  const keep = s.works ? { works: s.works, job: s.job, wn: s.wn } : {};
+  const s1 = { id: w.nextId++, a: s.a, b: m, cx: sp.c1x, cy: sp.c1y, type: s.type, ...keep };
+  const s2 = { id: w.nextId++, a: m, b: s.b, cx: sp.c2x, cy: sp.c2y, type: s.type, ...keep };
   const old = segPts(w, s);
   w.segs = w.segs.filter((x) => x.id !== segId).concat([s1, s2]);
   for (const l of w.lots) if (l.seg === segId) l.seg = nearestOnPoly(old, l.x, l.y).t < t ? s1.id : s2.id;
@@ -572,7 +580,11 @@ export function commitRoad(w, plan, opts = {}) {
   }
   touch(w);
   const half = ROAD_TYPES[type].half + 0.15;
-  removeTreesNear(w, (x, y) => nearestOnPoly(pts, x, y).d < half + 0.3);
+  if (ROAD_TYPES[type].underground) {
+    // tunnelling takes 12–24 months; the line can't carry trains until then
+    const until = w.t + 12 + Math.floor(Math.random() * 13);
+    for (const s of made) Object.assign(s, { works: until, job: made[0]?.id });
+  } else removeTreesNear(w, (x, y) => nearestOnPoly(pts, x, y).d < half + 0.3);
   for (const s of made) genLots(w, s);
   if (!opts.free) {
     const mid = segPts(w, made[Math.floor(made.length / 2)] || made[0]);
@@ -664,7 +676,7 @@ export function genLots(w, seg) {
 // lot got a block standing on the road.
 function roadOnLot(w, q, cx, cy, own) {
   for (const sg of w.segs) {
-    if (sg.id === own) continue;
+    if (sg.id === own || ROAD_TYPES[sg.type].underground) continue;
     const pts = segPts(w, sg);
     let near = false;
     for (let k = 0; k < pts.length && !near; k += 2) near = Math.abs(pts[k] - cx) < 3 && Math.abs(pts[k + 1] - cy) < 3;
@@ -974,6 +986,8 @@ export function planStruct(w, type, x, y) {
   const layer = S.rail ? "rail" : "road";
   const near = nearestSeg(w, x, y, layer, 4.5);
   if (!near) return { ok: false, msg: S.rail ? "Place it beside an MRT track" : "Place it beside a road" };
+  if (S.rail && !!S.underground !== !!ROAD_TYPES[near.seg.type].underground)
+    return { ok: false, msg: S.underground ? "Place it beside an underground line (🚇)" : "Place it beside elevated MRT track (🚆)" };
   const pts = segPts(w, near.seg);
   const i = Math.min(pts.length / 2 - 2, Math.floor(near.t * (pts.length / 2 - 1)));
   let tx = pts[i * 2 + 2] - pts[i * 2];
@@ -1134,7 +1148,9 @@ export function commitStruct(w, plan, opts = {}) {
   }
   w.structs.push(st);
   const NEED_OF = { food: "food", school: "school", health: "health", safety: "safety", fire: "safety", community: "community", green: "green", transport: "transport", mrt: "transport" };
-  if (st.state === "live") noteImpact(w, `you built the ${st.name || S.name} in ${w.towns[ti].name}`, ti, NEED_OF[S.cover]);
+  // an underground station waiting on tunnel works would only report the digging
+  const waiting = S.underground && w.segs.some((g) => g.works > w.t);
+  if (st.state === "live" && !waiting) noteImpact(w, `you built the ${st.name || S.name} in ${w.towns[ti].name}`, ti, NEED_OF[S.cover]);
   removeTreesNear(w, (x, y) => inQuad(q, x, y));
   charge(w, plan.cost, plan.x, plan.y);
   touch(w);

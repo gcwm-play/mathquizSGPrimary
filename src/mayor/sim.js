@@ -150,7 +150,8 @@ export function analyze(w) {
   const polluters = [];
   let upkeep = 0;
   const upkeepTown = w.towns.map(() => 0);
-  const rails = w.segs.filter((s) => ROAD_TYPES[s.type].rail);
+  // tunnels still being dug don't carry trains yet
+  const rails = w.segs.filter((s) => ROAD_TYPES[s.type].rail && !(s.works > w.t));
   const stations = [];
   const stationSeg = new Map();
   for (const s of w.structs) {
@@ -160,7 +161,7 @@ export function analyze(w) {
       upkeep += S.upkeep * fund;
       upkeepTown[townOf(w, s.x, s.y)] += S.upkeep * fund;
     }
-    if (s.type === "mrt") {
+    if (S.station) {
       let best = null;
       for (const r of rails) {
         const d = nearestOnPoly(segPts(w, r), s.x, s.y).d;
@@ -205,7 +206,7 @@ export function analyze(w) {
   let roadLen = 0;
   for (const s of w.segs) {
     const pts = segPts(w, s);
-    const len = polyLength(pts) * (ROAD_TYPES[s.type].rail ? 3 : 1);
+    const len = polyLength(pts) * (ROAD_TYPES[s.type].underground ? 4 : ROAD_TYPES[s.type].rail ? 3 : 1);
     roadLen += len;
     const mi = Math.floor(pts.length / 4) * 2;
     upkeepTown[townOf(w, pts[mi], pts[mi + 1])] += len * 0.12 * fund;
@@ -240,7 +241,7 @@ export function analyze(w) {
     for (const s of services) {
       const d = dist(x, y, s.x, s.y);
       if (d > s.r) continue;
-      if (s.cover === "mrt" && (s.type === "mrt" ? !liveIds.has(s.id) : !mrtRunning)) continue;
+      if (s.cover === "mrt" && (STRUCTS[s.type].station ? !liveIds.has(s.id) : !mrtRunning)) continue;
       const v = s.f * (1 - 0.45 * (d / s.r));
       if (v > c[s.cover]) c[s.cover] = v;
     }
@@ -606,7 +607,7 @@ export const PLEDGE_KINDS = {
   food: { icon: "🍜", text: (t, n, o, w) => (w && w.year < STRUCTS.hawker.year ? `A wet market for ${t}` : `A hawker centre or market for ${t}`), need: "food", boost: 5, years: 3, check: (w, p) => hasNewStruct(w, p, ["hawker", "market", "causewayPoint"], p.town) },
   school: { icon: "🏫", text: (t) => `A new school in ${t}`, need: "school", boost: 5, years: 4, check: (w, p) => hasNewStruct(w, p, ["school", "secondary", "tertiary", "scienceCentre"], p.town) },
   cc: { icon: "🏓", text: (t) => `A community centre for ${t}`, need: "community", boost: 4, years: 3, check: (w, p) => hasNewStruct(w, p, ["cc", "sports", "tampinesHub", "esplanade"], p.town) },
-  transport: { icon: "🚌", text: (t) => `Better transport for ${t}`, need: "transport", boost: 6, years: 4, check: (w, p) => hasNewStruct(w, p, w.year >= 1987 ? ["mrt", "bus"] : ["bus"], p.town) },
+  transport: { icon: "🚌", text: (t) => `Better transport for ${t}`, need: "transport", boost: 6, years: 4, check: (w, p) => hasNewStruct(w, p, w.year >= 1987 ? ["mrt", "mrtUg", "bus"] : ["bus"], p.town) },
   homes: { icon: "🏢", text: (t, n) => `${fmtNum(n)} more residents housed in ${t}`, need: "housing", boost: 7, years: 5, check: (w, p) => (w.towns[p.town].pop || 0) >= p.base + p.n },
   upgrade: { icon: "🔧", text: (t) => `Upgrade or rebuild 3 old blocks in ${t}`, need: "housing", boost: 6, years: 5, minYear: 1989, check: (w, p) => w.lots.filter((l) => l.town === p.town && l.b && ((l.b.up && l.b.up >= p.made) || (l.b.renewed && l.b.built >= p.made))).length >= 3 },
   park: { icon: "🌳", text: () => "A new park in every town", need: "green", boost: 3, years: 4, all: true, check: (w, p) => w.towns.every((_, i) => hasNewStruct(w, p, ["park", "sports", "gardensBay", "eastCoastPark", "sungeiBuloh", "birdPark"], i)) },
@@ -1183,6 +1184,38 @@ export function stepMonth(w, rng = Math.random) {
   w.election.justHeld = null;
   w.boosts = w.boosts.filter((b) => b.until > w.t);
 
+  // underground MRT works: towns along the route put up with the digging
+  const digs = new Map();
+  for (const s of w.segs) if (s.works) {
+    if (!digs.has(s.job)) digs.set(s.job, []);
+    digs.get(s.job).push(s);
+  }
+  for (const segs of digs.values()) {
+    const towns = new Set();
+    for (const s of segs) {
+      const p = segPts(w, s);
+      for (let k = 0; k < p.length; k += 6) if (terrainAt(w, p[k], p[k + 1]) === "land") towns.add(townOf(w, p[k], p[k + 1]));
+    }
+    const names = [...towns].map((i) => w.towns[i].name).join(", ");
+    const until = segs[0].works;
+    if (!segs[0].wn) {
+      for (const s of segs) s.wn = 1;
+      for (const i of towns) {
+        w.boosts.push({ town: i, need: "environment", v: -rollIn(5, rng), until, src: "works" }); // dust and noise
+        w.boosts.push({ town: i, need: "transport", v: -rollIn(4, rng), until, src: "works" }); // road diversions
+      }
+      push(`🚧 Tunnelling has started under ${names || "the sea"}. Expect about ${until - w.t} months of dust, noise and diversions.`);
+    } else if (w.t >= until) {
+      for (const s of segs) {
+        delete s.works;
+        delete s.wn;
+        delete s.job;
+      }
+      push(`🚇 The underground line under ${names || "the sea"} is finished. Stations on it can open now.`);
+      w.rev = (w.rev || 0) + 1;
+    }
+  }
+
   // landmarks and malls open when their works are done
   for (const st of w.structs) {
     if (st.state !== "build" || w.t < st.until) continue;
@@ -1625,7 +1658,7 @@ export const GOALS = [
   { id: "win", text: "Win an election", hint: "Elections come every 6 years. Check 🗳️ for each town's support and make pledges in election season.", test: (w) => w.election.history.some((e) => e.won) },
   { id: "pop30k", text: "Reach 30,000 residents", hint: "Newer housing types hold more people. Rebuild old blocks with 🏗️ Renew.", test: (w) => w.stats.pop >= 30000 },
   { id: "upgrade", text: "Upgrade or rebuild an old block", hint: "From 1989, tap an old HDB block with 🏗️ Renew.", test: (w) => w.lots.some((l) => l.b?.up || l.b?.renewed) },
-  { id: "mrt", text: "Open two MRT stations on a line", hint: "From 1987: 🛣️ Roads → MRT track, then 🍜 Services → MRT station beside it at each end.", test: (w, A) => (A ? A.mrtRunning : w.structs.filter((s) => s.type === "mrt").length >= 2) },
+  { id: "mrt", text: "Open two MRT stations on a line", hint: "From 1987: 🛣️ Roads → MRT track, then 🍜 Services → MRT station beside it at each end.", test: (w, A) => (A ? A.mrtRunning : w.structs.filter((s) => STRUCTS[s.type].station).length >= 2) },
   { id: "pop80k", text: "Reach 80,000 residents", hint: "Bigger, modern estates and good transport.", test: (w) => w.stats.pop >= 80000 },
 ];
 
@@ -1735,12 +1768,16 @@ export function describe(w, A, hit) {
       lines.push(cond < 1 ? `🕰️ ${age} years old: working at ${Math.round(cond * 100)}%. Refurbish to restore it.` : `🕰️ ${age} years old${age >= SERVICE_LIFE - 5 ? `: starts wearing out at ${SERVICE_LIFE}` : ""}`);
     }
     if (S.cover) lines.push(`Serves homes within ${S.r * 50} m`);
-    if (s.type === "mrt" && A && !A.stations.includes(s)) lines.push("⚠️ Not beside an MRT track");
-    else if (s.type === "mrt" && A && !A.mrtRunning) lines.push("⚠️ Needs a second station on the line");
-    else if (s.type === "mrt" && A && !A.liveStations.includes(s)) lines.push("⚠️ No other station on this line: connect the track to another station");
+    const stn = STRUCTS[s.type]?.station;
+    if (stn && A && !A.stations.includes(s)) lines.push(w.segs.some((g) => g.works > w.t) ? "🚧 Waiting for the tunnel works to finish" : "⚠️ Not beside an MRT track");
+    else if (stn && A && !A.mrtRunning) lines.push("⚠️ Needs a second station on the line");
+    else if (stn && A && !A.liveStations.includes(s)) lines.push("⚠️ No other station on this line: connect the track to another station");
     if (S.upkeep) lines.push(`Upkeep ${fmtMoney(S.upkeep)}/month`);
     return { title: s.name || S.name, icon: S.icon, lines, refurb: canRefurb && serviceAge(w, s) >= SERVICE_LIFE - 5 ? { cost: refurbCost(s), cond } : null };
   }
+  if (hit.kind === "road" && ROAD_TYPES[hit.s.type].underground)
+    return { title: "Underground MRT", icon: "🚇", lines: [hit.s.works > w.t ? `🚧 Being dug: trains in about ${hit.s.works - w.t} months` : "Runs under homes and roads.", "Trains stop only at stations: put an underground station at each place you want served."] };
+  if (hit.kind === "road" && ROAD_TYPES[hit.s.type].rail) return { title: ROAD_TYPES[hit.s.type].name, icon: "🚆", lines: ["Trains stop only at stations: put a station beside the track at each place you want served."] };
   if (hit.kind === "road") return { title: ROAD_TYPES[hit.s.type].name, icon: "🛣️", lines: ["Lots line both sides of roads. Zone them to build."] };
   return null;
 }

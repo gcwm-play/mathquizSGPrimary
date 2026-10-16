@@ -175,7 +175,7 @@ function buildList(R, w) {
   for (const k of w.kampongs) k.houses.forEach((h, i) => list.push({ d: h[0] + h[1], k: "house", o: h, kid: k.id, i, x: h[0], y: h[1] }));
   for (const t of w.trees) list.push({ d: t[0] + t[1], k: "tree", o: t, x: t[0], y: t[1] });
   for (const s of w.segs) {
-    if (!ROAD_TYPES[s.type].rail) continue;
+    if (!ROAD_TYPES[s.type].rail || ROAD_TYPES[s.type].underground) continue;
     const p = segPts(w, s);
     for (let k = 0; k + 2 < p.length; k += 2) list.push({ d: (p[k] + p[k + 1] + p[k + 2] + p[k + 3]) / 2 + 0.05, k: "rail", x0: p[k], y0: p[k + 1], x1: p[k + 2], y1: p[k + 3], pillar: k % 8 === 0, x: p[k], y: p[k + 1] });
   }
@@ -204,10 +204,10 @@ function groundPaths(R, w) {
     else if (l.zone) quad(zoned[l.zone], l.q);
     else quad(empty, l.q);
   }
-  const roads = { road: new Path2D(), avenue: new Path2D(), rail: new Path2D() };
+  const roads = { road: new Path2D(), avenue: new Path2D(), rail: new Path2D(), tunnel: new Path2D(), tunnelWorks: new Path2D() };
   for (const s of w.segs) {
     const p = segPts(w, s);
-    const path = roads[s.type];
+    const path = s.type === "tunnel" && s.works ? roads.tunnelWorks : roads[s.type];
     path.moveTo(p[0], p[1]);
     for (let k = 2; k < p.length; k += 2) path.lineTo(p[k], p[k + 1]);
   }
@@ -254,7 +254,7 @@ function heat(v) {
 
 // ---------- main draw ----------
 export function draw(ctx, R, w, A, cam, view) {
-  const { width, height, dpr, overlay = "none", preview, selected, time = 0, interacting = false, motion = true } = view;
+  const { width, height, dpr, overlay = "none", preview, selected, time = 0, interacting = false, motion = true, tool } = view;
   const dt = Math.min(0.1, R.lastTime ? (time - R.lastTime) / 1000 : 0);
   R.lastTime = time;
   const zq = Math.pow(2, Math.round(Math.log2(cam.zoom) * 3) / 3);
@@ -368,7 +368,30 @@ export function draw(ctx, R, w, A, cam, view) {
     ctx.setLineDash([]);
   }
   for (const [type, path] of Object.entries(g.roads)) {
+    if (type === "tunnelWorks") {
+      // hoardings along the route while it's being dug
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 0.62;
+      ctx.stroke(path);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 0.5;
+      ctx.stroke(path);
+      ctx.setLineDash([0.35, 0.35]);
+      ctx.strokeStyle = "#ff922b";
+      ctx.stroke(path);
+      ctx.setLineDash([]);
+      continue;
+    }
     const rt = ROAD_TYPES[type];
+    if (rt.underground) {
+      // faint dashes: always visible, so you remember the line is there
+      ctx.setLineDash([0.6, 0.4]);
+      ctx.strokeStyle = "rgba(112,72,232,0.55)";
+      ctx.lineWidth = 0.22;
+      ctx.stroke(path);
+      ctx.setLineDash([]);
+      continue;
+    }
     if (rt.rail) {
       ctx.strokeStyle = "rgba(40,60,100,0.18)";
       ctx.lineWidth = 0.7;
@@ -587,6 +610,23 @@ export function draw(ctx, R, w, A, cam, view) {
   flushDyn(Infinity);
   ctx.globalAlpha = 1;
 
+  // with an MRT tool in hand, show underground lines clearly over everything
+  if (/rail|tunnel|mrt/.test(tool || "") && w.segs.some((s) => s.type === "tunnel")) {
+    const g = groundPaths(R, w);
+    ctx.save();
+    iso();
+    ctx.lineCap = "round";
+    for (const p of [g.roads.tunnel, g.roads.tunnelWorks]) {
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 0.62;
+      ctx.stroke(p);
+      ctx.strokeStyle = "rgba(112,72,232,0.9)";
+      ctx.lineWidth = 0.4;
+      ctx.stroke(p);
+    }
+    ctx.restore();
+  }
+
   // ghost of a service being placed
   if (preview?.kind === "struct" && preview.q) {
     ctx.globalAlpha = preview.ok ? 0.85 : 0.4;
@@ -691,7 +731,7 @@ function drawEntry(ctx, R, w, A, e, time, motion, badges, cam) {
       const S = STRUCTS[s.type];
       const cx = PX(s.x, s.y);
       const cy = PY(s.x, s.y) - Math.min(H, 50) - 6;
-      if (s.type === "mrt" && A && !(A.liveStations || A.stations).includes(s)) badges.push({ ch: "⚠️", x: cx, y: cy, bg: "#ffe066" });
+      if (STRUCTS[s.type]?.station && A && !(A.liveStations || A.stations).includes(s)) badges.push({ ch: "⚠️", x: cx, y: cy, bg: "#ffe066" });
       else if (!S.fixed && cam.zoom >= 0.75) badge(ctx, S.icon, cx, cy, Math.max(11, Math.min(15, 13 / Math.sqrt(cam.zoom))), "#ffffff");
       return;
     }
