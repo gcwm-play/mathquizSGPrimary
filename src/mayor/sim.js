@@ -1,6 +1,6 @@
 // Monthly simulation for Lion City Mayor: construction, ageing, demand, town
 // happiness and feedback, money, elections and pledges.
-import { PURPOSES, purposeOf, MINOR, LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
+import { PURPOSES, purposeOf, MINOR, LOT_TYPES, ZONE_LINE, STRUCTS, ROAD_TYPES, NEEDS, COMPLAINTS, COMPLAINTS_BY_PURPOSE, PRAISE, MONTHS, GLOBAL_EVENTS, RANDOM_EVENTS, KAMPONG, diffOf, TERM_YEARS } from "./defs.js";
 import { REGIONS } from "./regions.js";
 import { terrainAt, segPts, townOf, latestType, refillLots, noteImpact as noteImpactSim, fixOverlaps, charge, moveBaseToShore } from "./world.js";
 import { dist, clamp, polyLength, nearestOnPoly, makeRng } from "./geom.js";
@@ -1542,14 +1542,17 @@ function feedbackFor(t, seed, town, year = 9999) {
   const out = [];
   for (const x of town?.thanks || []) out.push({ need: x.need, v: x.to, kind: "thanks", text: `Thank you! ${NEEDS[x.need]?.name || x.need} is much better now (${x.from}→${x.to}).` });
   if (t.unhoused > 0.2) out.push({ need: "housing", v: Math.round(t.needs.housing), text: "We're still waiting for a flat! Build more homes." });
+  // complain first about what matters most to this kind of town, not just the lowest score
+  const P = purposeOf(town);
+  const weightOf = (k) => (NEEDS[k]?.weight || 1) * (P.weight[k] ?? 1);
   const worst = Object.entries(t.needs)
-    .filter(([k]) => COMPLAINTS[k] && !t.minor?.includes(k))
-    .sort((a, b) => a[1] - b[1]);
+    .filter(([k, v]) => COMPLAINTS[k] && !t.minor?.includes(k) && v < 55)
+    .sort((a, b) => (55 - b[1]) * weightOf(b[0]) - (55 - a[1]) * weightOf(a[0]));
   let complaints = 0;
   for (const [k, v] of worst.slice(0, 3)) {
-    if (v >= 55 || complaints >= 3) break;
+    if (complaints >= 3) break;
     if (k === "housing" && t.unhoused > 0.2) continue;
-    let list = COMPLAINTS[k];
+    let list = COMPLAINTS_BY_PURPOSE[town?.purpose]?.[k] || COMPLAINTS[k];
     // which level of school is missing?
     if (k === "school" && t.schools) {
       const lvl = t.schools.indexOf(Math.min(...t.schools));

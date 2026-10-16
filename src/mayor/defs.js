@@ -264,6 +264,42 @@ export const COMPLAINTS = {
   environment: ["The factory smoke is everywhere!", "Air smells bad near the industrial area."],
 };
 
+// The same need sounds different depending on what a town is for.
+export const COMPLAINTS_BY_PURPOSE = {
+  industrial: {
+    health: ["Shift workers get hurt and the nearest clinic is miles away.", "The factory first-aid room can't cope. Need a polyclinic."],
+    food: ["No canteen near the factories. Workers eat from tins!", "Need a hawker centre near the industrial estate."],
+    community: ["After a shift there's nowhere to relax.", "Workers' families need a community centre."],
+    transport: ["Factory buses are always packed!", "Workers spend hours getting to the estate.", "Lorries jam every road around here."],
+    jobs: ["The factories aren't hiring enough.", "Need more industry here, not empty land."],
+    safety: ["Factory fires scare us. Need a fire station.", "Thieves raid the warehouses at night."],
+    housing: ["Workers' quarters are cramped and old.", "The flats near the factories are falling apart."],
+    cost: ["Wages don't keep up with prices."],
+  },
+  commercial: {
+    transport: ["Office workers can't get to work on time!", "Every road into town jams at rush hour."],
+    safety: ["Need more police around the shopping streets.", "Pickpockets everywhere near the malls."],
+    jobs: ["Firms want to grow but there are no new offices.", "Need more offices and shops."],
+    food: ["Office workers can't find lunch nearby!", "Lunch queues stretch round the block."],
+    health: ["Need a clinic close to the offices.", "Clinic queues are too long for a lunch break."],
+    housing: ["Old shophouses need restoring.", "Flats around here are worn out."],
+    green: ["Just concrete and glass. Need a park to breathe.", "Nowhere green to sit at lunchtime."],
+    cost: ["Rents are sky-high!", "Everything in town costs double."],
+  },
+  heritage: {
+    food: ["Tourists come for the food but the stalls are cramped.", "Our hawkers need a proper food centre."],
+    community: ["The clan associations need a place to gather.", "Festivals need a community space."],
+    housing: ["These old shophouses are crumbling.", "Heritage houses need repairs."],
+    transport: ["Tour buses block the narrow streets.", "Visitors can't find a bus here."],
+    safety: ["Old wooden shophouses catch fire easily.", "Need more police for the crowds of visitors."],
+    green: ["Need some trees along these hot old streets."],
+  },
+  residential: {
+    green: ["No park for the kids to play.", "Need a playground near the blocks."],
+    environment: ["Factory smoke drifts into our flats.", "The air near our homes smells bad."],
+  },
+};
+
 export const PRAISE = ["Our town is getting better and better!", "Love the new hawker centre!", "Good place to raise a family.", "The new flats are so nice!"];
 
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
