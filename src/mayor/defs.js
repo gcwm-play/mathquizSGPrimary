@@ -27,6 +27,8 @@ export const LOT_TYPES = {
   point: { zone: "hdb", name: "HDB point block", era: "1970s", from: 1975, cap: 420, q: 60, build: 10, need: 25, cost: 260 },
   ng: { zone: "hdb", name: "New Generation flats", era: "1980s", from: 1980, cap: 500, q: 68, build: 12, need: 32, cost: 330 },
   modern: { zone: "hdb", name: "Modern HDB estate", era: "1990s–2000s", from: 1995, cap: 620, q: 78, build: 14, need: 38, cost: 440 },
+  // only where a town has chosen to keep HDB low near landed homes
+  lowrise: { zone: "hdb", name: "Low-rise HDB", era: "1970s", from: 1972, cap: 220, q: 72, build: 8, need: 0, cost: 170 },
   bto: { zone: "hdb", name: "BTO sky towers", era: "2010s", from: 2008, cap: 860, q: 88, build: 18, need: 44, cost: 650 },
 
   terrace: { zone: "pte", name: "Terrace houses", era: "pre-war", from: 1900, cap: 50, q: 72, build: 6, need: 20, cost: 30 },

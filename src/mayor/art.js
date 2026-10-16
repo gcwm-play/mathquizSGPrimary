@@ -224,7 +224,7 @@ export const HDB_PAINT = ["#ff8a80", "#6fb8ff", "#5fd69d", "#ffc94d", "#b79cff",
 const SHOP_PAINT = ["#ffd6e0", "#c7f0db", "#cfe3ff", "#fff1b8", "#e6d7ff", "#ffdcc2"];
 
 // ---------- lot buildings ----------
-export const LOT_HEIGHT = { emergency: 30, slab: 70, point: 100, ng: 80, modern: 95, bto: 150, terrace: 30, condo: 80, luxury: 160, shophouse: 35, ncentre: 30, mall: 50, office: 150, mixed: 170, farm: 20, factory: 50, jtc: 50, hitech: 45 };
+export const LOT_HEIGHT = { emergency: 30, lowrise: 40, slab: 70, point: 100, ng: 80, modern: 95, bto: 150, terrace: 30, condo: 80, luxury: 160, shophouse: 35, ncentre: 30, mall: 50, office: 150, mixed: 170, farm: 20, factory: 50, jtc: 50, hitech: 45 };
 
 export function drawLotBuilding(ctx, q, b, progress = 1) {
   const v = b.v || 0;
@@ -401,6 +401,15 @@ export function drawLotBuilding(ctx, q, b, progress = 1) {
       const pr = boxUV(ctx, q, 0.08, 0.1, 0.92, 0.9, 34, "#fff1cf");
       windows(ctx, pr, { rows: 4, perUnit: 1, color: "#3f7fe0", wf: 0.95, hf: 0.4 });
       boxUV(ctx, q, 0.6, 0.6, 0.85, 0.85, 6, "#ffb347", 34);
+      break;
+    }
+    case "lowrise": {
+      // a four-storey block with a pitched roof, in scale with the houses
+      flatUV(ctx, q, 0.03, 0.03, 0.97, 0.97, "#a7e07f", 0, false);
+      shadowUV(ctx, q, 0.12, 0.2, 0.88, 0.8, 26);
+      const pr = boxUV(ctx, q, 0.12, 0.2, 0.88, 0.8, 24, "#fff4e6");
+      windows(ctx, pr, { rows: 4, perUnit: 3, color: "#5c7cfa" });
+      gableUV(ctx, q, 0.1, 0.18, 0.9, 0.82, 24, 9, "#e8590c", "v");
       break;
     }
     case "hitech": {

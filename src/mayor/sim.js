@@ -9,6 +9,7 @@ import { townTfr, townLife, baseTfr, lifeIndex, tfrIndex, financeIndex } from ".
 import { stepEvents, EFFECT_ADD, autoDecide, rollOutcome, rollIn, fmtRange } from "./events.js";
 import { stepObjectives } from "./objectives.js";
 import { stepProgrammes, progMonthly } from "./programmes.js";
+import { stepCharacter, lowRiseHere, landedFlight, eduOn, eduTarget, eduTfr, eduIncome } from "./character.js";
 import { initRivals, stepRivals, decadeReport, finalReport } from "./rivals.js";
 
 export const MODES = {
@@ -278,7 +279,7 @@ export function analyze(w) {
       if (d < 12) lm += 14 * (1 - d / 12);
     }
     const transport = Math.max(c.mrt, c.transport * 0.75, 0.3) + (avenueNear.has(l.seg) ? 0.1 : 0);
-    const lv = clamp(24 + wet * 9 + green * 12 + c.mrt * 18 + c.transport * 5 + c.health * 4 + c.school * 4 + c.safety * 5 + c.prestige * 12 + Math.min(16, comNear * 1.4) + lm - p * 0.6, 0, 100);
+    const lv = clamp(24 + wet * 9 + green * 12 + c.mrt * 18 + c.transport * 5 + c.health * 4 + c.school * 4 + c.safety * 5 + c.prestige * 12 * (1 - (w.towns[l.town]?.charLoss || 0) / 150) + Math.min(16, comNear * 1.4) + lm - p * 0.6, 0, 100);
     info.set(l.id, { c, p, lv, transport });
   }
   const want = (l, zone) => {
@@ -299,7 +300,7 @@ export function analyze(w) {
   };
 
   // towns: residents' needs
-  const T = w.towns.map(() => ({ pop: 0, kpop: 0, jobs: 0, sum: Object.fromEntries(Object.keys(NEEDS).map((k) => [k, 0])), lots: 0, old: 0, cap: 0, vacant: 0, hdbCap: 0, hdbOcc: 0, sch: [0, 0, 0] }));
+  const T = w.towns.map(() => ({ pop: 0, kpop: 0, jobs: 0, sum: Object.fromEntries(Object.keys(NEEDS).map((k) => [k, 0])), lots: 0, old: 0, cap: 0, vacant: 0, hdbCap: 0, hdbOcc: 0, sch: [0, 0, 0], edu: 0, ptePop: 0 }));
   const healthHit = effect(w, "health");
   const ageD = ageingNeed(w.year);
   let pop = 0;
@@ -327,6 +328,7 @@ export function analyze(w) {
     t.sum.green += n * Math.min(1, c.green * 1.3 + 0.15) * 100;
     t.sum.community += n * Math.min(1, (c.community * 1.2) / ageD + 0.1) * 100;
     t.sum.environment += n * clamp(100 - p * 1.6, 0, 100);
+    t.edu += n * (Math.min(1, c.prestige || 0) * 0.6 + Math.min(1, c.school3) * 0.4);
   };
   for (const l of lotsLive) {
     const Ty = LOT_TYPES[l.b.type];
@@ -341,7 +343,10 @@ export function analyze(w) {
       }
       pop += n;
       if (Ty.zone === "hdb") hdbPop += n;
-      else if (Ty.zone === "pte") ptePop += n;
+      else if (Ty.zone === "pte") {
+        ptePop += n;
+        T[l.town].ptePop += n;
+      }
       addRes(l.town, n, I.c, I.p, quality(w, l.b), I.transport);
       if (Ty.q && quality(w, l.b) < 45) T[l.town].old++;
     }
@@ -411,7 +416,7 @@ export function analyze(w) {
     // island residents feel how the resort is doing
     if (town.purpose === "resort" && w.sentosa) base = base * 0.5 + w.sentosa.sat * 0.5;
     const schools = t.pop ? t.sch.map((v) => v / t.pop) : [50, 50, 50];
-    return { ...t, needs, minor, schools, unhoused, fit, pws, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
+    return { ...t, needs, minor, schools, unhoused, fit, pws, eduT: eduOn(w) ? eduTarget(t) : null, happy: clamp(base * (1 - uw) + 15 * uw + mood, 0, 100) };
   });
   const vacant = T.reduce((a, t) => a + t.vacant, 0);
   return { lunch, info, want, towns, vacant, upkeepTown, pop, hdbPop, ptePop, kampongPop, comJobs, indJobs, structJobs, jobs, workforce, unemployment, tourism, trade, upkeep, roadLen, mrtRunning, stations, liveStations, coverAt, pollAt, services };
@@ -460,7 +465,8 @@ export function monthlyBudget(w, A, ov = null) {
     const lv = 0.5 + (A.info.get(l.id)?.lv || 30) / 100;
     if (Ty.cap) {
       const occ = residents(l.b);
-      const pt = occ * lv * (Ty.zone === "pte" ? 0.012 : 0.003) * (taxP / 10) * D.income;
+      const tn = w.towns[l.town];
+      const pt = occ * lv * (Ty.zone === "pte" ? 0.012 * landedFlight(tn) : 0.003) * (taxP / 10) * D.income * (tn?.edu != null ? eduIncome(tn.edu) : 1);
       T.property[l.town] += pt;
       SUB[Ty.zone === "hdb" ? "propHdb" : Ty.zone === "pte" ? "propPte" : "propCom"][l.town] += pt;
       if (Ty.zone === "hdb") {
@@ -471,7 +477,7 @@ export function monthlyBudget(w, A, ov = null) {
     if (Ty.jobs) {
       // offices and shops near good, cheap food do a little better
       const lunchBoost = Ty.zone === "com" ? 1 + 0.12 * Math.min(1, A.info.get(l.id)?.c.food || 0) : 1;
-      const bt = Ty.jobs * lv * 0.004 * D.income * biz * lunchBoost;
+      const bt = Ty.jobs * lv * 0.004 * D.income * biz * lunchBoost * (w.towns[l.town]?.edu != null ? eduIncome(w.towns[l.town].edu) : 1);
       T.business[l.town] += bt;
       SUB[Ty.zone === "ind" ? "bizInd" : "bizCom"][l.town] += bt;
     }
@@ -1360,7 +1366,8 @@ export function stepMonth(w, rng = Math.random) {
     const dem = w.demand[l.zone];
     if (dem <= 0.03) continue;
     const pg = purposeOf(w.towns[l.town]).growth[l.zone] ?? 1;
-    if (!pg || rng() > (0.08 + dem * 0.3) * D.growth * pg) continue;
+    const slow = (w.towns[l.town].slowUntil || 0) > w.t ? 0.5 : 1; // after a public consultation
+    if (!pg || rng() > (0.08 + dem * 0.3) * D.growth * pg * slow) continue;
     const want = A.want(l, l.zone);
     let pick = null;
     for (const id of ZONE_LINE[l.zone]) {
@@ -1368,6 +1375,7 @@ export function stepMonth(w, rng = Math.random) {
       if (w.year < T.from || (T.until && w.year >= T.until)) continue;
       if (want >= T.need) pick = id;
     }
+    if (pick && l.zone === "hdb" && lowRiseHere(w, l)) pick = "lowrise";
     if (!pick) continue;
     const T = LOT_TYPES[pick];
     if (T.zone === "hdb") {
@@ -1454,7 +1462,9 @@ export function stepMonth(w, rng = Math.random) {
     town.anger = Math.max(0, town.anger * 0.975 - 0.01);
     town.support = townSupport(w, i);
     town.feedback = feedbackFor(t, i + w.t, town, w.year);
-    town.tfr = townTfr(w.year, t.needs, town.approval, t.unhoused, (w.policy.fert || 0) + effectAdd(w, "fert"));
+    // education builds up over years, not overnight
+    if (t.eduT != null) town.edu = town.edu == null ? 50 : town.edu * 0.985 + t.eduT * 0.015;
+    town.tfr = townTfr(w.year, t.needs, town.approval, t.unhoused, (w.policy.fert || 0) + effectAdd(w, "fert")) * (town.edu != null ? eduTfr(town.edu) : 1);
     town.life = townLife(w.year, t.needs, w.policy.health || 0, lifeHit);
     tfrSum += town.tfr * town.pop;
     lifeSum += town.life * town.pop;
@@ -1531,6 +1541,7 @@ export function stepMonth(w, rng = Math.random) {
   stepProgrammes(w, push, { overDebt: w.cash < -debtLimit(w) * 0.8 && !w.sandbox });
   checkPledges(w);
   stepEvents(w, A, rng, push);
+  stepCharacter(w, A, push, rng);
   stepObjectives(w, A, push);
 
   w.t++;
