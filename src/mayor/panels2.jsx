@@ -4,7 +4,7 @@ import { Panel } from "../city/panels.jsx";
 import { fmtMoney, fmtNum, projectFinance, REV_LABELS, REV_SUB, EXP_LABELS, tToDate, wearRate, dateLabel, sentosaState } from "./sim.js";
 import { STRUCTS, PURPOSES, MALL_NAMES, ALL_TOOLS as ALL_TOOLS_REF } from "./defs.js";
 import { setPurpose } from "./world.js";
-import { CRISES, DILEMMA, getDecision, MONEY_SPREAD } from "./events.js";
+import { CRISES, DILEMMA, getDecision, MONEY_SPREAD, fmtRange } from "./events.js";
 import { HISTORY, historyOf, pendingReveals, compareChoice } from "./history.js";
 import { situation, setFantasy } from "./fantasy.js";
 import { PROGRAMMES, programmeBenefits, progState, progCost, progMonthly, progAvailable, stopPenalty, startProgramme, stopProgramme } from "./programmes.js";
@@ -1025,7 +1025,7 @@ export function PlanPanel({ world: w, onDone, onChange, toast }) {
 }
 
 // ---------------- landmark & mall projects ----------------
-const COVER_NAME = { food: "food", school: "primary schooling", school2: "secondary schooling", school3: "higher education", health: "healthcare", safety: "policing", fire: "fire cover", community: "community", green: "greenery", transport: "transport", mrt: "MRT" };
+const COVER_NAME = { food: "food", school: "primary schooling", school2: "secondary schooling", school3: "higher education", health: "healthcare", safety: "policing", fire: "fire cover", community: "community", green: "greenery", transport: "transport", mrt: "MRT" , prestige: "top-school prestige (nearby homes are more sought-after)" };
 function benefits(S) {
   const out = [];
   if (S.tourism) out.push(`📸 Tourism +${fmtMoney(S.tourism * 0.5)}/month (grows with your population)`);
@@ -1033,6 +1033,7 @@ function benefits(S) {
   if (S.trade) out.push(`⚓ Trade +${fmtMoney(S.trade * 0.4)}/month`);
   if (S.cover) out.push(`🗺️ ${COVER_NAME[S.cover] || S.cover} for homes within ${S.r * 50} m`);
   if (S.alsoCover) out.push(`🗺️ ${COVER_NAME[S.alsoCover]} too`);
+  if (S.prestige) out.push(`⭐ Reputation ${fmtRange(S.prestige)} when it opens`);
   if (S.sentosaAppeal) out.push("🏝️ Draws visitors to Sentosa");
   if (S.sentosaLink) out.push("🚡 Easier to reach Sentosa");
   if (S.poll) out.push(`🏭 Pollution nearby (${S.poll})`);
@@ -1049,7 +1050,7 @@ export function ProjectPanel({ world: w, toolId, onChoose, onClose }) {
   });
   const S = STRUCTS[type];
   const town = w.towns.reduce((a, t) => ((t.pop || 0) > (a.pop || 0) ? t : a), w.towns[0]);
-  const ideas = isMall ? MALL_NAMES[w.region] || [] : [S.name, `${town.name} ${S.name.replace(/^Singapore /, "")}`];
+  const ideas = isMall ? MALL_NAMES[w.region] || [] : S.offer ? [S.name] : [S.name, `${town.name} ${S.name.replace(/^Singapore /, "")}`];
   const [name, setName] = useState(ideas[0] || S.name);
   const first = !isMall && (w.lmBuilt || []).find((x) => x.type === type);
   const mine = !isMall && w.structs.some((s) => s.type === type);
@@ -1106,7 +1107,12 @@ export function ProjectPanel({ world: w, toolId, onChoose, onClose }) {
           </ul>
         </div>
       )}
-      {!isMall && (
+      {S.offer && (
+        <div className="mt-2 rounded-2xl p-2.5 text-[14px] leading-snug" style={{ background: "rgba(47,191,113,0.14)" }}>
+          🎓 A campus, not a tourist attraction: it serves students, and families pay more to live near it. You agreed to give it land: place it by {tToDate(w, w.offers?.[type] ?? w.t)} or it goes to another region.
+        </div>
+      )}
+      {!isMall && !S.offer && (
         <div className="mt-2 rounded-2xl p-2.5 text-[14px] leading-snug" style={{ background: first && first.by !== "you" ? "var(--warn-bg)" : "rgba(47,191,113,0.14)" }}>
           {mine
             ? "🏛️ You already have one. A second won't add much prestige."
