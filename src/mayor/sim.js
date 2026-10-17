@@ -1680,7 +1680,90 @@ function feedbackFor(t, seed, town, year = 9999) {
   return out;
 }
 
-// ---------- goals ----------
+// ---------- demand by town ----------
+// The H/P/C/I bars are region-wide. This splits each one by town: where the
+// region's need would sensibly be met, given each town's plan, population,
+// and what's already empty or being built there.
+const PLAN_WORD = (g) => (g === 0 ? "not allowed" : g >= 1.6 ? "grows fast" : g >= 0.9 ? "grows normally" : g >= 0.4 ? "grows slowly" : "barely grows");
+export function demandByTown(w, A) {
+  const n = w.towns.length;
+  const per = w.towns.map(() => ({ vacHdb: 0, vacPte: 0, build: { hdb: 0, pte: 0, com: 0, ind: 0 }, buildLots: { hdb: 0, pte: 0, com: 0, ind: 0 }, empty: { hdb: 0, pte: 0, com: 0, ind: 0 } }));
+  for (const l of w.lots) {
+    const P = per[l.town];
+    if (!P) continue;
+    if (!l.b) {
+      if (l.zone && !l.ruin) P.empty[l.zone]++;
+      continue;
+    }
+    const T = LOT_TYPES[l.b.type];
+    if (l.b.state === "build") {
+      P.buildLots[T.zone]++;
+      P.build[T.zone] += T.cap || T.jobs || 0;
+    } else if (T.cap) {
+      if (T.zone === "hdb") P.vacHdb += Math.max(0, T.cap - residents(l.b));
+      if (T.zone === "pte") P.vacPte += Math.max(0, T.cap - residents(l.b));
+    }
+  }
+  const pops = A.towns.map((t) => t.pop || 0);
+  const tot = Math.max(1, pops.reduce((a, b) => a + b, 0));
+  const grow = w.towns.map((t) => purposeOf(t).growth);
+  // the same regional figures the bars use
+  const attract = clamp(w.approval / 60, 0.3, 1.3);
+  const era = w.year < 1990 ? 1 : w.year < 2030 ? 0.7 : 0.45;
+  const queue = Math.max(0, w.waitlist) + (A.pop * 0.03 + 800) * attract * era;
+  const indRoom = clamp(w.towns.reduce((a, t) => a + (purposeOf(t).growth.ind ?? 1), 0) / Math.max(1, n), 0.15, 1.3);
+  const indFull = A.pop * 0.17 + A.trade * 0.8 + (REGIONS[w.region].indBoost || 0) * A.pop * 0.3;
+  const indTarget = indFull * Math.min(1, indRoom);
+  const comTarget = A.pop * 0.18 + A.tourism * 0.5 + (indFull - indTarget) * 0.8;
+  // shares: families split by where people live now (and room to grow), jobs by plan
+  const share = (k, byPop) => {
+    const wt = w.towns.map((_, i) => (grow[i][k] ?? 1) * (byPop ? pops[i] / tot + 1 / (n * 3) : 1));
+    const s = wt.reduce((a, b) => a + b, 0) || 1;
+    return wt.map((x) => x / s);
+  };
+  const sh = { hdb: share("hdb", true), pte: share("pte", true), com: share("com", true), ind: share("ind", false) };
+  const out = {};
+  for (const k of ["hdb", "pte", "com", "ind"]) {
+    out[k] = w.towns.map((t, i) => {
+      const P = per[i];
+      const pop = pops[i];
+      let short;
+      let norm;
+      let why;
+      if (k === "hdb") {
+        const want = queue * sh.hdb[i];
+        short = want - P.vacHdb - P.build.hdb;
+        norm = Math.max(300, pop * 0.05);
+        why = `~${fmtNum(want)} families would settle here · ${fmtNum(P.vacHdb)} empty flats · ${fmtNum(P.build.hdb)} homes being built`;
+      } else if (k === "pte") {
+        const want = queue * 0.25 * sh.pte[i];
+        short = want - P.vacPte - P.build.pte;
+        norm = Math.max(150, pop * 0.02);
+        why = `~${fmtNum(want)} better-off families would settle here · ${fmtNum(P.vacPte)} empty homes · ${fmtNum(P.build.pte)} being built`;
+      } else {
+        const target = (k === "com" ? comTarget : indTarget) * sh[k][i];
+        const have = (k === "com" ? A.towns[i].comJobs : A.towns[i].indJobs) || 0;
+        short = target - have - P.build[k];
+        norm = Math.max(150, ((k === "com" ? comTarget : indTarget) * 0.35) / Math.max(1, n));
+        why = `${fmtNum(have)} ${k === "com" ? "shop & office" : "factory"} jobs here · ${fmtNum(P.build[k])} being built · room for ~${fmtNum(target)}`;
+      }
+      const g = grow[i][k] ?? 1;
+      const v = g === 0 ? Math.min(0, clamp(short / norm, -1, 1)) : clamp(short / norm, -1, 1);
+      const name = { hdb: "HDB", pte: "private", com: "commercial", ind: "industrial" }[k];
+      let tip;
+      if (g === 0) tip = `${t.name}'s plan doesn't allow ${name} building. Change it in 🏘️ Towns if you want it here.`;
+      else if (v > 0.15 && g < 0.4) tip = `${t.name}'s plan keeps ${name} building small here. Zone it in a town planned for it, or change the plan in 🏘️ Towns.`;
+      else if (v > 0.15 && P.empty[k] === 0) tip = `Zone more ${name} lots here.`;
+      else if (v > 0.15) tip = `${P.empty[k]} ${name} lot${P.empty[k] > 1 ? "s" : ""} zoned and waiting: building will follow${g < 0.9 ? ", slowly, given the town's plan" : ""}.`;
+      else if (v < -0.15) tip = `Enough ${name} space here for now.`;
+      else tip = "About right.";
+      return { v, why, tip, plan: PLAN_WORD(g), empty: P.empty[k], building: P.buildLots[k] };
+    });
+  }
+  return out;
+}
+
+// ---------- goals ----------// ---------- goals ----------
 export const GOALS = [
   { id: "road", text: "Build your first road", hint: "🛣️ Roads → Road. Tap the start, then the end; drag the round handle to curve it, then ✓ Build.", test: (w) => w.segs.length > (w.startSegs || 0) },
   { id: "zone", text: "Zone HDB lots along a road", hint: "🏘️ Zones → HDB, then paint along the road with one finger. Zoned lots turn green.", test: (w) => w.lots.some((l) => l.zone === "hdb") },
