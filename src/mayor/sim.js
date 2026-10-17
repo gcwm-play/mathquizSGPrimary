@@ -13,10 +13,10 @@ import { stepCharacter, lowRiseHere, landedFlight, eduOn, eduTarget, eduTfr, edu
 import { initRivals, stepRivals, decadeReport, finalReport } from "./rivals.js";
 
 export const MODES = {
-  campaign: { name: "Campaign", icon: "🗳️", desc: "Win elections to stay mayor. Play as long as you like." },
-  sandbox: { name: "Sandbox", icon: "🏖️", desc: "Relaxed: you can't be voted out or go bust. Keep building forever." },
-  legacy100: { name: "100-year legacy", icon: "🏛️", desc: "1965–2065. Be the best mayor you can, judged every decade against AI mayors.", years: 100 },
-  legacy200: { name: "200-year legacy", icon: "👑", desc: "1965–2165. The long game: two centuries of crises, booms and elections.", years: 200 },
+  campaign: { name: "Campaign", icon: "🗳️", desc: "Win elections to stay in office, for as long as you can." },
+  sandbox: { name: "Sandbox", icon: "🏖️", desc: "No elections to lose and no bankruptcy. Build without limits." },
+  legacy100: { name: "100-year legacy", icon: "🏛️", desc: "1965–2065. Judged every decade against the mayors of the other regions.", years: 100 },
+  legacy200: { name: "200-year legacy", icon: "👑", desc: "1965–2165. Two centuries of crises, booms and elections.", years: 200 },
 };
 export const modeOf = (w) => MODES[w.mode] || MODES.campaign;
 const canLose = (w) => w.mode !== "sandbox" && !w.sandbox;
@@ -667,7 +667,7 @@ export function pledgeProgress(w, p) {
   if (p.kind === "raise") return { text: `Now ${Math.round(w.towns[p.town].needs?.[p.need] ?? 0)} of ${p.target} needed` };
   if (p.kind === "upgrade") return { text: `${w.lots.filter((l) => l.town === p.town && l.b && ((l.b.up && l.b.up >= p.made) || (l.b.renewed && l.b.built >= p.made))).length} of 3 blocks done` };
   const K = PLEDGE_KINDS[p.kind];
-  if (K.check && p.town != null) return { text: K.check(w, p) ? "Done!" : `Not yet: build it inside ${w.towns[p.town].name}'s borders (dashed lines on the map)` };
+  if (K.check && p.town != null) return { text: K.check(w, p) ? "Done." : `Not yet: build it inside ${w.towns[p.town].name}'s borders (dashed lines on the map)` };
   return null;
 }
 
@@ -933,13 +933,13 @@ function holdElection(w, rng, A) {
   w.resettledThisTerm = [];
   if (won) {
     w.trust = clamp(w.trust + 3, 0, 100);
-    pushNews(w, `🗳️ ${w.year} election: you won ${rec.share}% of the vote! Next election in ${TERM_YEARS} years.`);
+    pushNews(w, `🗳️ ${w.year} election: you won ${rec.share}% of the vote. Next election in ${TERM_YEARS} years.`);
   } else if (D.voteMin && canLose(w)) {
     w.gameOver = { reason: "election", text: `You lost the ${w.year} election with ${rec.share}% of the vote. A new mayor takes over ${w.name}.` };
     if (w.yearly.length) w.gameOver.final = finishReports(w);
   } else {
     w.trust = clamp(w.trust - 5, 0, 100);
-    pushNews(w, `🗳️ ${w.year} election: only ${rec.share}% voted for you. ${w.mode === "sandbox" ? "In Sandbox" : "On Easy"} you stay on, but residents want change!`);
+    pushNews(w, `🗳️ ${w.year} election: only ${rec.share}% voted for you. ${w.mode === "sandbox" ? "In Sandbox" : "On Easy"} you stay on, but residents want change.`);
   }
   w.log.push({ year: w.year, text: `${won ? "won" : "lost"} the ${w.year} election with ${rec.share}%`, tone: won ? "good" : "bad" });
   w.rep = clamp((w.rep ?? 50) + (share - 50) * 0.15, 0, 100);
@@ -1241,12 +1241,12 @@ export function stepMonth(w, rng = Math.random) {
       w.log.push({ year: w.year, text: `opened a copy of ${S.name}`, tone: "bad" });
     } else if (S.landmark && !S.group && !S.offer) {
       w.rep = clamp((w.rep ?? 50) + 4, 0, 100);
-      note = " The first of its kind in Singapore: your reputation soars!";
+      note = " The first of its kind in Singapore: your reputation rises sharply.";
       w.log.push({ year: w.year, text: `opened ${name}, a first for Singapore`, tone: "good" });
     }
     if (S.prestige) w.rep = clamp((w.rep ?? 50) + rollIn(S.prestige, rng), 0, 100);
     if (S.pricey) w.boosts.push({ town: ti, need: "cost", v: -rollIn(6, rng), until: w.t + 120 }); // 4–8
-    push(`🎉 ${name} opens in ${w.towns[ti].name}!${note}`);
+    push(`🎉 ${name} opens in ${w.towns[ti].name}.${note}`);
     noteImpactSim(w, `${name} opened`, ti, S.cover === "food" ? "food" : S.cover === "green" ? "green" : S.cover === "community" ? "community" : null);
     w.rev = (w.rev || 0) + 1;
   }
@@ -1498,7 +1498,7 @@ export function stepMonth(w, rng = Math.random) {
     w.sentosa.visitors = Math.round(st.visitors);
     w.sentosa.last = { tickets: st.tickets, spending: st.spending, upkeep: st.upkeep, marketing: st.marketing, crowd: st.crowd };
     w.rep = clamp((w.rep ?? 50) + (w.sentosa.sat - 55) * 0.002, 0, 100);
-    if (st.crowd > 1.3 && rng() < 0.05) push("🏝️ Sentosa is packed! Queues for the cable car stretch for hours. More attractions or hotels would spread the crowds.");
+    if (st.crowd > 1.3 && rng() < 0.05) push("🏝️ Sentosa is overcrowded. Queues for the cable car stretch for hours. More attractions or hotels would spread the crowds.");
   }
 
   // money
@@ -1556,7 +1556,7 @@ export function stepMonth(w, rng = Math.random) {
   w.effects = w.effects.filter((e) => e.until > w.t);
   if (w.t === w.election.next - 6) {
     w.election.offers = pledgeOffers(w, A);
-    pushNews(w, `🗳️ Election season! Polling day is ${tToDate(w, w.election.next)}. Open the 🗳️ panel to make pledges.`);
+    pushNews(w, `🗳️ Election season has begun. Polling day is ${tToDate(w, w.election.next)}. Open the 🗳️ panel to make pledges.`);
   }
   if (w.t === w.election.next) holdElection(w, rng, A);
 
@@ -1632,8 +1632,8 @@ const notYet = (text, year) => (year < STRUCTS.hawker.year && /hawker/i.test(tex
 
 function feedbackFor(t, seed, town, year = 9999) {
   const out = [];
-  for (const x of town?.thanks || []) out.push({ need: x.need, v: x.to, kind: "thanks", text: `Thank you! ${NEEDS[x.need]?.name || x.need} is much better now (${x.from}→${x.to}).` });
-  if (t.unhoused > 0.2) out.push({ need: "housing", v: Math.round(t.needs.housing), text: "We're still waiting for a flat! Build more homes." });
+  for (const x of town?.thanks || []) out.push({ need: x.need, v: x.to, kind: "thanks", text: `Thank you. ${NEEDS[x.need]?.name || x.need} is much better now (${x.from}→${x.to}).` });
+  if (t.unhoused > 0.2) out.push({ need: "housing", v: Math.round(t.needs.housing), text: "We're still waiting for a flat. Build more homes." });
   // complain first about what matters most to this kind of town, not just the lowest score
   const P = purposeOf(town);
   const weightOf = (k) => (NEEDS[k]?.weight || 1) * (t.pws?.[k] ?? P.weight[k] ?? 1);
@@ -1657,24 +1657,24 @@ function feedbackFor(t, seed, town, year = 9999) {
     out.push({ need: k, v: Math.round(v), text: list[(seed + extra + k.length) % list.length] });
     complaints++;
   }
-  if (!complaints && !(t.unhoused > 0.2) && t.pop > 0) out.push({ need: null, v: 80, kind: "happy", text: "Everyone's fairly happy for now. Nothing urgent here!" });
+  if (!complaints && !(t.unhoused > 0.2) && t.pop > 0) out.push({ need: null, v: 80, kind: "happy", text: "No pressing concerns at the moment." });
   return out;
 }
 
 // ---------- goals ----------
 export const GOALS = [
-  { id: "road", text: "Draw a new road", hint: "Pick 🛣️ Roads → Road. Tap where it starts, tap where it ends, drag the round handle to curve it, then ✓ Build.", test: (w) => w.segs.length > (w.startSegs || 0) },
-  { id: "zone", text: "Zone HDB lots along a road", hint: "Pick 🏘️ Zones → HDB and paint along the road with one finger. Lots turn green.", test: (w) => w.lots.some((l) => l.zone === "hdb") },
-  { id: "flats", text: "Finish your first flats", hint: "Press ▶ and wait. Cranes appear, then families move in.", test: (w) => w.lots.some((l) => l.zone === "hdb" && l.b?.state === "live") },
+  { id: "road", text: "Build your first road", hint: "🛣️ Roads → Road. Tap the start, then the end; drag the round handle to curve it, then ✓ Build.", test: (w) => w.segs.length > (w.startSegs || 0) },
+  { id: "zone", text: "Zone HDB lots along a road", hint: "🏘️ Zones → HDB, then paint along the road with one finger. Zoned lots turn green.", test: (w) => w.lots.some((l) => l.zone === "hdb") },
+  { id: "flats", text: "Complete your first flats", hint: "Resume time (▶). Construction takes several months before families move in.", test: (w) => w.lots.some((l) => l.zone === "hdb" && l.b?.state === "live") },
   { id: "food", text: "Open a market or hawker centre", hint: "🍜 Services → Wet market. Tap beside a road near homes, then ✓.", test: (w) => w.structs.some((s) => s.type === "market" || s.type === "hawker") },
   { id: "jobs", text: "Zone shops or factories for jobs", hint: "🏘️ Zones → Commercial or Industrial. Keep factories away from homes.", test: (w) => w.lots.some((l) => (l.zone === "com" || l.zone === "ind") && l.b && l.b.type !== "farm" && l.b.type !== "shophouse") },
   { id: "kampong", text: "Improve or resettle a kampong", hint: "🏗️ Renew, then tap a kampong. Improving keeps people happy; resettling frees land for flats.", test: (w) => (w.stats.resettled || 0) > 0 || w.kampongs.some((k) => k.improved) },
-  { id: "pop10k", text: "Reach 10,000 residents", hint: "Keep zoning HDB beside roads and add a school and clinic so blocks keep coming.", test: (w) => w.stats.pop >= 10000 },
+  { id: "pop10k", text: "Reach 10,000 residents", hint: "Keep zoning HDB beside roads, and add schools and clinics so that demand for flats stays high.", test: (w) => w.stats.pop >= 10000 },
   { id: "win", text: "Win an election", hint: "Elections come every 6 years. Check 🗳️ for each town's support and make pledges in election season.", test: (w) => w.election.history.some((e) => e.won) },
   { id: "pop30k", text: "Reach 30,000 residents", hint: "Newer housing types hold more people. Rebuild old blocks with 🏗️ Renew.", test: (w) => w.stats.pop >= 30000 },
   { id: "upgrade", text: "Upgrade or rebuild an old block", hint: "From 1989, tap an old HDB block with 🏗️ Renew.", test: (w) => w.lots.some((l) => l.b?.up || l.b?.renewed) },
   { id: "mrt", text: "Open two MRT stations on a line", hint: "From 1987: 🛣️ Roads → MRT track, then 🍜 Services → MRT station beside it at each end.", test: (w, A) => (A ? A.mrtRunning : w.structs.filter((s) => STRUCTS[s.type].station).length >= 2) },
-  { id: "pop80k", text: "Reach 80,000 residents", hint: "Bigger, modern estates and good transport.", test: (w) => w.stats.pop >= 80000 },
+  { id: "pop80k", text: "Reach 80,000 residents", hint: "Requires higher-density estates and strong transport links.", test: (w) => w.stats.pop >= 80000 },
 ];
 
 // A goal that has sat unreached for 10 years steps aside for the next one.

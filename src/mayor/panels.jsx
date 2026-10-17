@@ -261,7 +261,7 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
   return (
     <Panel title="🗳️ Elections" onClose={onClose}>
       <div className={`rounded-2xl p-3 ${season ? "bg-[var(--bad-bg)]" : "bg-[var(--soft)]"}`}>
-        <div className="text-[12px] font-bold uppercase tracking-wide text-[var(--brand)]">{season ? "Election season!" : "Next election"}</div>
+        <div className="text-[12px] font-bold uppercase tracking-wide text-[var(--brand)]">{season ? "Election season" : "Next election"}</div>
         <div className="text-xl font-bold">
           Polling day {tToDate(w, w.election.next)} · in {yearsMonths(months)}
         </div>
@@ -553,7 +553,7 @@ export function RenewSheet({ target, options, world: w, onPick, onClose }) {
 
 export function NewsPanel({ world, onClose, onHelp }) {
   return (
-    <Panel title="📰 Town news" onClose={onClose}>
+    <Panel title="📰 Bulletins" onClose={onClose}>
       {onHelp && (
         <button onClick={onHelp} className="city-btn mb-3 flex w-full items-center gap-3 rounded-2xl bg-[var(--soft)] px-3 py-2.5 text-left">
           <span className="text-2xl">📖</span>
@@ -601,7 +601,7 @@ export function GoalsPanel({ world: w, analysis: A, onClose }) {
           ))}
         </ul>
       )}
-      <h3 className="mb-1 mt-4 font-bold">🌱 Starter goals {starterDone ? "(all done!)" : ""}</h3>
+      <h3 className="mb-1 mt-4 font-bold">🌱 Starter goals {starterDone ? "(all complete)" : ""}</h3>
       <ul className="space-y-1.5 text-[15px]">
         {GOALS.map((g) => (
           <li key={g.id} className={w.goalsDone[g.id] ? "text-[var(--good)]" : ""}>
@@ -617,9 +617,9 @@ export function GoalsPanel({ world: w, analysis: A, onClose }) {
 export function HelpPanel({ onClose }) {
   const tips = [
     ["👆 Move around", "Drag with one finger. Pinch with two fingers to zoom."],
-    ["🛣️ Curvy roads", "Tap where a road starts, then where it ends. Drag the yellow ↔ handle to bend it, or drag A and B to move the ends. Press ✓ Build."],
+    ["🛣️ Roads", "Tap where a road starts, then where it ends. Drag the yellow ↔ handle to bend it, or drag A and B to move the ends. Press ✓ Build."],
     ["🏘️ Paint zones", "Lots appear along both sides of every road. Pick a zone and paint over them with one finger (two fingers move the map)."],
-    ["🏗️ Things take time", "New blocks are built over months. Watch the cranes, then families move in."],
+    ["🏗️ Things take time", "Construction takes several months. Residents move in once blocks are finished."],
     ["🕰️ Housing grows up", "Each decade brings better flats: emergency flats, slab blocks, point blocks, New Generation, modern estates, then BTO towers. Old estates age, so upgrade or rebuild them with 🏗️ Renew."],
     ["🛖 Kampongs", "Improve them with water and power, or resettle them to free land. Resettling costs money and upsets residents for a while."],
     ["🏘️ Listen to your towns", "Tap 🏘️ to see each town's happiness and what residents are saying."],
@@ -634,8 +634,8 @@ export function HelpPanel({ onClose }) {
     ["🏝️ Sentosa (South)", "The island is run for visitors: build links (cable car, bridge, monorail) and attractions, set the entry fee and marketing, and watch crowding."],
     ["🐉 Fantasy Mode", "From 2027 you can let real history go: zombies, meteors, aliens, new islands and stranger things, at random times and sizes. Some are one card, others are stories that branch over years, with 🎲 odds. What happened before decides what can happen next, and the map can change for good. Turn it on or off in ☰ Menu."],
     ["🕰️ Ageing", "Services wear out: after 25 years they reach fewer people (down to 60% at 45 years). Tap one and 🔧 Refurbish it for about a third of its price. From 1990 Singapore's population ages, so residents need more healthcare and community care from the same clinics and centres."],
-    ["🎁 Programmes", "☰ Menu → Programmes (or 💰 Finances): baby gifts, childcare, vouchers, help for seniors and businesses. Each costs money every month and shows its benefits as a range. You can't start new ones while in debt, and stopping one people rely on makes them angry."],
-    ["📊 Mayors' league", "AI mayors run the other regions. Every 10 years you get a report card comparing happiness, housing, health, births, money and reputation."],
+    ["🎁 Policies & programmes", "☰ Menu → Policies & programmes (or 💰 Finances): baby gifts, childcare, vouchers, help for seniors and businesses. Each costs money every month and shows its benefits as a range. You can't start new ones while in debt, and stopping one people rely on makes them angry."],
+    ["📊 Regional rankings", "AI mayors run the other regions. Every 10 years you get a report card comparing happiness, housing, health, births, money and reputation."],
   ];
   const [all, setAll] = useState(false);
   const drivers = {
@@ -656,7 +656,7 @@ export function HelpPanel({ onClose }) {
   ];
   return (
     <Panel title="📖 How to play" onClose={onClose}>
-      <p className="text-[15px] leading-snug">It's 1965 and you're the mayor of one region of a brand-new nation. Families are crowded into kampongs and waiting for homes. Build them a city, and keep them happy enough to re-elect you.</p>
+      <p className="text-[15px] leading-snug">It's 1965 and you're the mayor of one region of a brand-new nation. Families are crowded into kampongs and waiting for homes. Build them a city, and keep their support at the ballot box. (The mayor in this game is a fictional role combining planning, housing and town-council powers. Singapore's real mayors lead Community Development Councils.)</p>
 
       <h3 className="mb-1 mt-3 font-bold">🏆 What makes a successful region</h3>
       <ul className="space-y-1 text-[14px] leading-snug">
@@ -726,11 +726,11 @@ export function MenuPanel({ world, settings, setSettings, onClose, onSave, onHel
     <Panel title="☰ Menu" onClose={onClose}>
       <div className="grid grid-cols-2 gap-2">
         {[
-          ["💾", saved ? "Saved!" : "Save now", onSave],
+          ["💾", saved ? "Saved" : "Save now", onSave],
           ["🎯", "Goals", onGoals],
           ["💰", "Finances", onFinance],
-          ["🎁", "Programmes", onProgrammes],
-          ["📊", "Mayors' league", onRivals],
+          ["🎁", "Policies & programmes", onProgrammes],
+          ["📊", "Regional rankings", onRivals],
           ["📜", "History notebook", onHistory],
           ["❓", "How to play", onHelp],
           ["🏠", "Switch region / title", onQuit],

@@ -416,7 +416,7 @@ export function planRoad(w, type, A, B, Cc, opts = {}) {
   for (let k = 0; k < pts.length; k += 2) {
     const t = terrainAt(w, pts[k], pts[k + 1]);
     if (t === "off") return { ...base, msg: "Stay inside your region" };
-    if (t === "foreign") return { ...base, msg: "That's Johor, across the border!" };
+    if (t === "foreign") return { ...base, msg: "That's Johor, across the border." };
     if (t === "summit" && !rt.underground && !opts.init) return { ...base, msg: "Too steep: that's the summit of Bukit Timah Hill" };
     if (t === "sea" || t === "fresh") {
       run += 0.3;
@@ -1080,7 +1080,7 @@ export function planStruct(w, type, x, y) {
         const px = q[0] + (q[2] - q[0]) * u + (q[6] - q[0]) * v;
         const py = q[1] + (q[3] - q[1]) * u + (q[7] - q[1]) * v;
         const t = terrainAt(w, px, py);
-        if (t !== "land") return { q, msg: t === "foreign" ? "That's Johor!" : t === "summit" ? "Too steep: that's the summit of Bukit Timah Hill" : "Needs dry land" };
+        if (t !== "land") return { q, msg: t === "foreign" ? "That's Johor." : t === "summit" ? "Too steep: that's the summit of Bukit Timah Hill" : "Needs dry land" };
         const c = cellOf(px, py);
         const v0 = c < 0 ? -99 : o[c];
         if (v0 === -1 || v0 === -4) return { q, msg: "Overlaps a road" };

@@ -682,7 +682,7 @@ function LeagueTable({ rows }) {
 export function RivalsPanel({ world: w, onClose, onReport }) {
   const rows = standings(w);
   return (
-    <Panel title="📊 Mayors' league" onClose={onClose}>
+    <Panel title="📊 Regional rankings" onClose={onClose}>
       <p className="text-[14px] leading-snug text-[var(--muted)]">AI mayors run Singapore's other regions. Every ten years you get a report card comparing you with them: not just money, but happiness, housing, health, births and reputation.</p>
       <div className="mt-2">
         <LeagueTable rows={rows} />
@@ -884,7 +884,7 @@ export function SentosaPanel({ world: w, analysis: A, onChange, onClose }) {
       <p className="text-[14px] leading-snug text-[var(--muted)]">Sentosa is run for visitors, not residents. No HDB flats or factories: hotels, beaches and attractions bring people, and getting there matters. Visitors pay entry and spend money; crowds and high prices put them off.</p>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Visitors / month" value={fmtNum(S0.visitors)} />
-        <Stat label="Visitor happiness" value={`${Math.round(S0.sat)}%`} tone={S0.sat < 45 ? "bad" : null} sub={st.crowd > 1.1 ? "Overcrowded! Add hotels or attractions" : st.crowd < 0.5 ? "Plenty of room" : "Busy"} />
+        <Stat label="Visitor happiness" value={`${Math.round(S0.sat)}%`} tone={S0.sat < 45 ? "bad" : null} sub={st.crowd > 1.1 ? "Overcrowded: add hotels or attractions" : st.crowd < 0.5 ? "Plenty of room" : "Busy"} />
         <Stat label="Island income" value={fmtMoney(income)} sub="per month" />
         <Stat label="Island costs" value={fmtMoney(cost)} sub={`net ${income - cost >= 0 ? "+" : ""}${fmtMoney(income - cost)}`} tone={income - cost < 0 ? "bad" : null} />
       </div>
@@ -1318,7 +1318,7 @@ export function ProgrammesPanel({ world: w, analysis: A, onClose, onChange, push
     ["business", "🏪 Businesses"],
   ];
   return (
-    <Panel title="🎁 Programmes" onClose={onClose} tabs={tabs} tab={group} setTab={setGroup}>
+    <Panel title="🎁 Policies & programmes" onClose={onClose} tabs={tabs} tab={group} setTab={setGroup}>
       <p className="text-[14px] leading-snug text-[var(--muted)]">Ongoing perks you pay for every month. Each starts working over about 6 months and turns out 70–130% as well as a typical scheme. Stopping one people rely on makes them angry, more so the longer it ran.</p>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Running now" value={`${fmtMoney(monthly)}/mo`} sub={income ? `${Math.round((monthly / income) * 100)}% of income` : ""} tone={net < 0 ? "bad" : null} />

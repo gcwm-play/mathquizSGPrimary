@@ -90,7 +90,8 @@ function Title({ onStart }) {
         <div className="text-center text-white landscape:w-60 landscape:shrink-0 landscape:text-left lg:w-72">
           <div className="city-bob inline-block text-5xl">🦁</div>
           <h1 className="city-title-text text-4xl font-bold leading-none landscape:text-3xl lg:text-4xl">Lion City Mayor</h1>
-          <p className="mx-auto mt-2 max-w-md text-[15px] font-medium text-white/95 lg:mx-0">Run one region of Singapore from 1965. Draw curving roads, grow kampongs into modern towns, and win an election every 6 years.</p>
+          <p className="mx-auto mt-2 max-w-md text-[15px] font-medium text-white/95 lg:mx-0">1965. A new nation, short of homes, jobs and land. Plan one region of Singapore through a century of growth, crises and elections.</p>
+          <p className="mx-auto mt-1 max-w-md text-[12px] text-white/80 lg:mx-0">The mayor here is a fictional role combining planning, housing and town-council powers. Singapore's real mayors lead Community Development Councils.</p>
           <a href="city.html" className="mt-2 inline-block text-[13px] font-semibold text-white underline">Play the classic island-wide grid game instead</a>
         </div>
         <div className="city-card w-full max-w-xl space-y-2.5 p-3">
@@ -396,11 +397,11 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
     }
     if (!world.sandbox && cost > world.cash) {
       if (!bigProject) {
-        toast(`🚫 Not enough money: this costs ${fmtMoney(cost)}.`);
+        toast(`🚫 Insufficient funds: ${fmtMoney(cost)} required.`);
         return;
       }
       if (world.cash - cost < -debtLimit(world) * 0.8) {
-        toast(`🏦 Even the bank won't lend that much. Save up first (you can borrow up to about ${fmtMoney(debtLimit(world) * 0.8)}).`);
+        toast(`🏦 That exceeds your borrowing limit (about ${fmtMoney(debtLimit(world) * 0.8)}). Build up reserves first.`);
         return;
       }
       if (!p.debtOk) {
@@ -785,15 +786,15 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
               onClick={() => setPanel({ id: "election" })}
               className={`city-btn city-sticker whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-bold ${season ? "city-pulse bg-[var(--brand)] text-white" : "bg-[var(--card)]"}`}
             >
-              🗳️ {season ? `Election season! Vote ${tToDate(w, w.election.next)}` : (
+              🗳️ {season ? `Election season · polls ${tToDate(w, w.election.next)}` : (
                 <>
                   <span className="hidden lg:inline">Next election </span>
                   {`${tToDate(w, w.election.next).split(" ")[1]} · ${yearsMonths(months)}`}
                 </>
               )}
             </button>
-            <button onClick={() => setPanel({ id: "rivals" })} aria-label="Mayors' league" className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--card)] px-3 py-1.5 text-[13px] font-bold">
-              📊 {w.yearly?.length ? `#${myRank(w)} of ${(w.rivals?.length || 0) + 1}` : "League"}
+            <button onClick={() => setPanel({ id: "rivals" })} aria-label="Regional rankings" className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--card)] px-3 py-1.5 text-[13px] font-bold">
+              📊 {w.yearly?.length ? `#${myRank(w)} of ${(w.rivals?.length || 0) + 1}` : "Rankings"}
             </button>
             {w.sentosa && (
               <button onClick={() => setPanel({ id: "sentosa" })} className="city-btn city-sticker whitespace-nowrap rounded-full bg-[var(--card)] px-3 py-1.5 text-[13px] font-bold">
@@ -1033,7 +1034,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           <div className="text-center">
             <div className="text-5xl">{w.election.last.won ? "🏆" : "😬"}</div>
             <div className="text-2xl font-bold">{w.election.last.share}% voted for you</div>
-            <div className="text-[var(--muted)]">{w.election.last.won ? `You're mayor for another 6 years!` : w.gameOver ? "You lost the election." : "You lost, but on Easy you stay on. Residents want change!"}</div>
+            <div className="text-[var(--muted)]">{w.election.last.won ? `You remain mayor for another 6 years.` : w.gameOver ? "You lost the election." : "You lost, but on Easy you stay on. Residents want change."}</div>
           </div>
           <div className="mt-3 space-y-1.5">
             {w.election.last.results.map((r) => (
@@ -1164,7 +1165,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           toast={toast}
           onDone={() => {
             w.planned = true;
-            w.news.unshift({ t: w.t, date: dateLabel(w), text: "👋 Welcome, Mayor! New here? Open 📰 News any time and tap 📖 How to play." });
+            w.news.unshift({ t: w.t, date: dateLabel(w), text: "👋 Welcome, Mayor. New here? Open 📰 Bulletins at any time and tap 📖 How to play." });
             afterChange();
             setPanel(null);
             toast("👋 New here? 📰 News → 📖 How to play");
