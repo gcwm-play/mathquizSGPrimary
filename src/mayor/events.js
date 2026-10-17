@@ -60,7 +60,7 @@ export const CRISES = {
     choices: [
       { id: "estates", label: "Turn base land into industrial estates", pros: ["Factory demand surges", "Long-term jobs"], cons: ["Costly site works"], cost: 900, effect: { indDemand: 0.5, months: 36 }, crisis: 0.85, rep: 3, log: "turned old military land into industrial estates" },
       { id: "retrain", label: "Retrain base workers", pros: ["Softens job losses", "Trust rises"], cons: ["Costs a lot up front"], cost: 600, crisis: 0.7, trust: 4, log: "retrained laid-off base workers" },
-      { id: "wait", label: "Let the market sort it out", pros: ["Costs nothing"], cons: ["Workers feel abandoned"], angerAll: 0.8, crisis: 1.15, log: "left base workers to fend for themselves", tone: "bad" },
+      { id: "wait", label: "Leave it to the market", pros: ["Costs nothing"], cons: ["Workers feel abandoned"], angerAll: 0.8, crisis: 1.15, log: "left base workers to fend for themselves", tone: "bad" },
     ],
     mid: {
       after: 18,
@@ -79,7 +79,7 @@ export const CRISES = {
     year: 1973,
     month: 9,
     months: 18,
-    text: "Oil prices have quadrupled overnight. Petrol, electricity and transport costs are soaring.",
+    text: "Oil prices have roughly quadrupled within months. Petrol, electricity and transport costs are soaring.",
     effect: { business: 0.82, upkeep: 1.18, mood: -2 },
     mitigate: { label: "Homes near buses or MRT", fn: (w, A) => coverShare(A, "transport") },
     hint: "Good bus coverage means people can leave the car at home.",
@@ -122,7 +122,7 @@ export const CRISES = {
       { id: "defer", label: "Defer new HDB projects", pros: ["Saves money now"], cons: ["Housing queue grows"], gain: 1000, waitlist: 1500, tone: "bad", log: "put new flats on hold during the crisis" },
       { id: "invest", label: "Invest in hi-tech parks", pros: ["Builds future jobs"], cons: ["Payoff is slow"], cost: 900, effect: { indDemand: 0.35, comDemand: 0.2, months: 48 }, crisis: 0.85, rep: 3, log: "invested in hi-tech parks during the downturn" },
     ],
-    end: "Asia is recovering. {result}",
+    end: "The regional economy is recovering. {result}",
   },
   sars: {
     name: "SARS outbreak",
@@ -148,7 +148,7 @@ export const CRISES = {
         { id: "volunteers", label: "Call for volunteers", pros: ["Free", "Community spirit"], cons: ["Risky for volunteers"], needs: { community: 8, months: 24 }, crisis: 0.9 },
       ],
     },
-    end: "SARS is over. {result}",
+    end: "The SARS outbreak has ended. {result}",
   },
   gfc: {
     name: "Global financial crisis",
@@ -200,7 +200,7 @@ export const CRISES = {
         ],
       },
     },
-    end: "COVID-19 has become endemic. {result}",
+    end: "COVID-19 is now treated as endemic. {result}",
   },
   // ---- imagined futures, scheduled randomly after 2026 ----
   seas: {
@@ -423,7 +423,7 @@ export const DILEMMAS = [
     options: [
       { id: "generous", label: "Generous baby bonus & childcare", pros: ["More births"], cons: ["Ongoing cost"], costMonthly: 30, fert: 0.06, log: "introduced a generous baby bonus" },
       { id: "childcare", label: "Build more childcare centres", pros: ["Helps working parents"], cons: ["One-off cost"], cost: 600, fert: 0.03, needs: { school: 6, months: 240, all: true } },
-      { id: "none", label: "Not our job", pros: ["Saves money"], cons: ["Births keep falling"], fert: -0.02 },
+      { id: "none", label: "No new spending", pros: ["Saves money"], cons: ["Births keep falling"], fert: -0.02 },
     ],
   },
   {
@@ -473,7 +473,7 @@ export const DILEMMAS = [
     text: () => "A big tech company will put its regional HQ here, bringing thousands of jobs, if you give it 10 years without business tax.",
     options: [
       { id: "yes", label: "Give the tax holiday", pros: ["Thousands of good jobs"], cons: ["Less business tax"], effect: { jobs: 1.06, business: 0.95, comDemand: 0.3, months: 120 }, rep: 2, log: "lured a tech HQ with a tax holiday" },
-      { id: "half", label: "Offer half", pros: ["Some tax kept"], cons: ["They might walk"], chance: 0.5, okText: "They accepted!", effect: { jobs: 1.03, comDemand: 0.15, months: 120 } },
+      { id: "half", label: "Offer half", pros: ["Some tax kept"], cons: ["They might walk"], chance: 0.5, okText: "They accepted.", effect: { jobs: 1.03, comDemand: 0.15, months: 120 } },
       { id: "no", label: "No special deals", pros: ["Fair to everyone"], cons: ["Jobs go elsewhere"] },
     ],
   },
@@ -482,7 +482,7 @@ export const DILEMMAS = [
     text: () => "Your MRT line has broken down three times this month. Commuters are fuming.",
     options: [
       { id: "renew", label: "Replace the old signalling", pros: ["Reliable trains for years"], cons: ["Costly, weekend closures"], cost: 900, mood: [-1, 6], needs: { transport: 6, months: 240, all: true }, log: "renewed the MRT signalling system" },
-      { id: "patch", label: "Patch it up", pros: ["Cheap"], cons: ["Breakdowns will return"], cost: 150, later: { months: 30, chance: 0.6, text: "The patched MRT line broke down again during rush hour!", angerAll: 0.5 } },
+      { id: "patch", label: "Patch it up", pros: ["Cheap"], cons: ["Breakdowns will return"], cost: 150, later: { months: 30, chance: 0.6, text: "The patched MRT line broke down again during rush hour.", angerAll: 0.5 } },
     ],
   },
   {
@@ -523,7 +523,7 @@ export const DILEMMAS = [
     text: () => "Bird flu has been found in poultry across the region. Hawkers worry chicken rice will vanish.",
     options: [
       { id: "cull", label: "Cull & import from safe farms", pros: ["Outbreak stopped"], cons: ["Costly, hawkers pay more"], cost: 250, needs: { cost: -4, months: 6, all: true } },
-      { id: "watch", label: "Monitor closely", pros: ["Cheap"], cons: ["Small risk of outbreak"], later: { months: 6, chance: 0.3, text: "Bird flu spread to a farm worker. Panic in the markets!", angerAll: 0.4, mood: [-2, 4] } },
+      { id: "watch", label: "Monitor closely", pros: ["Cheap"], cons: ["Small risk of outbreak"], later: { months: 6, chance: 0.3, text: "Bird flu spread to a farm worker, causing panic in the markets.", angerAll: 0.4, mood: [-2, 4] } },
     ],
   },
   {
@@ -582,7 +582,7 @@ export const DILEMMAS = [
     text: (c) => `The newspapers report that ${c.town}'s town council paid a contractor linked to an official. People expect you to act.`,
     options: [
       { id: "probe", label: "Independent investigation", pros: ["Clean government", "Trust rises"], cons: ["Embarrassing headlines"], cost: 100, trust: 4, rep: 2, mood: [-1, 3], log: "ordered an independent probe into a town council scandal" },
-      { id: "quiet", label: "Handle it quietly", pros: ["No fuss"], cons: ["If it leaks, trust collapses"], later: { months: 18, chance: 0.5, text: "The cover-up leaked! Residents feel betrayed.", trust: -10, rep: -5, angerAll: 0.5 } },
+      { id: "quiet", label: "Handle it quietly", pros: ["No fuss"], cons: ["If it leaks, trust collapses"], later: { months: 18, chance: 0.5, text: "The cover-up leaked. Residents feel betrayed.", trust: -10, rep: -5, angerAll: 0.5 } },
     ],
   },
   {
@@ -1015,7 +1015,7 @@ function startCrisis(w, id, rng, push) {
   const sev = 0.8 + rng() * 0.45;
   w.crisis = { id, start: w.t, startYear: w.year, until: w.t + C.months, sev, mit: null };
   w.decision = { kind: "crisis", id };
-  push(`${C.icon} CRISIS: ${C.name}! ${C.text}`);
+  push(`${C.icon} CRISIS: ${C.name}. ${C.text}`);
 }
 
 // AI choice for bots and tests

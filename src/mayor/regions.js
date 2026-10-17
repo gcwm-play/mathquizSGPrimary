@@ -16,7 +16,7 @@ export const REGIONS = {
     short: "East",
     icon: "✈️",
     blurb: "Kampongs and coconut groves by the sea. Build the new towns of Tampines and Pasir Ris, reclaim the East Coast and make room for Changi Airport.",
-    tip: "Good for beginners: lots of open land.",
+    tip: "Open land, few constraints. Recommended first region.",
     land: (e, s, n) => {
       const south = 22 + wave(e, 2.5, 0.16) - Math.max(0, e - 16) * 0.55 - s;
       const north = s - (-30 + wave(e, 2, 0.2, 1) + Math.max(0, e - 8) * 0.45);
@@ -64,7 +64,7 @@ export const REGIONS = {
     short: "West",
     icon: "🏭",
     blurb: "Swamps, farms and fishing villages. Turn Jurong into Singapore's industrial heartland, merge the southern islands into Jurong Island, and plan homes away from the smoke.",
-    tip: "Industry-focused: balance jobs against pollution.",
+    tip: "An industrial region: balance jobs against pollution.",
     land: (e, s, n) => {
       const south = 17 + wave(e, 3, 0.18) + Math.max(0, -e - 18) * 0.35 - s;
       const west = e + 30 - wave(s, 2, 0.2);
@@ -113,7 +113,7 @@ export const REGIONS = {
     short: "Central",
     icon: "🏙️",
     blurb: "A crowded old town of shophouses along the Singapore River. Clean up the river, renew the city centre carefully, and reclaim Marina Bay for a new downtown.",
-    tip: "Hardest start: little free land, lots of old buildings.",
+    tip: "The hardest start: little free land and many old buildings.",
     land: (e, s, n) => {
       const coast = 15 + wave(e, 2, 0.2) - Math.max(0, e - 2) * 0.5 - s;
       const east = 30 - e - Math.max(0, -s) * 0.2;
@@ -164,7 +164,7 @@ export const REGIONS = {
     short: "North",
     icon: "🌉",
     blurb: "Rubber estates and kampongs facing Johor across the Strait. Grow Woodlands into the northern gateway, manage Causeway traffic and protect the mangroves.",
-    tip: "Gateway region: trade income from the Causeway.",
+    tip: "A gateway region: trade income from the Causeway.",
     land: (e, s, n) => {
       const strait = s - (-17 + wave(e, 2.5, 0.15));
       let v = strait;
@@ -213,7 +213,7 @@ export const REGIONS = {
     short: "South",
     icon: "🏝️",
     blurb: "Keppel Harbour, the hills of Mount Faber and the old fortress island of Blakang Mati. Build homes on the mainland, a port at HarbourFront, and turn the island into Sentosa, a resort run on visitors.",
-    tip: "Tourism region: Sentosa has its own visitor economy.",
+    tip: "A tourism region: Sentosa runs its own visitor economy.",
     land: (e, s, n) => {
       let v = 6 + wave(e, 1.6, 0.21) + Math.max(0, e - 22) * 0.25 - s; // mainland coast
       v = Math.max(v, (1 - Math.hypot((e + 1.5) / 16.5, (s - 20.5) / 6.8)) * 6.8); // Sentosa
@@ -266,7 +266,7 @@ export const REGIONS = {
     short: "Bt Timah",
     icon: "⛰️",
     blurb: "Rubber estates, granite quarries and Singapore's highest hill, crossed by the railway to Malaya. Protect the forest, decide which schools and campuses get land, and choose how far the old landed estates should change.",
-    tip: "Land-limited: a protected hill, big campuses and nature to weigh against homes.",
+    tip: "Land is tight: a protected hill, large campuses and nature to weigh against homes.",
     land: (e, s, n) => {
       // inland, with a short stretch of the West Coast in the south-west
       const coast = 27 + wave(e, 2, 0.17) + Math.max(0, e + 6) * 0.45 - s;

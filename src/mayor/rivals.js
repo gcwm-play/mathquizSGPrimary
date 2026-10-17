@@ -198,7 +198,7 @@ export function decadeReport(w, from, to) {
     facts,
     strengths,
     weaknesses,
-    headline: rank === 1 ? "You were the best mayor in Singapore this decade!" : rank === rows.length ? "You finished last among the four regional mayors." : `You ranked #${rank} of ${rows.length} regional mayors.`,
+    headline: rank === 1 ? "You were the best mayor in Singapore this decade." : rank === rows.length ? "You finished last among the four regional mayors." : `You ranked #${rank} of ${rows.length} regional mayors.`,
   };
 }
 

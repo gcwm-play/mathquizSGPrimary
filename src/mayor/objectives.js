@@ -63,7 +63,7 @@ export const OBJECTIVES = {
       }
       if (!best) return null;
       const target = Math.min(4, best.n);
-      return { key: `renew:${best.i}`, town: best.i, target, months: 60, score: 30 + best.n * 3, text: `Upgrade or rebuild ${target} ageing blocks in ${w.towns[best.i].name}`, hint: "Tap an old HDB block and use 🏗️ Renew. Check where residents will go first!" };
+      return { key: `renew:${best.i}`, town: best.i, target, months: 60, score: 30 + best.n * 3, text: `Upgrade or rebuild ${target} ageing blocks in ${w.towns[best.i].name}`, hint: "Tap an old HDB block and use 🏗️ Renew. Check where residents will be rehoused first." };
     },
     progress: (w, A, o) => {
       const cur = renewedSince(w, o.town, o.made);
@@ -217,7 +217,7 @@ export function stepObjectives(w, A, push) {
       w.trust = clamp(w.trust + R.trust, 0, 100);
       w.rep = clamp((w.rep ?? 50) + R.rep, 0, 100);
       w.objCool[o.key] = w.t + 36;
-      push(`🎯 Objective complete: ${o.text}! Bonus grant of $${fmt(R.cash)}K${R.trust >= 0.5 ? `, trust +${Math.round(R.trust)}` : ""}, reputation +${Math.round(R.rep)}.`);
+      push(`🎯 Objective complete: ${o.text}. Bonus grant of $${fmt(R.cash)}K${R.trust >= 0.5 ? `, trust +${Math.round(R.trust)}` : ""}, reputation +${Math.round(R.rep)}.`);
       w.log.push({ year: w.year, text: o.text.toLowerCase(), tone: "good" });
     } else if (w.t >= o.deadline || P.fail) {
       o.status = "missed";

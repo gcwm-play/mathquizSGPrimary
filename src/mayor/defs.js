@@ -5,9 +5,9 @@ export const TERM_YEARS = 6;
 export const FIRST_ELECTION = 1968;
 
 export const DIFFICULTY = {
-  easy: { label: "Easy", desc: "Generous budget, can't be voted out", cash: 30000, waitlist: 2500, growth: 1.5, income: 1.4, voteMin: 0, fire: 0.3 },
-  normal: { label: "Normal", desc: "Win each election to stay mayor", cash: 15000, waitlist: 3500, growth: 1.25, income: 1.2, voteMin: 50, fire: 0.7 },
-  hard: { label: "Hard", desc: "Tight money, demanding voters", cash: 6000, waitlist: 5000, growth: 1, income: 1, voteMin: 50, fire: 1, harsh: true },
+  easy: { label: "Easy", desc: "Larger budget; you can't lose an election", cash: 30000, waitlist: 2500, growth: 1.5, income: 1.4, voteMin: 0, fire: 0.3 },
+  normal: { label: "Normal", desc: "Win each election to stay in office", cash: 15000, waitlist: 3500, growth: 1.25, income: 1.2, voteMin: 50, fire: 0.7 },
+  hard: { label: "Hard", desc: "Tight budget, critical voters", cash: 6000, waitlist: 5000, growth: 1, income: 1, voteMin: 50, fire: 1, harsh: true },
 };
 export const diffOf = (w) => DIFFICULTY[w.difficulty] || DIFFICULTY.normal;
 
@@ -66,7 +66,7 @@ export const STRUCTS = {
   clinic: { name: "Polyclinic", icon: "🩺", cost: 900, upkeep: 9, w: 1.8, d: 1.6, cover: "health", r: 9, year: 1965, tip: "Everyday healthcare." },
   hospital: { name: "Hospital", icon: "🏥", cost: 4000, upkeep: 35, w: 3.6, d: 3, cover: "health", r: 22, year: 1965, tip: "Covers the whole region." },
   police: { name: "Police post", icon: "👮", cost: 500, upkeep: 5, w: 1.4, d: 1.2, cover: "safety", r: 10, year: 1965, tip: "Keeps neighbourhoods safe." },
-  fire: { name: "Fire station", icon: "🚒", cost: 600, upkeep: 6, w: 1.8, d: 1.6, cover: "fire", r: 12, year: 1965, tip: "Stops fires. Kampongs burn easily!" },
+  fire: { name: "Fire station", icon: "🚒", cost: 600, upkeep: 6, w: 1.8, d: 1.6, cover: "fire", r: 12, year: 1965, tip: "Stops fires, which spread fast through kampongs." },
   cc: { name: "Community centre", icon: "🏓", cost: 600, upkeep: 5, w: 1.8, d: 1.6, cover: "community", r: 10, year: 1965, tip: "Brings neighbours together. Good for votes." },
   park: { name: "Park", icon: "🌳", cost: 120, upkeep: 1, w: 2.2, d: 2.2, cover: "green", r: 6, year: 1965, tip: "Greenery near homes." },
   bus: { name: "Bus interchange", icon: "🚌", cost: 600, upkeep: 6, w: 2.2, d: 1.6, cover: "transport", r: 9, year: 1970, tip: "Feeder buses for a whole town." },
@@ -269,41 +269,41 @@ export const NEEDS = {
 export const COMPLAINTS = {
   housing: ["Our block is so old, when got upgrading?", "Kampong life is warm, but we need proper toilets and water.", "Flat too small for the whole family lah."],
   jobs: ["Hard to find work near home.", "Need more factories or offices around here."],
-  cost: ["Everything so expensive now!", "Taxes going up again ah?"],
-  food: ["Nearest hawker centre is so far away!", "Need a wet market nearby to buy fresh food."],
+  cost: ["Everything so expensive now.", "Taxes going up again ah?", "Rent at the coffee shop went up again; the uncle says he might close."],
+  food: ["Nearest hawker centre is so far away.", "Need a wet market nearby to buy fresh food."],
   school: ["My kids take two buses to school.", "Need a primary school in our town."],
-  school1: ["Need a primary school in our town.", "Our little ones walk so far to school!"],
+  school1: ["Need a primary school in our town.", "Our little ones walk so far to school."],
   school2: ["My teenager travels an hour to secondary school.", "Need a secondary school around here."],
   school3: ["No polytechnic or university nearby for our grown-up kids.", "Young people have to leave the region to study further."],
   health: ["Queue at the clinic is so long.", "Need a polyclinic nearby."],
   safety: ["Got some break-ins recently. Need a police post.", "Worried about fires. No fire station near us."],
-  transport: ["Bus so slow and crowded!", "When is the MRT coming to our town?", "Need more roads, the jam is terrible."],
+  transport: ["Bus so slow and crowded.", "When is the MRT coming to our town?", "Need more roads, the jam is terrible."],
   green: ["No park for the kids to play.", "Too much concrete, need more trees."],
   community: ["Don't know our neighbours any more.", "Need a community centre for activities."],
-  environment: ["The factory smoke is everywhere!", "Air smells bad near the industrial area."],
+  environment: ["The factory smoke is everywhere.", "Air smells bad near the industrial area."],
 };
 
 // The same need sounds different depending on what a town is for.
 export const COMPLAINTS_BY_PURPOSE = {
   industrial: {
     health: ["Shift workers get hurt and the nearest clinic is miles away.", "The factory first-aid room can't cope. Need a polyclinic."],
-    food: ["No canteen near the factories. Workers eat from tins!", "Need a hawker centre near the industrial estate."],
+    food: ["No canteen near the factories. Workers eat from tins.", "Need a hawker centre near the industrial estate."],
     community: ["After a shift there's nowhere to relax.", "Workers' families need a community centre."],
-    transport: ["Factory buses are always packed!", "Workers spend hours getting to the estate.", "Lorries jam every road around here."],
+    transport: ["Factory buses are always packed.", "Workers spend hours getting to the estate.", "Lorries jam every road around here."],
     jobs: ["The factories aren't hiring enough.", "Need more industry here, not empty land."],
     safety: ["Factory fires scare us. Need a fire station.", "Thieves raid the warehouses at night."],
     housing: ["Workers' quarters are cramped and old.", "The flats near the factories are falling apart."],
     cost: ["Wages don't keep up with prices."],
   },
   commercial: {
-    transport: ["Office workers can't get to work on time!", "Every road into town jams at rush hour."],
+    transport: ["Office workers can't get to work on time.", "Every road into town jams at rush hour."],
     safety: ["Need more police around the shopping streets.", "Pickpockets everywhere near the malls."],
     jobs: ["Firms want to grow but there are no new offices.", "Need more offices and shops."],
-    food: ["Office workers can't find lunch nearby!", "Lunch queues stretch round the block."],
+    food: ["Office workers can't find lunch nearby.", "Lunch queues stretch round the block."],
     health: ["Need a clinic close to the offices.", "Clinic queues are too long for a lunch break."],
     housing: ["Old shophouses need restoring.", "Flats around here are worn out."],
     green: ["Just concrete and glass. Need a park to breathe.", "Nowhere green to sit at lunchtime."],
-    cost: ["Rents are sky-high!", "Everything in town costs double."],
+    cost: ["Rents are sky-high.", "Everything in town costs double."],
   },
   heritage: {
     food: ["Tourists come for the food but the stalls are cramped.", "Our hawkers need a proper food centre."],
@@ -319,26 +319,26 @@ export const COMPLAINTS_BY_PURPOSE = {
   },
 };
 
-export const PRAISE = ["Our town is getting better and better!", "Love the new hawker centre!", "Good place to raise a family.", "The new flats are so nice!"];
+export const PRAISE = ["Our town is getting better and better.", "Love the new hawker centre.", "Good place to raise a family.", "The new flats are very nice."];
 
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export const GLOBAL_EVENTS = [
-  { year: 1965, month: 7, text: "🇸🇬 9 Aug 1965: Singapore is independent! You are mayor of your region. Kampong families are waiting for modern homes." },
+  { year: 1965, month: 7, text: "🇸🇬 9 Aug 1965: Singapore is independent. You are mayor of your region, and kampong families are waiting for modern homes." },
   { year: 1966, month: 0, text: "🏢 HDB slab blocks can now be built: far more homes per lot than emergency flats." },
   { year: 1975, month: 0, text: "🏢 Taller HDB point blocks are now possible." },
   { year: 1980, month: 0, text: "🏢 New Generation flats arrive: bigger homes, better design." },
-  { year: 1987, month: 0, text: "🚇 MRT technology arrives! Lay track, then build stations beside it." },
+  { year: 1987, month: 0, text: "🚇 MRT technology arrives. Lay track, then build stations beside it." },
   { year: 1989, month: 0, text: "🔧 Upgrading is available: use 🏗️ Renew on old HDB blocks to modernise them." },
   { year: 1995, month: 0, text: "🏗️ En bloc redevelopment (SERS) is available: rebuild old estates into modern ones." },
   { year: 2008, month: 0, text: "🏙️ BTO sky towers can now be built." },
 ];
 
 export const RANDOM_EVENTS = [
-  { id: "kfire", chance: 0.012, text: "🔥 A fire swept through {kampong}! Families need new homes urgently.", kampongFire: true },
-  { id: "recession", chance: 0.008, minYear: 1970, months: 12, text: "📉 Global recession! Business income falls for a year.", effect: { business: 0.7 } },
-  { id: "boom", chance: 0.008, minYear: 1970, months: 12, text: "📈 Investment boom! Firms want offices and factories.", effect: { comDemand: 0.4, indDemand: 0.4 } },
-  { id: "flood", chance: 0.008, minYear: 1965, text: "🌧️ Flash floods! Drain repairs cost money.", cost: 500 },
-  { id: "festival", chance: 0.01, minYear: 1970, months: 2, text: "🎉 Festive season! Residents are in a good mood.", effect: { mood: 3 } },
-  { id: "dengue", chance: 0.008, minYear: 1965, months: 4, text: "🦟 Dengue cluster! Towns without clinics get unhappy.", effect: { health: 0.7 } },
+  { id: "kfire", chance: 0.012, text: "🔥 A fire swept through {kampong}. Families need new homes urgently.", kampongFire: true },
+  { id: "recession", chance: 0.008, minYear: 1970, months: 12, text: "📉 Global recession: business income falls for a year.", effect: { business: 0.7 } },
+  { id: "boom", chance: 0.008, minYear: 1970, months: 12, text: "📈 Investment boom: firms want offices and factories.", effect: { comDemand: 0.4, indDemand: 0.4 } },
+  { id: "flood", chance: 0.008, minYear: 1965, text: "🌧️ Flash floods: drain repairs are needed.", cost: 500 },
+  { id: "festival", chance: 0.01, minYear: 1970, months: 2, text: "🎉 Festive season: residents are in a good mood.", effect: { mood: 3 } },
+  { id: "dengue", chance: 0.008, minYear: 1965, months: 4, text: "🦟 Dengue cluster: towns without clinics grow unhappy.", effect: { health: 0.7 } },
 ];
