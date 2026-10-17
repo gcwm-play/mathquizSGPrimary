@@ -432,15 +432,7 @@ export function RevealCard({ h }) {
       </div>
       {H.sources?.length > 0 && (
         <div className="mt-1.5 text-[12px] text-[var(--muted)]">
-          Read more:{" "}
-          {H.sources.map((s, i) => (
-            <span key={s.url}>
-              {i > 0 && " · "}
-              <a href={s.url} target="_blank" rel="noopener noreferrer" className="underline">
-                {s.name}
-              </a>
-            </span>
-          ))}
+          Sources: {H.sources.map((s) => s.name).join(" · ")}
         </div>
       )}
     </div>
