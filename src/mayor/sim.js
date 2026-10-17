@@ -522,6 +522,8 @@ export function monthlyBudget(w, A, ov = null) {
   }));
   return { rev, exp, towns, sub: sum(SUB) };
 }
+// what each new HDB resident pays the region when their family buys in ($K)
+export const HDB_PRICE = 0.385;
 const LUMPY_REV = ["landSales", "hdbSales"];
 const LUMPY_EXP = ["hdbBuild", "construction"];
 const total = (o) => Object.values(o).reduce((a, b) => a + b, 0);
@@ -530,10 +532,22 @@ const recurExp = (o) => total(o) - LUMPY_EXP.reduce((a, k) => a + (o[k] || 0), 0
 const lumpyNet = (B) => LUMPY_REV.reduce((a, k) => a + (B.rev[k] || 0), 0) - LUMPY_EXP.reduce((a, k) => a + (B.exp[k] || 0), 0);
 
 // Project the budget forward using current settings (or what-if overrides).
-export function projectFinance(w, A, ov = null, months = 72) {
+// What happens over the next 24 months if you start nothing new: regular
+// income and running costs, plus flat sales as families move into HDB homes
+// that are already built or being built. New projects, and new blocks HDB
+// starts on lots you have zoned, are not assumed.
+export function projectFinance(w, A, ov = null, months = 24) {
   const B = monthlyBudget(w, A, ov);
-  const recent = w.fin.slice(-12);
-  const avgL = recent.length ? recent.reduce((a, f) => a + f.l, 0) / recent.length : 0;
+  // HDB homes waiting for families: empty now, or finishing on a known date
+  let free = 0;
+  const done = new Map();
+  for (const l of w.lots) {
+    const T = l.b && LOT_TYPES[l.b.type];
+    if (!T || T.zone !== "hdb" || !T.cap) continue;
+    if (l.b.state === "build") done.set(l.b.until, (done.get(l.b.until) || 0) + T.cap);
+    else free += Math.max(0, T.cap - residents(l.b));
+  }
+  let queue = Math.max(0, w.waitlist);
   // growth: homes being built and empty flats fill up, then the trend
   const H = housingByTown(w);
   const pipe = H.reduce((a, h) => a + h.building, 0);
@@ -567,7 +581,12 @@ export function projectFinance(w, A, ov = null, months = 72) {
     }
     let e = 0;
     for (const [key, v] of Object.entries(re)) e += key === "maintenance" ? v * (1 + (gf - 1) * 0.8) : key === "services" && after ? v / recov("upkeep") : v;
-    const lump = avgL * Math.max(0.3, 1 - k / 60);
+    // flat sales as families move in (same pace as the game)
+    free += done.get(t) || 0;
+    const movers = free > 0 && queue >= 1 ? Math.min(queue + free * 0.06, free, Math.max(250, free * 0.35)) : 0;
+    free -= movers;
+    queue = Math.max(0, queue - movers);
+    const lump = movers * HDB_PRICE;
     cash += r - e + lump;
     out.push({ t, r, e, c: cash });
     w.towns.forEach((_, i) => {
@@ -1336,7 +1355,7 @@ export function stepMonth(w, rng = Math.random) {
     let movers = Math.floor(Math.min(w.waitlist + outsiders, free, Math.max(250, free * 0.35)));
     vac.sort((a, b) => quality(w, b.b) + w.towns[b.town].approval * 0.3 - (quality(w, a.b) + w.towns[a.town].approval * 0.3));
     // flat prices and grants are set by the national government
-    const hdbPrice = 0.385;
+    const hdbPrice = HDB_PRICE;
     for (const l of vac) {
       if (movers <= 0) break;
       const T = LOT_TYPES[l.b.type];
