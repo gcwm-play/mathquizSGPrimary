@@ -1340,6 +1340,7 @@ function Tray({ world, group, tool, onPick }) {
               {locked ? `🔒 ${t.year}` : t.cost ? `${t.mode === "project" ? "from " : ""}${fmtMoney(t.cost)}` : ""}
             </span>
             {t.landmark && (world.lmBuilt || []).some((x) => x.type === t.struct && x.by !== "you") && <span className="text-[11px] font-semibold text-[var(--muted)]">🪞 built elsewhere</span>}
+            {STRUCTS[t.struct]?.offer && world.offers?.[t.struct] > world.t && <span className="text-[11px] font-semibold text-[var(--good)]">🎓 campus offer · place by {tToDate(world, world.offers[t.struct])}</span>}
           </button>
         );
       })}
