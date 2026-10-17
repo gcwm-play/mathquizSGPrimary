@@ -108,7 +108,8 @@ export function FinancePanel({ world: w, analysis: A, onChange, onClose, onProgr
   const net = sum(B.rev) - sum(B.exp);
   const end = proj[proj.length - 1];
   const yearAhead = proj.slice(0, 12);
-  const nextYearNet = yearAhead.reduce((a, p) => a + p.r - p.e, 0);
+  // the region's figure includes flat sales from homes already built or being built
+  const nextYearNet = ti == null && yearAhead.length ? yearAhead[yearAhead.length - 1].c - w.cash : yearAhead.reduce((a, p) => a + p.r - p.e, 0);
   const term = w.term;
   const perRes = P.budget.rev.grant - (term?.block || 0);
   const town = ti != null ? w.towns[ti] : null;
@@ -129,8 +130,8 @@ export function FinancePanel({ world: w, analysis: A, onChange, onClose, onProgr
           <>
             <Stat label="Treasury" value={fmtMoney(w.cash)} tone={w.cash < 0 ? "bad" : null} />
             <Stat label="This month" value={(net >= 0 ? "+" : "") + fmtMoney(net)} sub="incl. one-off projects" tone={net < 0 ? "bad" : null} />
-            <Stat label="Next 12 months" value={(nextYearNet >= 0 ? "+" : "") + fmtMoney(nextYearNet)} sub="projected" tone={nextYearNet < 0 ? "bad" : null} />
-            <Stat label={`Treasury in ${tYear(w, end.t)}`} value={fmtMoney(end.c)} sub="if nothing changes" tone={end.c < 0 ? "bad" : null} />
+            <Stat label="Next 12 months" value={(nextYearNet >= 0 ? "+" : "") + fmtMoney(nextYearNet)} sub="incl. flat sales" tone={nextYearNet < 0 ? "bad" : null} />
+            <Stat label={`Treasury, ${tToDate(w, end.t)}`} value={fmtMoney(end.c)} sub="if you start nothing new" tone={end.c < 0 ? "bad" : null} />
           </>
         ) : (
           <>
@@ -159,7 +160,7 @@ export function FinancePanel({ world: w, analysis: A, onChange, onClose, onProgr
           </div>
         )}
         <div className="mt-1 flex items-center justify-between gap-2 text-[12px] text-[var(--muted)]">
-          <span>Solid = what happened (3-month average). Dashed = projection with today's settings. One-off projects and land &amp; flat sales show in the treasury{ti == null ? " line" : ""}. Drag across a chart for values.</span>
+          <span>Solid = what happened (3-month average). Dashed = the next 24 months if you start nothing new: today's income and running costs, plus flat sales as families move into homes already built or being built. New projects, and new blocks HDB starts on lots you've zoned, aren't included. Drag across a chart for values.</span>
           <button onClick={() => setTable(!table)} className="city-btn shrink-0 rounded-full bg-[var(--soft)] px-2 py-1 font-bold text-[var(--ink)]">
             {table ? "Hide table" : "Table"}
           </button>
