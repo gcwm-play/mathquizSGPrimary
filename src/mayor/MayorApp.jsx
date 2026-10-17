@@ -11,7 +11,7 @@ import {
   newWorld, planRoad, commitRoad, snapPoint, planStruct, commitStruct, removeRoad, nearestSeg, segPts, paintZone, plantTrees,
   bulldozeSelect, bulldozeCost, bulldozeCommit, reclaimOk, reclaimCommit, renewOptions, applyRenew, snapshot, restore, saveWorld, loadWorld, savedCampaigns, deleteCampaign, clearPreview,
 } from "./world.js";
-import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis, toolInfo, estimateStruct, refurbish, advice } from "./sim.js";
+import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis, toolInfo, estimateStruct, refurbish, advice, demandByTown } from "./sim.js";
 import { OVERLAYS, ZONE_TINT } from "./render.js";
 import { inQuad, dist } from "./geom.js";
 
@@ -1173,29 +1173,7 @@ function Game({ initial, settings, setSettings, onQuit, onRestart }) {
           onChange={afterChange}
         />
       )}
-      {panel?.id === "demand" && (
-        <Panel title="📊 What people want built" onClose={() => setPanel(null)}>
-          <p className="text-[15px] leading-snug">The four bars show demand: how much people want more of each kind of building in your region. Above the middle line means zone more of it; below means there's already too much and new lots will sit empty.</p>
-          <ul className="mt-2 space-y-1.5 text-[15px]">
-            {[
-              ["H", "#2fd06f", "HDB flats", "Families on the housing queue, minus empty flats and blocks being built."],
-              ["P", "#f45fae", "Private homes", "Better-off families, especially when there are plenty of jobs."],
-              ["C", "#4b9bff", "Commercial", "Shops and offices: grows with population and tourism."],
-              ["I", "#ffb020", "Industry", "Factories: grows with population and trade. Keep it away from homes."],
-            ].map(([l, c, n, d]) => (
-              <li key={l} className="flex items-start gap-2">
-                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white" style={{ background: c }}>
-                  {l}
-                </span>
-                <span>
-                  <b>{n}</b> ({Math.round((w.demand?.[{ H: "hdb", P: "pte", C: "com", I: "ind" }[l]] || 0) * 100)}): {d}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[13px] text-[var(--muted)]">Each town's purpose (🏘️ Towns) also decides which of these grow there.</p>
-        </Panel>
-      )}
+      {panel?.id === "demand" && <DemandPanel world={w} analysis={A} onClose={() => setPanel(null)} />}
       {panel?.id === "goals" && <GoalsPanel world={w} analysis={A} onClose={() => setPanel(null)} />}
       {panel?.id === "help" && <HelpPanel onClose={() => setPanel(null)} />}
       {panel?.id === "renew" && (
@@ -1345,6 +1323,71 @@ function Tray({ world, group, tool, onPick }) {
         );
       })}
     </div>
+  );
+}
+
+const DEMAND_BARS = [
+  { k: "hdb", label: "H", color: "#2fd06f", name: "HDB flats", d: "Families on the housing queue (and families who would move here), minus empty flats and blocks being built." },
+  { k: "pte", label: "P", color: "#f45fae", name: "Private homes", d: "Better-off families, especially when there are plenty of jobs." },
+  { k: "com", label: "C", color: "#4b9bff", name: "Shops & offices", d: "Grows with population and tourism, and with factory demand your towns' plans turn away." },
+  { k: "ind", label: "I", color: "#ffb020", name: "Factories", d: "Grows with population and trade, where towns are planned for industry. Keep it away from homes." },
+];
+
+// A bar that grows right for "build more" and left for "too much already".
+function SideBar({ v, color }) {
+  const x = Math.max(-1, Math.min(1, v || 0));
+  return (
+    <div className="relative h-3 w-full rounded-full bg-[var(--soft)]">
+      <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--ink)]/30" />
+      <div className="absolute inset-y-0 rounded-full" style={{ background: color, width: `${Math.abs(x) * 50}%`, ...(x >= 0 ? { left: "50%" } : { right: "50%" }) }} />
+    </div>
+  );
+}
+
+function DemandPanel({ world: w, analysis: A, onClose }) {
+  const [k, setK] = useState("hdb");
+  const B = DEMAND_BARS.find((b) => b.k === k);
+  const rows = A ? demandByTown(w, A)[k] : [];
+  const v = w.demand?.[k] || 0;
+  return (
+    <Panel title="📊 What people want built" onClose={onClose}>
+      <p className="text-[14px] leading-snug text-[var(--muted)]">The bars on the map are for the whole region: above the middle line means build more, below means there's already too much. Pick one to see how it splits across your towns (here, right of the middle means build more).</p>
+      <div className="mt-2 grid grid-cols-4 gap-1.5">
+        {DEMAND_BARS.map((b) => (
+          <button key={b.k} onClick={() => setK(b.k)} className="city-btn rounded-2xl px-1 py-1.5 text-center text-[13px] font-bold" style={b.k === k ? { background: b.color, color: "#fff" } : { background: "var(--soft)" }}>
+            {b.label} · {Math.round((w.demand?.[b.k] || 0) * 100).toString().replace("-", "−")}
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 rounded-2xl bg-[var(--soft)] p-2.5">
+        <div className="flex items-center justify-between text-[14px] font-bold">
+          <span>{B.name}: whole region</span>
+          <span>{v > 0.15 ? "build more" : v < -0.15 ? "too much" : "about right"}</span>
+        </div>
+        <div className="mt-1">
+          <SideBar v={v} color={B.color} />
+        </div>
+        <p className="mt-1 text-[13px] leading-snug text-[var(--muted)]">{B.d}</p>
+      </div>
+      <div className="mt-2 space-y-2">
+        {rows.map((r, i) => (
+          <div key={w.towns[i].name} className="rounded-2xl border-2 border-[var(--ink)]/10 p-2.5 text-[14px] leading-snug">
+            <div className="flex items-baseline justify-between gap-2">
+              <b>{w.towns[i].name}</b>
+              <span className="text-[12px] text-[var(--muted)]">
+                Plan: {r.plan} · {r.empty} zoned empty · {r.building} building
+              </span>
+            </div>
+            <div className="mt-1">
+              <SideBar v={r.v} color={B.color} />
+            </div>
+            <div className="mt-1">{r.tip}</div>
+            <div className="text-[12px] text-[var(--muted)]">{r.why}</div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[12px] text-[var(--muted)]">Families can move to any town, so housing demand is split by where people live now and by each town's plan. Job demand is split by each town's plan.</p>
+    </Panel>
   );
 }
 
