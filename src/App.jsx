@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { generateFractionWordProblem } from "./fractionWordProblems.js";
 
 // --- SYNTHESIZED SOUND EFFECTS (Web Audio API) ---
 class SoundManager {
@@ -87,6 +88,7 @@ const TOPICS = [
   { id: "add_sub", name: "➕ Addition & Subtraction" },
   { id: "mul_div", name: "✖️ Multiplication & Division" },
   { id: "fractions", name: "🍰 Fractions" },
+  { id: "fraction_wp", name: "🍕 Fraction Word Problems (P3 Exam)" },
   { id: "money", name: "💰 Money ($ & ¢)" },
   { id: "measurement", name: "📏 Length, Mass & Volume" },
   { id: "time", name: "⏰ Time & Duration" },
@@ -181,7 +183,7 @@ function generateDistractors(correctVal, count = 3, minVal = 0) {
 // Procedural Question Generator
 function generateQuestion(selectedTopic) {
   const topicPool = selectedTopic === "all"
-    ? ["place_value", "add_sub", "mul_div", "fractions", "money", "measurement", "time", "geometry", "statistics", "word_problems"]
+    ? ["place_value", "add_sub", "mul_div", "fractions", "fraction_wp", "money", "measurement", "time", "geometry", "statistics", "word_problems"]
     : [selectedTopic];
 
   const chosenCategory = topicPool[Math.floor(Math.random() * topicPool.length)];
@@ -748,6 +750,10 @@ function generateQuestion(selectedTopic) {
         }
       }
     }
+
+    // 4b. FRACTION WORD PROBLEMS (P3 exam style)
+    case "fraction_wp":
+      return generateFractionWordProblem(qId);
 
     // 5. MONEY
     case "money": {
@@ -2145,7 +2151,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs md:text-sm font-semibold">
+          <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm font-semibold">
             {/* Rank badge */}
             <div className={`hidden sm:flex items-center gap-1 px-3 py-1 rounded-full border text-xs ${currentRank.bg} ${currentRank.color}`}>
               {currentRank.title}

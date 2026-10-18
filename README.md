@@ -1,6 +1,6 @@
 # Singapore P3 Math Quest
 
-An endless-practice quiz app covering the Singapore Primary 3 Mathematics syllabus (place value, addition/subtraction, multiplication/division, fractions, money, measurement, time, geometry, and bar-model word problems), with multiple-choice and key-in answer modes, streak targets, a mistake review book, and a drawing scratchpad.
+An endless-practice quiz app covering the Singapore Primary 3 Mathematics syllabus (place value, addition/subtraction, multiplication/division, fractions, money, measurement, time, geometry, and bar-model word problems, and P3 exam-style fraction word problems), with multiple-choice and key-in answer modes, streak targets, a mistake review book, and a drawing scratchpad.
 
 ## Colour Castle (colour vision game)
 
