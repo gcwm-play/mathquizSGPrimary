@@ -497,6 +497,16 @@ export const structHeight = (t) => STRUCT_H[t] || 30;
 // new landmarks reuse the closest existing drawing
 const ART_ALIAS = { mallHood: "tampinesHub", mallCentre: "causewayPoint", mallLux: "esplanade", secondary: "school", tertiary: "scienceCentre", secondLink: "checkpoint", sentosaBridge: "checkpoint", keppelPort: "tuasPort", sentosaBeach: "eastCoastPark", underwaterWorld: "scienceCentre", vivoCity: "causewayPoint", sentosaExpress: "rtsLink", resortsWorld: "marinaBaySands", fortSiloso: "navalBase", mountFaber: "park" };
 
+// Several buildings on one site: draw the ones further back first, so nearer
+// buildings correctly cover them (otherwise back blocks look like they float).
+function backToFront(q, items) {
+  const depth = (it) => {
+    const [x, y] = quadPoint(q, (it[0] + it[2]) / 2, (it[1] + it[3]) / 2);
+    return x + y;
+  };
+  return [...items].sort((a, b) => depth(a) - depth(b));
+}
+
 export function drawStruct(ctx, q, type, time) {
   type = ART_ALIAS[type] || type;
   switch (type) {
@@ -637,15 +647,20 @@ export function drawStruct(ctx, q, type, time) {
     case "sPoly": {
       flatUV(ctx, q, 0.02, 0.02, 0.98, 0.98, "#cfe8b8");
       const tone = type === "sPoly" ? "#e3f2fd" : "#fff4e6";
-      for (const [u0, v0, u1, v1, h] of [[0.05, 0.08, 0.45, 0.4, 30], [0.55, 0.08, 0.95, 0.4, 22], [0.05, 0.58, 0.4, 0.92, 18]]) {
-        shadowUV(ctx, q, u0, v0, u1, v1, h);
-        const pr = boxUV(ctx, q, u0, v0, u1, v1, h, tone);
-        windows(ctx, pr, { rows: Math.round(h / 9), perUnit: 3, color: type === "sPoly" ? "#1971c2" : "#e8590c" });
+      const accent = type === "sPoly" ? "#1971c2" : "#e8590c";
+      const parts = [[0.05, 0.08, 0.45, 0.4, 30], [0.55, 0.08, 0.95, 0.4, 22], [0.05, 0.58, 0.4, 0.92, 18], [0.52, 0.55, 0.95, 0.92, 16, "hall"]];
+      for (const [u0, v0, u1, v1, h] of parts) shadowUV(ctx, q, u0, v0, u1, v1, h);
+      for (const [u0, v0, u1, v1, h, kind] of backToFront(q, parts)) {
+        if (kind === "hall") {
+          // sports hall
+          const hall = boxUV(ctx, q, u0, v0, u1, v1, h, "#f8f9fa");
+          windows(ctx, hall, { rows: 1, perUnit: 2, color: "#868e96", hf: 0.4 });
+          gableUV(ctx, q, u0 - 0.02, v0 - 0.02, u1 + 0.02, v1 + 0.02, h, 7, accent, "u");
+        } else {
+          const pr = boxUV(ctx, q, u0, v0, u1, v1, h, tone);
+          windows(ctx, pr, { rows: Math.round(h / 9), perUnit: 3, color: accent });
+        }
       }
-      // sports hall
-      const hall = boxUV(ctx, q, 0.52, 0.55, 0.95, 0.92, 16, "#f8f9fa");
-      windows(ctx, hall, { rows: 1, perUnit: 2, color: "#868e96", hf: 0.4 });
-      gableUV(ctx, q, 0.5, 0.53, 0.97, 0.94, 16, 7, type === "sPoly" ? "#1971c2" : "#e8590c", "u");
       break;
     }
     case "njc":
@@ -663,12 +678,14 @@ export function drawStruct(ctx, q, type, time) {
       inkStyle(ctx);
       const wall = type === "sji" ? "#c9734d" : type === "mgs" ? "#fde2e4" : "#e7f5ff";
       shadowUV(ctx, q, 0.05, 0.08, 0.45, 0.92, 26);
-      const pr = boxUV(ctx, q, 0.05, 0.08, 0.45, 0.92, 24, wall);
-      windows(ctx, pr, { rows: 3, perUnit: 3, color: type === "njc" ? "#1c7ed6" : "#5c3d2e" });
-      if (type === "njc") boxUV(ctx, q, 0.04, 0.06, 0.46, 0.94, 3, "#1c7ed6", 24);
-      else {
-        gableUV(ctx, q, 0.03, 0.06, 0.47, 0.94, 24, 8, type === "sji" ? "#7f2f1d" : "#d6336c", "v");
-        // chapel with a cross
+      const main = () => {
+        const pr = boxUV(ctx, q, 0.05, 0.08, 0.45, 0.92, 24, wall);
+        windows(ctx, pr, { rows: 3, perUnit: 3, color: type === "njc" ? "#1c7ed6" : "#5c3d2e" });
+        if (type === "njc") boxUV(ctx, q, 0.04, 0.06, 0.46, 0.94, 3, "#1c7ed6", 24);
+        else gableUV(ctx, q, 0.03, 0.06, 0.47, 0.94, 24, 8, type === "sji" ? "#7f2f1d" : "#d6336c", "v");
+      };
+      // chapel with a cross
+      const chapel = () => {
         boxUV(ctx, q, 0.5, 0.06, 0.66, 0.3, 18, "#ffffff");
         gableUV(ctx, q, 0.49, 0.05, 0.67, 0.31, 18, 12, "#495057", "v");
         const [cx, cy] = quadPoint(q, 0.58, 0.18);
@@ -676,7 +693,9 @@ export function drawStruct(ctx, q, type, time) {
         ctx.fillStyle = "#ffd43b";
         ctx.fillRect(x2 - 1, y2 - 7, 2, 9);
         ctx.fillRect(x2 - 3.5, y2 - 4, 7, 2);
-      }
+      };
+      const parts = [[0.05, 0.08, 0.45, 0.92, main], ...(type === "njc" ? [] : [[0.5, 0.06, 0.66, 0.3, chapel]])];
+      for (const it of backToFront(q, parts)) it[4]();
       break;
     }
     case "nus": {
@@ -693,8 +712,8 @@ export function drawStruct(ctx, q, type, time) {
       ctx.stroke();
       inkStyle(ctx);
       const blocks = [[0.05, 0.06, 0.25, 0.3, 40, "#f1f3f5"], [0.32, 0.06, 0.55, 0.26, 30, "#fff4e6"], [0.62, 0.06, 0.94, 0.3, 48, "#e7f5ff"], [0.05, 0.4, 0.22, 0.62, 26, "#fff4e6"], [0.3, 0.38, 0.52, 0.62, 56, "#f8f0fc"], [0.05, 0.72, 0.3, 0.94, 22, "#e7f5ff"], [0.36, 0.72, 0.58, 0.94, 34, "#f1f3f5"]];
-      for (const [u0, v0, u1, v1, h, c] of blocks) {
-        shadowUV(ctx, q, u0, v0, u1, v1, h);
+      for (const [u0, v0, u1, v1, h] of blocks) shadowUV(ctx, q, u0, v0, u1, v1, h);
+      for (const [u0, v0, u1, v1, h, c] of backToFront(q, blocks)) {
         const pr = boxUV(ctx, q, u0, v0, u1, v1, h, c);
         windows(ctx, pr, { rows: Math.round(h / 9), perUnit: 3, color: "#1864ab" });
       }
