@@ -628,20 +628,67 @@ export const EXP_LABELS = {
 };
 
 // ---------- pledges ----------
-const hasNewStruct = (w, p, types, town) => w.structs.some((s) => s.state !== "build" && types.includes(s.type) && s.built >= p.made && (town == null || townOf(w, s.x, s.y) === town));
+// ---------- who a building serves, town by town ----------
+// Residents of town i within r of (x, y), including kampong families.
+function townReach(w, i, x, y, r) {
+  let n = 0;
+  for (const l of w.lots) if (l.town === i && l.b && l.b.state !== "build" && LOT_TYPES[l.b.type].cap && Math.abs(l.x - x) <= r && Math.abs(l.y - y) <= r && dist(l.x, l.y, x, y) <= r) n += residents(l.b);
+  for (const k of w.kampongs) if (k.town === i && dist(k.x, k.y, x, y) <= r) n += k.houses.length * KAMPONG.housePop;
+  return n;
+}
+// The most residents of town i one building of this reach could serve, from the best spot among its homes.
+function bestReach(w, i, r) {
+  const key = `${w.rev}:${i}:${r}`;
+  w._bestReach = w._bestReach && w._bestReachRev === w.rev ? w._bestReach : new Map();
+  w._bestReachRev = w.rev;
+  if (w._bestReach.has(key)) return w._bestReach.get(key);
+  const spots = [];
+  for (const l of w.lots) if (l.town === i && l.b && LOT_TYPES[l.b.type].cap) spots.push([l.x, l.y]);
+  for (const k of w.kampongs) if (k.town === i) spots.push([k.x, k.y]);
+  const step = Math.max(1, Math.floor(spots.length / 60));
+  let best = 0;
+  for (let k = 0; k < spots.length; k += step) best = Math.max(best, townReach(w, i, spots[k][0], spots[k][1], r));
+  w._bestReach.set(key, best);
+  return best;
+}
+// How well a building at (x, y) serves town i: residents reached compared
+// with the best a well-placed one inside the town could reach (0..1).
+export function reachShare(w, i, x, y, r) {
+  const best = bestReach(w, i, r);
+  if (best <= 0) return townOf(w, x, y) === i ? 1 : 0;
+  return clamp(townReach(w, i, x, y, r) / best, 0, 1);
+}
+// A building promise: the best credit any new building of these types gives the town.
+export const PLEDGE_FULL = 0.6; // serves this share of what a well-placed one would: kept
+function buildCredit(w, p, types, town) {
+  let best = 0;
+  for (const s of w.structs) {
+    if (s.state === "build" || !types.includes(s.type) || s.built < p.made) continue;
+    best = Math.max(best, reachShare(w, town, s.x, s.y, STRUCTS[s.type].r || 9));
+  }
+  return best;
+}
+const typesOf = (K, w) => (typeof K.types === "function" ? K.types(w) : K.types);
+export function pledgeCredit(w, p) {
+  const K = PLEDGE_KINDS[p.kind];
+  if (!K?.types) return null;
+  if (K.all) return Math.min(...w.towns.map((_, i) => buildCredit(w, p, typesOf(K, w), i)));
+  return buildCredit(w, p, typesOf(K, w), p.town);
+}
+const builtFor = (w, p) => pledgeCredit(w, p) >= PLEDGE_FULL;
 export const PLEDGE_KINDS = {
-  clinic: { icon: "🩺", text: (t) => `A polyclinic for ${t}`, need: "health", boost: 6, years: 4, check: (w, p) => hasNewStruct(w, p, ["clinic", "hospital"], p.town) },
-  food: { icon: "🍜", text: (t, n, o, w) => (w && w.year < STRUCTS.hawker.year ? `A wet market for ${t}` : `A hawker centre or market for ${t}`), need: "food", boost: 5, years: 3, check: (w, p) => hasNewStruct(w, p, ["hawker", "market", "causewayPoint"], p.town) },
-  school: { icon: "🏫", text: (t) => `A new school in ${t}`, need: "school", boost: 5, years: 4, check: (w, p) => hasNewStruct(w, p, ["school", "secondary", "tertiary", "scienceCentre"], p.town) },
-  cc: { icon: "🏓", text: (t) => `A community centre for ${t}`, need: "community", boost: 4, years: 3, check: (w, p) => hasNewStruct(w, p, ["cc", "sports", "tampinesHub", "esplanade"], p.town) },
-  transport: { icon: "🚌", text: (t) => `Better transport for ${t}`, need: "transport", boost: 6, years: 4, check: (w, p) => hasNewStruct(w, p, w.year >= 1987 ? ["mrt", "mrtUg", "bus"] : ["bus"], p.town) },
+  clinic: { icon: "🩺", text: (t) => `A polyclinic for ${t}`, need: "health", boost: 6, years: 4, types: ["clinic", "hospital"], check: builtFor },
+  food: { icon: "🍜", text: (t, n, o, w) => (w && w.year < STRUCTS.hawker.year ? `A wet market for ${t}` : `A hawker centre or market for ${t}`), need: "food", boost: 5, years: 3, types: ["hawker", "market", "causewayPoint"], check: builtFor },
+  school: { icon: "🏫", text: (t) => `A new school in ${t}`, need: "school", boost: 5, years: 4, types: ["school", "secondary", "tertiary", "scienceCentre"], check: builtFor },
+  cc: { icon: "🏓", text: (t) => `A community centre for ${t}`, need: "community", boost: 4, years: 3, types: ["cc", "sports", "tampinesHub", "esplanade"], check: builtFor },
+  transport: { icon: "🚌", text: (t) => `Better transport for ${t}`, need: "transport", boost: 6, years: 4, types: (w) => (w.year >= 1987 ? ["mrt", "mrtUg", "bus"] : ["bus"]), check: builtFor },
   homes: { icon: "🏢", text: (t, n) => `${fmtNum(n)} more residents housed in ${t}`, need: "housing", boost: 7, years: 5, check: (w, p) => (w.towns[p.town].pop || 0) >= p.base + p.n },
   upgrade: { icon: "🔧", text: (t) => `Upgrade or rebuild 3 old blocks in ${t}`, need: "housing", boost: 6, years: 5, minYear: 1989, check: (w, p) => w.lots.filter((l) => l.town === p.town && l.b && ((l.b.up && l.b.up >= p.made) || (l.b.renewed && l.b.built >= p.made))).length >= 3 },
-  park: { icon: "🌳", text: () => "A new park in every town", need: "green", boost: 3, years: 4, all: true, check: (w, p) => w.towns.every((_, i) => hasNewStruct(w, p, ["park", "sports", "gardensBay", "eastCoastPark", "sungeiBuloh", "birdPark"], i)) },
+  park: { icon: "🌳", text: () => "A new park in every town", need: "green", boost: 3, years: 4, all: true, types: ["park", "sports", "gardensBay", "eastCoastPark", "sungeiBuloh", "birdPark"], check: builtFor },
   taxfreeze: { icon: "🧾", text: () => "No property tax rise this term", need: "cost", boost: 3, years: 6, all: true, keepUntilDeadline: true, broken: (w, p) => w.taxes.property > p.base },
   nokampong: { icon: "🏚️", text: (t) => `No more kampong resettlement in ${t} this term`, need: null, boost: 4, years: 6, keepUntilDeadline: true, broken: (w, p) => (w.resettledThisTerm || []).includes(p.town) },
-  police: { icon: "👮", text: (t) => `A police post for ${t}`, need: "safety", boost: 4, years: 3, check: (w, p) => hasNewStruct(w, p, ["police"], p.town) },
-  parkTown: { icon: "🌳", text: (t) => `A new park or sports complex in ${t}`, need: "green", boost: 3, years: 3, check: (w, p) => hasNewStruct(w, p, ["park", "sports", "gardensBay", "eastCoastPark", "sungeiBuloh", "birdPark", "mountFaber", "sentosaBeach"], p.town) },
+  police: { icon: "👮", text: (t) => `A police post for ${t}`, need: "safety", boost: 4, years: 3, types: ["police"], check: builtFor },
+  parkTown: { icon: "🌳", text: (t) => `A new park or sports complex in ${t}`, need: "green", boost: 3, years: 3, types: ["park", "sports", "gardensBay", "eastCoastPark", "sungeiBuloh", "birdPark", "mountFaber", "sentosaBeach"], check: builtFor },
   raise: { icon: "📈", text: (t, n, p) => `Raise ${NEEDS[p.need]?.name.toLowerCase() || p.need} in ${t} to ${p.target}/100`, need: null, boost: 4, years: 4, check: (w, p) => (w.towns[p.town].needs?.[p.need] ?? 0) >= p.target },
 };
 
@@ -673,19 +720,27 @@ function pledgeShare(w, p) {
     return p.target > from ? clamp((now - from) / (p.target - from), 0, 1) : 0;
   }
   if (p.kind === "homes") return clamp(((w.towns[p.town]?.pop || 0) - p.base) / Math.max(1, p.n), 0, 1);
+  const c = pledgeCredit(w, p);
+  if (c != null) return clamp(c / PLEDGE_FULL, 0, 1);
   return 0;
 }
 
 // How far along an open promise is, for the elections panel.
 export function pledgeProgress(w, p) {
   if (p.kind === "park") {
-    const types = ["park", "sports", "gardensBay", "eastCoastPark", "sungeiBuloh", "birdPark", "mountFaber", "sentosaBeach"];
-    return { towns: w.towns.map((t, i) => ({ name: t.name, done: hasNewStruct(w, p, types, i) })) };
+    const K = PLEDGE_KINDS.park;
+    return { towns: w.towns.map((t, i) => ({ name: t.name, done: buildCredit(w, p, K.types, i) >= PLEDGE_FULL })) };
   }
   if (p.kind === "homes") return { text: `${fmtNum(Math.max(0, (w.towns[p.town].pop || 0) - p.base))} of ${fmtNum(p.n)} more residents so far` };
   if (p.kind === "raise") return { text: `Now ${Math.round(w.towns[p.town].needs?.[p.need] ?? 0)} of ${p.target} needed` };
   if (p.kind === "upgrade") return { text: `${w.lots.filter((l) => l.town === p.town && l.b && ((l.b.up && l.b.up >= p.made) || (l.b.renewed && l.b.built >= p.made))).length} of 3 blocks done` };
   const K = PLEDGE_KINDS[p.kind];
+  if (K.types && p.town != null) {
+    const c = pledgeCredit(w, p);
+    if (c >= PLEDGE_FULL) return { text: "Done." };
+    const tn = w.towns[p.town].name;
+    return { text: c > 0 ? `So far a new one reaches ${Math.round(c * 100)}% of the ${tn} residents a well-placed one would. ${Math.round(PLEDGE_FULL * 100)}% keeps the promise; it can stand in a neighbouring town if it's near ${tn}'s homes.` : `Not yet: build one near ${tn}'s homes. It can stand across the border if it reaches them.` };
+  }
   if (K.check && p.town != null) return { text: K.check(w, p) ? "Done." : `Not yet: build it inside ${w.towns[p.town].name}'s borders (dashed lines on the map)` };
   return null;
 }
@@ -1146,6 +1201,9 @@ export function estimateStruct(w, plan) {
     const tp = t0 ? t0.pop : 0;
     items.push({ t: `🏠 ${fmtNum(inReach)} residents in reach${tp ? ` (${Math.round((inReach / tp) * 100)}% of ${w.towns[ti].name})` : ""}`, good: inReach > 0 });
     if (plan.type === "hawker" && workers > 0) items.push({ t: `🍱 Lunch for ${fmtNum(workers)} office and shop workers`, good: true });
+    // how well it serves each town, which is what promises are judged on
+    const serves = w.towns.map((t, i) => ({ t, v: reachShare(w, i, plan.x, plan.y, S.r) })).filter((x) => x.v >= 0.05 && (x.t.pop || 0) > 0);
+    if (serves.length) items.push({ t: `📍 Serves ${serves.map((x) => `${x.t.name} ${Math.round(x.v * 100)}%`).join(" · ")} (of what a well-placed one would; ${Math.round(PLEDGE_FULL * 100)}% keeps a promise)`, good: true });
   }
   const before = items.length;
   if (t0 && t0.pop > 0) {
@@ -1877,6 +1935,10 @@ export function describe(w, A, hit) {
     if (s.state === "build") lines.unshift(`🏗️ Under construction, opens ${tToDate(w, s.until)}`);
     if (s.copy) lines.push(`🪞 A copy of ${s.copy.region}'s (${s.copy.year}): fewer tourists come`);
     if (s.name) lines.push(`Based on: ${S.name}`);
+    if (S.cover && S.r && s.state !== "build") {
+      const serves = w.towns.map((t, i) => ({ t, v: reachShare(w, i, s.x, s.y, S.r) })).filter((x) => x.v >= 0.05 && (x.t.pop || 0) > 0);
+      if (serves.length) lines.push(`📍 Serves ${serves.map((x) => `${x.t.name} ${Math.round(x.v * 100)}%`).join(" · ")} of what a well-placed one would`);
+    }
     if (s.eff && s.state !== "build") lines.push(`⚙️ Turned out ${Math.round(s.eff * 100)}% as effective as a typical one`);
     const cond = serviceCondition(w, s);
     const canRefurb = S.cover && !S.landmark && !S.fixed && s.state !== "build";
