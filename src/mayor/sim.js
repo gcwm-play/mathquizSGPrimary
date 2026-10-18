@@ -705,7 +705,7 @@ function actionFor(w, i, need) {
 // how far below a comfortable 60 a need is: bigger gaps win more votes and cost more if broken
 const gapOf = (v) => clamp(60 - (v ?? 50), 4, 55);
 const pledgeBoost = (gap) => 1.5 + gap * 0.05; // vote points while the promise is open: about 1–7
-const PLEDGE_CAP = 6; // no town can be won with promises alone
+const PLEDGE_CAP = 4; // no town can be won with promises alone
 export const keptTrust = (gap) => 3 + gap * 0.06;
 // How much voters believe your promises: each broken one knocks it down,
 // each kept one wins some back.
@@ -902,7 +902,7 @@ export const monthsToElection = (w) => w.election.next - w.t;
 // support % for a town if the vote were held now
 export function townSupport(w, i) {
   const t = w.towns[i];
-  let s = t.approval * 0.7 + 20 + (w.trust - 60) * 0.35 - t.anger * 3.5 + effectAdd(w, "mood");
+  let s = t.approval * 0.7 + 14 + (w.trust - 60) * 0.35 - t.anger * 3.5 + effectAdd(w, "mood");
   let pl = 0;
   for (const p of w.pledges || []) if (p.status === "open" && p.term === w.election.next && (p.town === i || p.town == null)) pl += p.boost * pledgeCred(w);
   s += Math.min(PLEDGE_CAP, pl);
