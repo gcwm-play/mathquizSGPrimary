@@ -1333,13 +1333,37 @@ const DEMAND_BARS = [
   { k: "ind", label: "I", color: "#ffb020", name: "Factories", d: "Grows with population and trade, where towns are planned for industry. Keep it away from homes." },
 ];
 
-// A bar that grows right for "build more" and left for "too much already".
-function SideBar({ v, color }) {
+// What a demand value means, in words.
+const demandWord = (v) => (v > 0.15 ? { t: "Build more", tone: "more" } : v < -0.15 ? { t: "Too much", tone: "less" } : { t: "About right", tone: "ok" });
+const TONE_STYLE = { more: { background: "#e3f8ea", color: "#13753c" }, less: { background: "#fdeedd", color: "#a4500b" }, ok: { background: "var(--soft)", color: "var(--muted)" } };
+function DemandChip({ v }) {
+  const d = demandWord(v);
+  return (
+    <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] font-bold" style={TONE_STYLE[d.tone]}>
+      {d.tone === "more" ? "▲ " : d.tone === "less" ? "▼ " : "● "}
+      {d.t}
+    </span>
+  );
+}
+
+// A bar that grows right for "build more" and left for "too much already",
+// with the "about right" band marked in the middle.
+function SideBar({ v, color, labels }) {
   const x = Math.max(-1, Math.min(1, v || 0));
   return (
-    <div className="relative h-3 w-full rounded-full bg-[var(--soft)]">
-      <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--ink)]/30" />
-      <div className="absolute inset-y-0 rounded-full" style={{ background: color, width: `${Math.abs(x) * 50}%`, ...(x >= 0 ? { left: "50%" } : { right: "50%" }) }} />
+    <div>
+      <div className="relative h-3 w-full rounded-full bg-[var(--soft)]">
+        <div className="absolute inset-y-0 rounded-sm bg-[var(--ink)]/10" style={{ left: "42.5%", width: "15%" }} />
+        <div className="absolute inset-y-0 rounded-full" style={{ background: x < -0.15 ? "#f0a050" : color, opacity: Math.abs(x) <= 0.15 ? 0.5 : 1, width: `${Math.abs(x) * 50}%`, ...(x >= 0 ? { left: "50%" } : { right: "50%" }) }} />
+        <div className="absolute -inset-y-0.5 left-1/2 w-0.5 -translate-x-1/2 rounded bg-[var(--ink)]/50" />
+      </div>
+      {labels && (
+        <div className="mt-0.5 flex justify-between text-[11px] font-semibold text-[var(--muted)]">
+          <span>◀ Too much</span>
+          <span>About right</span>
+          <span>Build more ▶</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1351,38 +1375,50 @@ function DemandPanel({ world: w, analysis: A, onClose }) {
   const v = w.demand?.[k] || 0;
   return (
     <Panel title="📊 What people want built" onClose={onClose}>
-      <p className="text-[14px] leading-snug text-[var(--muted)]">The bars on the map are for the whole region: above the middle line means build more, below means there's already too much. Pick one to see how it splits across your towns (here, right of the middle means build more).</p>
-      <div className="mt-2 grid grid-cols-4 gap-1.5">
-        {DEMAND_BARS.map((b) => (
-          <button key={b.k} onClick={() => setK(b.k)} className="city-btn rounded-2xl px-1 py-1.5 text-center text-[13px] font-bold" style={b.k === k ? { background: b.color, color: "#fff" } : { background: "var(--soft)" }}>
-            {b.label} · {Math.round((w.demand?.[b.k] || 0) * 100).toString().replace("-", "−")}
-          </button>
-        ))}
+      <p className="text-[14px] leading-snug text-[var(--muted)]">The H P C I bars on the map show the whole region: a bar above the middle line means build more, below means there's already too much. Pick a type to see each town.</p>
+      <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        {DEMAND_BARS.map((b) => {
+          const on = b.k === k;
+          const d = demandWord(w.demand?.[b.k] || 0);
+          return (
+            <button key={b.k} onClick={() => setK(b.k)} aria-pressed={on} className="city-btn rounded-2xl border-2 px-2 py-1.5 text-left" style={on ? { background: b.color, borderColor: b.color, color: "#fff" } : { background: "var(--soft)", borderColor: "transparent" }}>
+              <div className="text-[13px] font-bold leading-tight">
+                <span className="mr-1 inline-block rounded-md px-1 text-[12px]" style={on ? { background: "rgba(255,255,255,0.3)" } : { background: b.color, color: "#fff" }}>{b.label}</span>
+                {b.name}
+              </div>
+              <div className="mt-0.5 text-[12px] font-semibold" style={on ? {} : { color: TONE_STYLE[d.tone].color }}>
+                {d.tone === "more" ? "▲ " : d.tone === "less" ? "▼ " : "● "}
+                {d.t}
+              </div>
+            </button>
+          );
+        })}
       </div>
       <div className="mt-2 rounded-2xl bg-[var(--soft)] p-2.5">
-        <div className="flex items-center justify-between text-[14px] font-bold">
+        <div className="flex items-center justify-between gap-2 text-[14px] font-bold">
           <span>{B.name}: whole region</span>
-          <span>{v > 0.15 ? "build more" : v < -0.15 ? "too much" : "about right"}</span>
+          <DemandChip v={v} />
         </div>
-        <div className="mt-1">
-          <SideBar v={v} color={B.color} />
+        <div className="mt-1.5">
+          <SideBar v={v} color={B.color} labels />
         </div>
         <p className="mt-1 text-[13px] leading-snug text-[var(--muted)]">{B.d}</p>
       </div>
       <div className="mt-2 space-y-2">
         {rows.map((r, i) => (
           <div key={w.towns[i].name} className="rounded-2xl border-2 border-[var(--ink)]/10 p-2.5 text-[14px] leading-snug">
-            <div className="flex items-baseline justify-between gap-2">
+            <div className="flex items-center justify-between gap-2">
               <b>{w.towns[i].name}</b>
-              <span className="text-[12px] text-[var(--muted)]">
-                Plan: {r.plan} · {r.empty} zoned empty · {r.building} building
-              </span>
+              <DemandChip v={r.v} />
             </div>
-            <div className="mt-1">
-              <SideBar v={r.v} color={B.color} />
+            <div className="mt-1.5">
+              <SideBar v={r.v} color={B.color} labels={i === 0} />
             </div>
             <div className="mt-1">{r.tip}</div>
             <div className="text-[12px] text-[var(--muted)]">{r.why}</div>
+            <div className="text-[12px] text-[var(--muted)]">
+              Plan: {r.plan} · {r.empty} zoned lots empty · {r.building} being built
+            </div>
           </div>
         ))}
       </div>
@@ -1405,7 +1441,7 @@ function Demand({ demand, onClick }) {
         return (
           <div key={b.k} className="flex flex-col items-center" title={`Demand for ${b.name}`}>
             <div className="relative h-9 w-3 rounded-full bg-[var(--soft)]">
-              <div className="absolute inset-x-0 top-1/2 h-px bg-[var(--ink)]/30" />
+              <div className="absolute -inset-x-0.5 top-1/2 h-0.5 -translate-y-1/2 rounded bg-[var(--ink)]/50" />
               <div className="absolute inset-x-0 rounded-full" style={{ background: b.color, height: `${Math.abs(v) * 50}%`, ...(v >= 0 ? { bottom: "50%" } : { top: "50%" }) }} />
             </div>
             <div className="text-[11px] font-bold">{b.label}</div>
