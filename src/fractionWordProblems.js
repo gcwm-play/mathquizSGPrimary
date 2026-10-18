@@ -358,8 +358,11 @@ function twoStep(qId) {
   const p = simpleNum(small);
   const room = big - p * k;
   if (room < 2) return twoStep(qId);
-  const q = rand(1, room - 1);
-  if (gcd(q, big) !== 1 && Math.random() < 0.5) return twoStep(qId);
+  // Keep both fractions related: q/big must already be in simplest form.
+  const qs = [];
+  for (let n = 1; n < room; n++) if (gcd(n, big) === 1) qs.push(n);
+  if (qs.length === 0) return twoStep(qId);
+  const q = pick(qs);
   const spent = p * k + q;
   const leftNum = big - spent;
   const answer = simplify(leftNum, big);
