@@ -13,6 +13,9 @@ import {
 } from "./world.js";
 import { stepMonth, analyze, dateLabel, fmtMoney, fmtNum, isUnlocked, nextGoal, checkGoals, describe, inSeason, monthsToElection, tToDate, ensureWorld, MODES, debtLimit, electionAnalysis, toolInfo, estimateStruct, refurbish, advice, demandByTown } from "./sim.js";
 import { OVERLAYS, ZONE_TINT } from "./render.js";
+
+// standalone builds (itch.io) have no other pages to link to
+const STANDALONE = typeof __STANDALONE__ !== "undefined" && __STANDALONE__;
 import { inQuad, dist } from "./geom.js";
 
 const SPEEDS = [
@@ -92,7 +95,7 @@ function Title({ onStart }) {
           <h1 className="city-title-text text-4xl font-bold leading-none landscape:text-3xl lg:text-4xl">Lion City Mayor</h1>
           <p className="mx-auto mt-2 max-w-md text-[15px] font-medium text-white/95 lg:mx-0">1965. A new nation, short of homes, jobs and land. Plan one region of Singapore through a century of growth, crises and elections.</p>
           <p className="mx-auto mt-1 max-w-md text-[12px] text-white/80 lg:mx-0">The mayor here is a fictional role combining planning, housing and town-council powers. Singapore's real mayors lead Community Development Councils.</p>
-          <a href="city.html" className="mt-2 inline-block text-[13px] font-semibold text-white underline">Play the classic island-wide grid game instead</a>
+          {!STANDALONE && <a href="city.html" className="mt-2 inline-block text-[13px] font-semibold text-white underline">Play the classic island-wide grid game instead</a>}
         </div>
         <div className="city-card w-full max-w-xl space-y-2.5 p-3">
           {campaigns.length > 0 && (
