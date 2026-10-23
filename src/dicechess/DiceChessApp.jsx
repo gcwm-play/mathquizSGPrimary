@@ -11,8 +11,10 @@ import {
   applyMove,
   moveText,
   describeRules,
-  attackValue,
-  bump,
+  grow,
+  power,
+  kingGrowthIn,
+  GROWTHS,
   sqName,
 } from "./engine.js";
 import { LEVELS, chooseMove, isWinScore } from "./ai.js";
@@ -34,8 +36,10 @@ const save = (key, value) => {
 };
 
 const loadRules = () => {
-  const r = load("dicechess.rules", null);
-  return r ? { ...DEFAULT_RULES, ...r, dice: { ...DEFAULT_RULES.dice, ...r.dice } } : DEFAULT_RULES;
+  const r = load("dicechess.rules.v2", null);
+  return r
+    ? { ...DEFAULT_RULES, ...r, dice: { ...DEFAULT_RULES.dice, ...r.dice }, growth: { ...DEFAULT_RULES.growth, ...r.growth } }
+    : DEFAULT_RULES;
 };
 
 const SIDE = { w: "White", b: "Black" };
@@ -122,11 +126,10 @@ export default function DiceChessApp() {
     }
     if (m && m.blocked) {
       const a = state.board[selected];
-      const atk = attackValue(a, rules);
       setHint(
-        `Your ${NAMES[a.type]} would fight with ${atk}` +
-          (rules.compare === "after" ? ` (${a.value} + 1)` : "") +
-          `, which doesn't beat the ${NAMES[p.type]}'s ${p.value}.`,
+        `Your ${NAMES[a.type]} would fight with ${m.attack}` +
+          (m.borrow ? ` (including ${m.borrow} borrowed from friends it jumps over)` : "") +
+          `, which doesn't beat the ${NAMES[p.type]}'s ${power(p)}.`,
       );
       return;
     }
@@ -178,11 +181,12 @@ export default function DiceChessApp() {
                     .filter(Boolean)
                     .join(" ");
                   return (
-                    <button key={sq} className={cls} onClick={() => clickSquare(sq)} aria-label={sqName(sq) + (p ? ` ${SIDE[p.side]} ${NAMES[p.type]} ${p.value}` : "")}>
+                    <button key={sq} className={cls} onClick={() => clickSquare(sq)} aria-label={sqName(sq) + (p ? ` ${SIDE[p.side]} ${NAMES[p.type]} ${power(p)}` : "")}>
                       {c === (flipped ? 7 : 0) && <span className="dc-coord dc-rank">{8 - r}</span>}
                       {r === (flipped ? 0 : 7) && <span className="dc-coord dc-file">{"abcdefgh"[c]}</span>}
                       {p && <Die piece={p} faces={rules.dice[p.type]} />}
                       {m && !m.capture && <span className="dc-dot" />}
+                      {m && !m.blocked && m.borrow > 0 && <span className="dc-borrow">+{m.borrow}</span>}
                       {m && m.capture && !m.blocked && <span className={`dc-ring ${m.outcome === "both" ? "dc-ring-tie" : ""}`} />}
                       {m && m.blocked && <span className="dc-block">✕</span>}
                     </button>
@@ -239,7 +243,7 @@ export default function DiceChessApp() {
 
               <Card title="Piece info">
                 {inspect !== null && state.board[inspect] ? (
-                  <PieceInfo piece={state.board[inspect]} sq={inspect} rules={rules} />
+                  <PieceInfo piece={state.board[inspect]} sq={inspect} rules={rules} state={state} />
                 ) : (
                   <p className="text-sm text-[#5b5f73]">Tap any piece to see its die, its number and what it can beat.</p>
                 )}
@@ -268,7 +272,7 @@ export default function DiceChessApp() {
 
           {tab === "rules" && (
             <RulesPanel draft={draft} setDraft={setDraft} rules={rules}
-              apply={() => { setRules(draft); save("dicechess.rules", draft); newGame(draft); }}
+              apply={() => { setRules(draft); save("dicechess.rules.v2", draft); newGame(draft); }}
               reset={() => setDraft(DEFAULT_RULES)} />
           )}
 
@@ -332,24 +336,40 @@ function Legend({ rules }) {
       <span><span className="dc-key dc-key-ring" /> can capture</span>
       {rules.ties === "both" && <span><span className="dc-key dc-key-tie" /> tie: both removed</span>}
       <span><span className="text-[#b23a48] font-bold">✕</span> too weak to capture</span>
+      {rules.knightBorrow && <span><span className="dc-borrow dc-borrow-key">+3</span> knight borrows power</span>}
       <span><span className="dc-key dc-key-full" /> die at its top face{rules.overflow === "wrap" ? " (next move wraps to 1)" : ""}</span>
     </div>
   );
 }
 
-function PieceInfo({ piece, sq, rules }) {
+const GROWTH_WORDS = { "0": "doesn't change", "+1": "goes up by 1", "+2": "goes up by 2", "+3": "goes up by 3", x2: "doubles" };
+
+function PieceInfo({ piece, sq, rules, state }) {
   const faces = rules.dice[piece.type];
-  const next = bump(piece, rules);
+  const next = grow(piece, rules);
+  const attack = rules.compare === "after" ? next : power(piece);
+  const most = rules.ties === "blocked" ? attack - 1 : attack;
+  const kingIn = piece.type === "K" ? kingGrowthIn(state, piece.side, rules) : null;
   return (
     <div className="flex gap-3 items-center">
       <span className="w-16 h-16 shrink-0"><Die piece={piece} faces={faces} /></span>
-      <div className="text-sm">
+      <div className="text-sm space-y-0.5">
         <p className="font-semibold">{SIDE[piece.side]} {NAMES[piece.type]} on {sqName(sq)}</p>
-        <p>D{faces} showing <b>{piece.value}</b>. After its next move: <b>{next}</b>{piece.value === faces && rules.overflow === "wrap" ? " (wraps around!)" : ""}.</p>
         <p>
-          It attacks with <b>{attackValue(piece, rules)}</b>, so it can capture enemies showing{" "}
-          <b>{rules.ties === "blocked" ? attackValue(piece, rules) - 1 : attackValue(piece, rules)} or less</b>.
+          D{faces} showing <b>{piece.value}</b>
+          {piece.bonus > 0 && <> + <b className="text-[#7b2cbf]">{piece.bonus}</b> borrowed = power <b>{power(piece)}</b></>}.
         </p>
+        <p>
+          Each move its die {GROWTH_WORDS[rules.growth[piece.type]]}: next <b>{next}</b>
+          {rules.overflow === "wrap" && next < piece.value ? " (wraps around!)" : ""}.
+          {kingIn !== null && <> It also gains +1 by itself in <b>{kingIn}</b> {kingIn === 1 ? "turn" : "turns"}.</>}
+        </p>
+        <p>
+          It attacks with <b>{attack}</b>
+          {piece.type === "N" && rules.knightBorrow ? " plus the power of friends it jumps over" : ""}, so it can capture enemies with{" "}
+          <b>{most} or less</b>{rules.rookFragile ? " (and any rook)" : ""}.
+        </p>
+        {piece.type === "R" && rules.rookFragile && <p className="text-[#b23a48]">Rooks are walls: any enemy piece can capture it.</p>}
       </div>
     </div>
   );
@@ -367,21 +387,34 @@ function RulesPanel({ draft, setDraft, rules, apply, reset }) {
       </Card>
       <Card title="Change the rules">
         <p className="text-sm text-[#5b5f73] mb-3">Try a variation, then press Apply. Applying starts a new game.</p>
+        <p className="text-sm text-[#5b5f73] mb-1">Each piece's die, and what one move does to it:</p>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
           {Object.keys(NAMES).map((t) => (
             <label key={t} className="text-sm">
               <span className="block text-[#5b5f73]">{GLYPHS[t]} {NAMES[t]}</span>
-              <select className="dc-select" value={draft.dice[t]} onChange={(e) => setDraft({ ...draft, dice: { ...draft.dice, [t]: +e.target.value } })}>
+              <select className="dc-select" aria-label={`${NAMES[t]} die`} value={draft.dice[t]} onChange={(e) => setDraft({ ...draft, dice: { ...draft.dice, [t]: +e.target.value } })}>
                 {DIE_SIZES.map((d) => <option key={d} value={d}>D{d}</option>)}
+              </select>
+              <select className="dc-select mt-1" aria-label={`${NAMES[t]} growth per move`} value={draft.growth[t]} onChange={(e) => setDraft({ ...draft, growth: { ...draft.growth, [t]: e.target.value } })}>
+                {GROWTHS.map((g) => <option key={g} value={g}>{g === "x2" ? "×2" : g === "0" ? "+0" : g}</option>)}
               </select>
             </label>
           ))}
         </div>
+        <Row label="King grows">
+          <Seg value={draft.kingEvery} onChange={(v) => set("kingEvery", v)} options={[[0, "Only by moving"], [1, "+1 every turn"], [2, "+1 every 2 turns"], [3, "+1 every 3 turns"]]} />
+        </Row>
+        <Row label="Rooks">
+          <Seg value={draft.rookFragile} onChange={(v) => set("rookFragile", v)} options={[[true, "Walls: anything can take them"], [false, "Normal"]]} />
+        </Row>
+        <Row label="Knights">
+          <Seg value={draft.knightBorrow} onChange={(v) => set("knightBorrow", v)} options={[[true, "Borrow power of friends jumped"], [false, "No borrowing"]]} />
+        </Row>
         <Row label="Start at">
           <Seg value={draft.startValue} onChange={(v) => set("startValue", v)} options={[[1, "1"], [2, "2"], [3, "3"]]} />
         </Row>
         <Row label="Fight with">
-          <Seg value={draft.compare} onChange={(v) => set("compare", v)} options={[["after", "Number + this move's 1"], ["before", "Number before moving"]]} />
+          <Seg value={draft.compare} onChange={(v) => set("compare", v)} options={[["after", "Number after this move"], ["before", "Number before moving"]]} />
         </Row>
         <Row label="Equal numbers">
           <Seg value={draft.ties} onChange={(v) => set("ties", v)} options={[["blocked", "Can't capture"], ["attacker", "Attacker wins"], ["both", "Both removed"]]} />

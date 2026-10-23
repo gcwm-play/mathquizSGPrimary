@@ -1,4 +1,4 @@
-import { GLYPHS } from "./engine.js";
+import { GLYPHS, power } from "./engine.js";
 
 // Outline for each die size, drawn in a 100×100 box.
 const SHAPES = {
@@ -31,11 +31,11 @@ export default function Die({ piece, faces, size = "100%", dim = false }) {
         x="50"
         y={NUM_Y[faces] || 60}
         textAnchor="middle"
-        fontSize={faces === 4 ? 28 : 36}
+        fontSize={faces === 4 ? 28 : power(piece) > 9 ? 30 : 36}
         fontWeight="700"
-        fill={white ? "#1f2333" : "#fdf6e3"}
+        fill={piece.bonus > 0 ? (white ? "#7b2cbf" : "#d7a8ff") : white ? "#1f2333" : "#fdf6e3"}
       >
-        {piece.value}
+        {power(piece)}
       </text>
       <text x="50" y={GLYPH_Y[faces] || 42} textAnchor="middle" fontSize={faces === 4 ? 22 : 28} fill={white ? "#6b5d43" : "#b8bedd"}>
         {GLYPHS[piece.type]}

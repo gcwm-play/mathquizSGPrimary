@@ -46,10 +46,10 @@ Source: `src/mayor/` (`world.js` terrain, roads and lots; `sim.js` simulation an
 
 ## Dice Chess (prototype)
 
-A prototype game at `dicechess.html` (`/mathquizSGPrimary/dicechess.html` on Pages) for working out the rules of a new game. It is played on a chess board with chess moves, but every piece is a die: pawns are D4, knights D6, bishops D8, rooks D12, and the queen and king D20. Every die starts at 1 and goes up by 1 each time the piece moves; a piece can only capture an enemy showing a lower number. Capture the enemy King to win.
+A prototype game at `dicechess.html` (`/mathquizSGPrimary/dicechess.html` on Pages) for working out the rules of a new game. It is played on a chess board with chess moves, but every piece is a die: pawns are D4, knights D6, bishops D8, rooks D12, and the queen and king D20. Every die starts at 1 and changes each time the piece moves: pawns, knights and bishops +1, queens +3, rooks double. The King doesn't grow by moving but gains +1 every 2 turns. Rooks are walls that any enemy can capture. A knight adds the power of friendly pieces it jumps over until its next move, and loses it after capturing. Otherwise a piece can only capture an enemy with a lower number. Capture the enemy King to win.
 
 - Play against the computer (Easy, Medium, Hard, Expert), with 2 players on one device, or watch computer vs computer. Undo, a move log, a captured-pieces tray, and a "piece info" card that explains each die. The board shows which captures are allowed and marks enemies too strong to capture with ✕.
-- Rules tab: change the die for each piece and try variations (starting number, whether the +1 counts in the fight, what happens on equal numbers, capping or wrapping at the top face, capture bonuses, pawn first moves, promotion, draw length). The current rules are always summarised in plain English.
+- Rules tab: change each piece's die and how much it grows per move, and try variations (King growth, rook walls, knight borrowing, starting number, whether this move's growth counts in the fight, what happens on equal numbers, capping or wrapping at the top face, capture bonuses, pawn first moves, promotion, draw length). The current rules are always summarised in plain English.
 - Balance test tab: the computer plays itself 10–100 times with the current rules and reports win rates, game length, captures and how games ended.
 - Notes tab: rule ideas saved on the device, with a button to copy the rules and notes together.
 

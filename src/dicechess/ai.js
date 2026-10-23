@@ -1,5 +1,5 @@
 // Dice Chess computer player: negamax with alpha-beta and a short capture search.
-import { legalMoves, applyMove, maxFace } from "./engine.js";
+import { legalMoves, applyMove, maxFace, power } from "./engine.js";
 
 export const LEVELS = {
   easy: { label: "Easy", depth: 1, noise: 2.5 },
@@ -20,7 +20,7 @@ function evaluate(state, rules) {
     const r = Math.floor(sq / 8);
     const c = sq % 8;
     // A die's number is its fighting strength; room left to grow is future strength.
-    let s = WORTH[p.type] + 0.45 * p.value + 0.04 * (maxFace(p, rules) - p.value);
+    let s = WORTH[p.type] + 0.45 * power(p) + 0.04 * (maxFace(p, rules) - p.value);
     if (p.type !== "K") s += 0.08 * (3.5 - Math.abs(3.5 - c)) + 0.05 * (3.5 - Math.abs(3.5 - r));
     else s += 0.1 * (p.side === "w" ? r : 7 - r); // kings prefer to stay home
     if (p.type === "P") s += 0.06 * (p.side === "w" ? 6 - r : r - 1);
