@@ -36,7 +36,7 @@ const save = (key, value) => {
 };
 
 const loadRules = () => {
-  const r = load("dicegrid.rules.v4", null);
+  const r = load("dicegrid.rules.v5", null);
   return r
     ? { ...DEFAULT_RULES, ...r, dice: { ...DEFAULT_RULES.dice, ...r.dice }, growth: { ...DEFAULT_RULES.growth, ...r.growth } }
     : DEFAULT_RULES;
@@ -275,7 +275,7 @@ export default function DiceGridApp() {
 
           {tab === "rules" && (
             <RulesPanel draft={draft} setDraft={setDraft} rules={rules}
-              apply={() => { setRules(draft); save("dicegrid.rules.v4", draft); newGame(draft); }}
+              apply={() => { setRules(draft); save("dicegrid.rules.v5", draft); newGame(draft); }}
               reset={() => setDraft(DEFAULT_RULES)} />
           )}
 
@@ -347,7 +347,7 @@ function Legend({ rules }) {
   );
 }
 
-const GROWTH_WORDS = { "0": "doesn't change", "+1": "goes up by 1", "+2": "goes up by 2", "+3": "goes up by 3", x2: "doubles" };
+const GROWTH_WORDS = { "0": "doesn't change", "+1": "goes up by 1", "+2": "goes up by 2", "+3": "goes up by 3", x2: "doubles", "=1": "resets to 1" };
 
 function PieceInfo({ piece, sq, rules, state }) {
   const faces = rules.dice[piece.type];
@@ -366,7 +366,7 @@ function PieceInfo({ piece, sq, rules, state }) {
         </p>
         <p>
           Each move its die {GROWTH_WORDS[rules.growth[piece.type]]}: next <b>{next}</b>
-          {rules.overflow === "wrap" && next < piece.value ? " (wraps around!)" : ""}.
+          {rules.overflow === "wrap" && rules.growth[piece.type] !== "=1" && next < piece.value ? " (wraps around!)" : ""}.
           {kingIn !== null && <> It also gains +1 by itself in <b>{kingIn}</b> {kingIn === 1 ? "turn" : "turns"}.</>}
         </p>
         <p>
@@ -401,7 +401,7 @@ function RulesPanel({ draft, setDraft, rules, apply, reset }) {
                 {DIE_SIZES.map((d) => <option key={d} value={d}>D{d}</option>)}
               </select>
               <select className="dc-select mt-1" aria-label={`${NAMES[t]} growth per move`} value={draft.growth[t]} onChange={(e) => setDraft({ ...draft, growth: { ...draft.growth, [t]: e.target.value } })}>
-                {GROWTHS.map((g) => <option key={g} value={g}>{g === "x2" ? "×2" : g === "0" ? "+0" : g}</option>)}
+                {GROWTHS.map((g) => <option key={g} value={g}>{g === "x2" ? "×2" : g === "0" ? "+0" : g === "=1" ? "→1" : g}</option>)}
               </select>
             </label>
           ))}

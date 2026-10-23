@@ -6,11 +6,11 @@
 export const NAMES = { P: "Pawn", N: "Knight", B: "Bishop", R: "Rook", Q: "Queen", K: "King" };
 export const GLYPHS = { P: "♟", N: "♞", B: "♝", R: "♜", Q: "♛", K: "♚" };
 export const DIE_SIZES = [4, 6, 8, 10, 12, 20];
-export const GROWTHS = ["0", "+1", "+2", "+3", "x2"];
+export const GROWTHS = ["0", "+1", "+2", "+3", "x2", "=1"];
 
 export const DEFAULT_RULES = {
   dice: { P: 4, N: 6, B: 8, R: 12, Q: 20, K: 10 },
-  growth: { P: "+1", N: "+1", B: "+1", R: "x2", Q: "+2", K: "0" }, // what one move does to the die
+  growth: { P: "+1", N: "=1", B: "+1", R: "x2", Q: "+2", K: "0" }, // what one move does to the die ("=1" resets it)
   kingEvery: 1, // the King gains +1 every this many of its side's turns (0 = never)
   rookFragile: true, // rooks are walls: any enemy can capture one, whatever the numbers
   knightBorrow: true, // knights add the power of friends they jump over until they next move
@@ -27,7 +27,7 @@ export const DEFAULT_RULES = {
   whiteStart: "none", // help Black: "none" | "noGrowth" (White's first move doesn't change its die) | "noKing" (White's King skips its first +1)
 };
 
-const GROWTH_TEXT = { "0": "doesn't change", "+1": "+1", "+2": "+2", "+3": "+3", x2: "doubles" };
+const GROWTH_TEXT = { "0": "doesn't change", "+1": "+1", "+2": "+2", "+3": "+3", x2: "doubles", "=1": "resets to 1" };
 
 // Plain-English description of a rules object, for the rules panel and copying.
 export function describeRules(r) {
@@ -113,6 +113,7 @@ function onDie(v, piece, rules) {
 export function grow(piece, rules) {
   const g = rules.growth[piece.type];
   if (g === "0") return piece.value;
+  if (g === "=1") return 1;
   return onDie(g === "x2" ? piece.value * 2 : piece.value + Number(g), piece, rules);
 }
 
