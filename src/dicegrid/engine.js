@@ -13,6 +13,7 @@ export const DEFAULT_RULES = {
   growth: { P: "+1", N: "=1", B: "+1", R: "x2", Q: "+1", K: "0" }, // what one move does to the die ("=1" resets it)
   kingEvery: 1, // the King gains +1 every this many of its side's turns (0 = never)
   rookFragile: true, // rooks are walls: any enemy can capture one, whatever the numbers
+  pawnActions: true, // pawns may zap an adjacent stronger enemy or boost an adjacent friend instead of moving
   trapWin: true, // you also win when the enemy King is under attack and every King move still leaves him under attack
   surround: "off", // "king" | "all": each other friendly piece touching the target adds +1 to the attack
   knightBorrow: true, // knights add the power of friends they jump over until they next move
@@ -48,6 +49,10 @@ export function describeRules(r) {
       : `A piece can capture an enemy only if its number is higher` +
         (r.compare === "after" ? " after this move's change." : " before this move's change."),
     r.rookFragile && "Rooks are walls: any enemy piece can capture a rook, whatever the numbers.",
+    r.pawnActions &&
+      "Pawn actions: instead of moving, a pawn can zap an enemy on any of the 8 squares around it whose number is higher than the pawn's, lowering it by the pawn's number (never below 1), " +
+        "or boost a friend on those squares by the pawn's number until that friend next moves (a boost can go past the die's limit and counts in a capture on that move). " +
+        "Either way the pawn's own die halves (rounded down, minimum 1), and its side can't use a pawn action again on its next turn.",
     r.trapWin &&
       "Trapped King: if the enemy King is under attack and every move he could make still leaves him under attack, you win (other pieces can't save him by blocking or capturing).",
     r.surround !== "off" &&
@@ -106,7 +111,7 @@ export function initialState(rules) {
 export const other = (side) => (side === "w" ? "b" : "w");
 export const sqName = (sq) => "abcdefgh"[sq % 8] + (8 - Math.floor(sq / 8));
 export const maxFace = (piece, rules) => rules.dice[piece.type];
-export const power = (piece) => piece.value + (piece.bonus || 0);
+export const power = (piece) => piece.value + (piece.bonus || 0) + (piece.boost || 0);
 
 // Keep a raw number on the die's faces.
 function onDie(v, piece, rules) {
@@ -235,13 +240,14 @@ function reach(board, from, rules) {
 // number the piece would fight with on that move.
 export function pieceMoves(state, from, rules) {
   const p = state.board[from];
-  return reach(state.board, from, rules).map((m) => {
+  const moves = reach(state.board, from, rules).map((m) => {
     const borrow = m.borrow || 0;
+    const boost = p.boost || 0;
     const attack =
       m.capture && rules.captureBonus === "noGrowth"
-        ? p.value + borrow
+        ? p.value + borrow + boost
         : rules.compare === "after"
-          ? grow(p, rules) + borrow
+          ? grow(p, rules) + borrow + boost
           : power(p);
     const move = { from, to: m.to, capture: m.capture, borrow, route: m.route || [], attack, outcome: null };
     if (!m.capture) return move;
@@ -253,6 +259,39 @@ export function pieceMoves(state, from, rules) {
     const outcome = captureOutcome(move.attack, target, rules);
     return { ...move, outcome, blocked: !outcome };
   });
+  if (p.type === "P" && rules.pawnActions && !state.pawnRest?.[p.side]) moves.push(...pawnActions(state.board, from));
+  return moves;
+}
+
+// A pawn's zaps (adjacent enemies stronger than it) and boosts (adjacent friends).
+function pawnActions(board, from) {
+  const p = board[from];
+  const amount = power(p);
+  const r0 = Math.floor(from / 8);
+  const c0 = from % 8;
+  const out = [];
+  for (const [dr, dc] of KING) {
+    const r = r0 + dr;
+    const c = c0 + dc;
+    if (r < 0 || r > 7 || c < 0 || c > 7) continue;
+    const t = board[r * 8 + c];
+    if (!t) continue;
+    if (t.side !== p.side && power(t) > amount) out.push({ from, to: r * 8 + c, capture: false, action: "zap", amount, outcome: null });
+    else if (t.side === p.side) out.push({ from, to: r * 8 + c, capture: false, action: "boost", amount, outcome: null });
+  }
+  return out;
+}
+
+// Lower a piece's power by `amount`: boost first, then borrowed power, then its die (never below 1).
+function weaken(piece, amount) {
+  const t = { ...piece };
+  for (const k of ["boost", "bonus"]) {
+    const take = Math.min(t[k] || 0, amount);
+    t[k] = (t[k] || 0) - take;
+    amount -= take;
+  }
+  t.value = Math.max(1, t.value - amount);
+  return t;
 }
 
 // Friendly pieces (other than the attacker) on the squares touching `sq`.
@@ -285,7 +324,7 @@ export function kingAttacked(state, side, rules) {
   if (ks < 0) return false;
   for (let sq = 0; sq < 64; sq++) {
     const p = state.board[sq];
-    if (p && p.side === side && couldReach(p, sq, ks) && pieceMoves(state, sq, rules).some((m) => m.to === ks && !m.blocked))
+    if (p && p.side === side && couldReach(p, sq, ks) && pieceMoves(state, sq, rules).some((m) => m.to === ks && m.capture && !m.blocked))
       return true;
   }
   return false;
@@ -326,10 +365,22 @@ export function applyMove(state, move, rules, quick = false) {
   const target = board[move.to];
   const removed = [];
   const whiteFirst = state.plies === 0 && state.turn === "w";
-  let moved = { ...piece, value: whiteFirst && rules.whiteStart === "noGrowth" ? piece.value : grow(piece, rules), bonus: move.borrow || 0 };
+  let moved = {
+    ...piece,
+    value: whiteFirst && rules.whiteStart === "noGrowth" ? piece.value : grow(piece, rules),
+    bonus: move.borrow || 0,
+    boost: 0, // a boost lasts until the piece's next move
+  };
   board[move.from] = null;
 
-  if (target && move.outcome === "swap") {
+  let changed = null; // the zapped or boosted piece, after the action
+  if (move.action) {
+    // The pawn stays put: its die halves and the target's power changes.
+    moved = { ...piece, value: Math.max(1, Math.floor(piece.value / 2)), bonus: 0, boost: 0 };
+    changed = move.action === "zap" ? weaken(target, move.amount) : { ...target, boost: (target.boost || 0) + move.amount };
+    board[move.to] = changed;
+    board[move.from] = moved;
+  } else if (target && move.outcome === "swap") {
     // Nobody dies: the defender is pushed back onto the attacker's square.
     if (!rules.swapGrows) moved.value = piece.value;
     board[move.from] = target;
@@ -346,11 +397,11 @@ export function applyMove(state, move, rules, quick = false) {
   }
 
   let promoted = false;
-  if (moved && moved.type === "P" && (Math.floor(move.to / 8) === 0 || Math.floor(move.to / 8) === 7)) {
+  if (moved && !move.action && moved.type === "P" && (Math.floor(move.to / 8) === 0 || Math.floor(move.to / 8) === 7)) {
     moved = { ...moved, type: "Q", value: rules.promotion === "keep" ? moved.value : 1 };
     promoted = true;
   }
-  if (moved) board[move.to] = moved;
+  if (moved && !move.action) board[move.to] = moved;
 
   // The mover's King grows by itself every few turns.
   let kingGrew = false;
@@ -379,10 +430,11 @@ export function applyMove(state, move, rules, quick = false) {
     endReason: null,
     plies: state.plies + 1,
     quietPlies: removed.length ? 0 : state.quietPlies + 1,
-    last: { ...move, piece, target, value: moved ? power(moved) : null, removed, promoted, kingGrew },
+    pawnRest: { ...state.pawnRest, [state.turn]: !!move.action },
+    last: { ...move, piece, target, changed, value: moved ? power(moved) : null, removed, promoted, kingGrew },
   };
 
-  if (target && target.type === "K" && move.outcome !== "swap") {
+  if (target && target.type === "K" && move.capture && move.outcome !== "swap") {
     next.winner = state.turn;
     next.endReason = "king";
   } else if (!moved && piece.type === "K") {
@@ -408,7 +460,15 @@ export function applyMove(state, move, rules, quick = false) {
 
 // Short log line for a move, e.g. "♜ a1→a4 (2)" or "♞ b1×c3 +4 (6 beats 2)".
 export function moveText(last) {
-  const { piece, target, from, to, value, attack, outcome, promoted, borrow, support, kingGrew } = last;
+  const { piece, target, from, to, value, attack, outcome, promoted, borrow, support, kingGrew, action, changed } = last;
+  if (action) {
+    const sign = action === "zap" ? "−" : "+";
+    return (
+      `${GLYPHS.P} ${sqName(from)} ${action === "zap" ? "zaps" : "boosts"} ${GLYPHS[target.type]} ${sqName(to)} ${sign}${last.amount}` +
+      ` (${power(target)}→${power(changed)}, pawn →${value})` +
+      (kingGrew ? " · ♚+1" : "")
+    );
+  }
   const swap = outcome === "swap";
   let s = `${GLYPHS[piece.type]} ${sqName(from)}${swap ? "⇄" : target ? "×" : "→"}${sqName(to)}`;
   if (borrow) s += ` +${borrow}`;

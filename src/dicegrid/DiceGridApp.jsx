@@ -38,7 +38,7 @@ const save = (key, value) => {
 };
 
 const loadRules = () => {
-  const r = load("dicegrid.rules.v7", null);
+  const r = load("dicegrid.rules.v8", null);
   return r
     ? { ...DEFAULT_RULES, ...r, dice: { ...DEFAULT_RULES.dice, ...r.dice }, growth: { ...DEFAULT_RULES.growth, ...r.growth } }
     : DEFAULT_RULES;
@@ -67,6 +67,7 @@ export default function DiceGridApp() {
   const [tab, setTab] = useState("game");
   const [notes, setNotes] = useState(() => load("dicegrid.notes", ""));
   const [paused, setPaused] = useState(false);
+  const [boostMode, setBoostMode] = useState(false); // a selected pawn is choosing a friend to boost
 
   const state = history[history.length - 1];
   const flipped = mode === "ai" && humanSide === "b";
@@ -116,12 +117,17 @@ export default function DiceGridApp() {
     () => (selected === null ? [] : pieceMoves(state, selected, rules)),
     [selected, state, rules],
   );
+  useEffect(() => setBoostMode(false), [selected, state]);
+  // Boosts target friendly squares, so they only show (and click) in boost mode.
+  const shownMoves = movesFromSelected.filter((m) => (boostMode ? m.action === "boost" : m.action !== "boost"));
+  const boostAmount = movesFromSelected.find((m) => m.action === "boost")?.amount;
+  const selectedPiece = selected === null ? null : state.board[selected];
 
   const clickSquare = (sq) => {
     const p = state.board[sq];
     if (p) setInspect(sq);
     if (state.winner || aiTurn) return;
-    const m = movesFromSelected.find((m) => m.to === sq);
+    const m = shownMoves.find((m) => m.to === sq);
     if (m && !m.blocked) {
       setHistory((h) => [...h, applyMove(state, m, rules)]);
       setSelected(null);
@@ -177,7 +183,7 @@ export default function DiceGridApp() {
                 cols.map((c) => {
                   const sq = r * 8 + c;
                   const p = state.board[sq];
-                  const m = movesFromSelected.find((m) => m.to === sq);
+                  const m = shownMoves.find((m) => m.to === sq);
                   const dark = (r + c) % 2 === 1;
                   const cls = [
                     "dc-sq",
@@ -192,7 +198,9 @@ export default function DiceGridApp() {
                       {c === (flipped ? 7 : 0) && <span className="dc-coord dc-rank">{8 - r}</span>}
                       {r === (flipped ? 0 : 7) && <span className="dc-coord dc-file">{"abcdefgh"[c]}</span>}
                       {p && <Die piece={p} faces={rules.dice[p.type]} />}
-                      {m && !m.capture && <span className="dc-dot" />}
+                      {m && !m.capture && !m.action && <span className="dc-dot" />}
+                      {m && m.action === "zap" && <span className="dc-zap">⚡−{m.amount}</span>}
+                      {m && m.action === "boost" && <span className="dc-boost">✚+{m.amount}</span>}
                       {m && !m.blocked && m.borrow > 0 && <span className="dc-borrow">+{m.borrow}</span>}
                       {m && m.capture && !m.blocked && <span className={`dc-ring ${m.outcome === "both" || m.outcome === "swap" ? "dc-ring-tie" : ""}`} />}
                       {m && m.blocked && <span className="dc-block">✕</span>}
@@ -205,6 +213,18 @@ export default function DiceGridApp() {
           </div>
           <Tray pieces={captured[flipped ? "b" : "w"]} rules={rules} total={state.taken[flipped ? "w" : "b"]} label={`${flipped ? "White" : "Black"} has taken`} />
           <p className={`mt-2 font-semibold ${state.winner ? "text-lg text-[#b5179e]" : ""}`}>{status}</p>
+          {selectedPiece?.type === "P" && rules.pawnActions && !aiTurn && !state.winner && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              {state.pawnRest?.[state.turn] ? (
+                <span className="text-[#5b5f73]">Pawn actions are resting this turn (you used one last turn).</span>
+              ) : boostAmount ? (
+                <button className={`dc-btn ${boostMode ? "dc-btn-main" : ""}`} onClick={() => setBoostMode((b) => !b)}>
+                  {boostMode ? "Cancel boost" : `✚ Boost a friend (+${boostAmount})`}
+                </button>
+              ) : null}
+              {boostMode && <span className="text-[#5b5f73]">Tap a friend next to this pawn.</span>}
+            </div>
+          )}
           {hint && <p className="mt-1 text-sm text-[#b23a48]">{hint}</p>}
           <Legend rules={rules} />
         </section>
@@ -280,7 +300,7 @@ export default function DiceGridApp() {
 
           {tab === "rules" && (
             <RulesPanel draft={draft} setDraft={setDraft} rules={rules}
-              apply={() => { setRules(draft); save("dicegrid.rules.v7", draft); newGame(draft); }}
+              apply={() => { setRules(draft); save("dicegrid.rules.v8", draft); newGame(draft); }}
               reset={() => setDraft(DEFAULT_RULES)} />
           )}
 
@@ -396,6 +416,8 @@ function Legend({ rules }) {
       {rules.ties === "both" && <span><span className="dc-key dc-key-tie" /> tie: both removed</span>}
       {rules.ties === "swap" && <span><span className="dc-key dc-key-tie" /> tie: swap places</span>}
       <span><span className="text-[#b23a48] font-bold">✕</span> too weak to capture</span>
+      {rules.pawnActions && <span><span className="dc-zap dc-badge-key">⚡−2</span> pawn can zap</span>}
+      {rules.pawnActions && <span><span className="dc-boost dc-badge-key">✚+2</span> pawn can boost</span>}
       {rules.knightBorrow && <span><span className="dc-borrow dc-borrow-key">+3</span> knight borrows power</span>}
       <span><span className="dc-key dc-key-full" /> die at its top face{rules.overflow === "wrap" ? " (next move wraps to 1)" : ""}</span>
     </div>
@@ -407,7 +429,8 @@ const GROWTH_WORDS = { "0": "doesn't change", "+1": "goes up by 1", "+2": "goes 
 function PieceInfo({ piece, sq, rules, state }) {
   const faces = rules.dice[piece.type];
   const next = grow(piece, rules);
-  const attack = rules.captureBonus === "noGrowth" ? piece.value : rules.compare === "after" ? next : power(piece);
+  const boost = piece.boost || 0;
+  const attack = rules.captureBonus === "noGrowth" ? piece.value + boost : rules.compare === "after" ? next + boost : power(piece);
   const most = rules.ties === "blocked" ? attack - 1 : attack;
   const kingIn = piece.type === "K" ? kingGrowthIn(state, piece.side, rules) : null;
   return (
@@ -417,7 +440,9 @@ function PieceInfo({ piece, sq, rules, state }) {
         <p className="font-semibold">{SIDE[piece.side]} {NAMES[piece.type]} on {sqName(sq)}</p>
         <p>
           D{faces} showing <b>{piece.value}</b>
-          {piece.bonus > 0 && <> + <b className="text-[#7b2cbf]">{piece.bonus}</b> borrowed = power <b>{power(piece)}</b></>}.
+          {piece.bonus > 0 && <> + <b className="text-[#7b2cbf]">{piece.bonus}</b> borrowed</>}
+          {boost > 0 && <> + <b className="text-[#1b7f6b]">{boost}</b> boost (until it moves)</>}
+          {(piece.bonus > 0 || boost > 0) && <> = power <b>{power(piece)}</b></>}.
         </p>
         <p>
           Each move its die {GROWTH_WORDS[rules.growth[piece.type]]}: next <b>{next}</b>
@@ -430,6 +455,12 @@ function PieceInfo({ piece, sq, rules, state }) {
           <b>{most} or less</b>{rules.rookFragile ? " (and any rook)" : ""}.
         </p>
         {piece.type === "R" && rules.rookFragile && <p className="text-[#b23a48]">Rooks are walls: any enemy piece can capture it.</p>}
+        {piece.type === "P" && rules.pawnActions && (
+          <p>
+            Instead of moving it can zap a stronger enemy next to it (−{power(piece)}) or boost a friend next to it (+{power(piece)}), then its die halves to{" "}
+            <b>{Math.max(1, Math.floor(piece.value / 2))}</b>.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -466,6 +497,9 @@ function RulesPanel({ draft, setDraft, rules, apply, reset }) {
         </Row>
         <Row label="Rooks">
           <Seg value={draft.rookFragile} onChange={(v) => set("rookFragile", v)} options={[[true, "Walls: anything can take them"], [false, "Normal"]]} />
+        </Row>
+        <Row label="Pawn actions">
+          <Seg value={draft.pawnActions} onChange={(v) => set("pawnActions", v)} options={[[true, "Zap enemies / boost friends"], [false, "Off"]]} />
         </Row>
         <Row label="Trapped King">
           <Seg value={draft.trapWin} onChange={(v) => set("trapWin", v)} options={[[true, "Loses if attacked with no escape"], [false, "Off: only capturing wins"]]} />

@@ -62,7 +62,10 @@ function negamax(state, rules, depth, alpha, beta, ply, stats) {
   if (depth === 0) return quiesce(state, rules, alpha, beta, ply, 3, stats);
   stats.nodes++;
   let best = -Infinity;
-  for (const m of ordered(legalMoves(state, rules), state)) {
+  let moves = legalMoves(state, rules);
+  // Pawn zaps and boosts multiply the options; only look at them near the top of the search.
+  if (ply >= 2) moves = moves.filter((m) => !m.action);
+  for (const m of ordered(moves, state)) {
     const v = -negamax(applyMove(state, m, rules), rules, depth - 1, -beta, -alpha, ply + 1, stats);
     if (v > best) best = v;
     if (v > alpha) alpha = v;
