@@ -10,9 +10,10 @@ export const GROWTHS = ["0", "+1", "+2", "+3", "x2", "=1"];
 
 export const DEFAULT_RULES = {
   dice: { P: 4, N: 6, B: 8, R: 12, Q: 20, K: 10 },
-  growth: { P: "+1", N: "=1", B: "+1", R: "x2", Q: "+2", K: "0" }, // what one move does to the die ("=1" resets it)
+  growth: { P: "+1", N: "=1", B: "+1", R: "x2", Q: "+1", K: "0" }, // what one move does to the die ("=1" resets it)
   kingEvery: 1, // the King gains +1 every this many of its side's turns (0 = never)
   rookFragile: true, // rooks are walls: any enemy can capture one, whatever the numbers
+  surround: "off", // "king" | "all": each other friendly piece touching the target adds +1 to the attack
   knightBorrow: true, // knights add the power of friends they jump over until they next move
   startValue: 1,
   compare: "after", // "after": this move's growth counts in the fight; "before": it doesn't
@@ -46,6 +47,8 @@ export function describeRules(r) {
       : `A piece can capture an enemy only if its number is higher` +
         (r.compare === "after" ? " after this move's change." : " before this move's change."),
     r.rookFragile && "Rooks are walls: any enemy piece can capture a rook, whatever the numbers.",
+    r.surround !== "off" &&
+      `Surround: when attacking ${r.surround === "king" ? "a King" : "any piece"}, each of your other pieces touching the target adds +1 to the attack.`,
     r.knightBorrow &&
       "Knights borrow power: friendly pieces on the knight's L-shaped path add their numbers to the knight's until its next move. " +
         "It takes whichever L route passes the most friendly power. Borrowed power counts in a capture on the same jump, then is lost.",
@@ -239,9 +242,29 @@ export function pieceMoves(state, from, rules) {
           : power(p);
     const move = { from, to: m.to, capture: m.capture, borrow, route: m.route || [], attack, outcome: null };
     if (!m.capture) return move;
-    const outcome = captureOutcome(attack, state.board[m.to], rules);
+    const target = state.board[m.to];
+    if (rules.surround === "all" || (rules.surround === "king" && target.type === "K")) {
+      move.support = surrounders(state.board, m.to, p.side, from);
+      move.attack += move.support;
+    }
+    const outcome = captureOutcome(move.attack, target, rules);
     return { ...move, outcome, blocked: !outcome };
   });
+}
+
+// Friendly pieces (other than the attacker) on the squares touching `sq`.
+function surrounders(board, sq, side, from) {
+  const r0 = Math.floor(sq / 8);
+  const c0 = sq % 8;
+  let n = 0;
+  for (const [dr, dc] of KING) {
+    const r = r0 + dr;
+    const c = c0 + dc;
+    if (r < 0 || r > 7 || c < 0 || c > 7 || r * 8 + c === from) continue;
+    const p = board[r * 8 + c];
+    if (p && p.side === side) n++;
+  }
+  return n;
 }
 
 export function legalMoves(state, rules, side = state.turn) {
@@ -336,10 +359,11 @@ export function applyMove(state, move, rules) {
 
 // Short log line for a move, e.g. "♜ a1→a4 (2)" or "♞ b1×c3 +4 (6 beats 2)".
 export function moveText(last) {
-  const { piece, target, from, to, value, attack, outcome, promoted, borrow, kingGrew } = last;
+  const { piece, target, from, to, value, attack, outcome, promoted, borrow, support, kingGrew } = last;
   const swap = outcome === "swap";
   let s = `${GLYPHS[piece.type]} ${sqName(from)}${swap ? "⇄" : target ? "×" : "→"}${sqName(to)}`;
   if (borrow) s += ` +${borrow}`;
+  if (support) s += ` (surround +${support})`;
   if (target) {
     const d = power(target);
     s += ` ${GLYPHS[target.type]}`;

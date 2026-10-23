@@ -36,7 +36,7 @@ const save = (key, value) => {
 };
 
 const loadRules = () => {
-  const r = load("dicegrid.rules.v5", null);
+  const r = load("dicegrid.rules.v6", null);
   return r
     ? { ...DEFAULT_RULES, ...r, dice: { ...DEFAULT_RULES.dice, ...r.dice }, growth: { ...DEFAULT_RULES.growth, ...r.growth } }
     : DEFAULT_RULES;
@@ -130,6 +130,7 @@ export default function DiceGridApp() {
       setHint(
         `Your ${NAMES[a.type]} would fight with ${m.attack}` +
           (m.borrow ? ` (including ${m.borrow} borrowed from friends it jumps over)` : "") +
+          (m.support ? ` (including +${m.support} from friends surrounding it)` : "") +
           `, which doesn't beat the ${NAMES[p.type]}'s ${power(p)}.`,
       );
       return;
@@ -275,7 +276,7 @@ export default function DiceGridApp() {
 
           {tab === "rules" && (
             <RulesPanel draft={draft} setDraft={setDraft} rules={rules}
-              apply={() => { setRules(draft); save("dicegrid.rules.v5", draft); newGame(draft); }}
+              apply={() => { setRules(draft); save("dicegrid.rules.v6", draft); newGame(draft); }}
               reset={() => setDraft(DEFAULT_RULES)} />
           )}
 
@@ -411,6 +412,9 @@ function RulesPanel({ draft, setDraft, rules, apply, reset }) {
         </Row>
         <Row label="Rooks">
           <Seg value={draft.rookFragile} onChange={(v) => set("rookFragile", v)} options={[[true, "Walls: anything can take them"], [false, "Normal"]]} />
+        </Row>
+        <Row label="Surround">
+          <Seg value={draft.surround} onChange={(v) => set("surround", v)} options={[["off", "Off"], ["king", "+1 per friend touching the King"], ["all", "+1 per friend touching any target"]]} />
         </Row>
         <Row label="Knights">
           <Seg value={draft.knightBorrow} onChange={(v) => set("knightBorrow", v)} options={[[true, "Borrow power of friends jumped"], [false, "No borrowing"]]} />
