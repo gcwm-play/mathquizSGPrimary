@@ -16,6 +16,7 @@ import {
   kingGrowthIn,
   GROWTHS,
   sqName,
+  knightRoutes,
 } from "./engine.js";
 import { LEVELS, chooseMove, isWinScore } from "./ai.js";
 
@@ -197,6 +198,7 @@ export default function DiceGridApp() {
                   );
                 }),
               )}
+              {last && <LastMoveTrail last={last} flipped={flipped} />}
             </div>
           </div>
           <Tray pieces={captured[flipped ? "b" : "w"]} rules={rules} total={state.taken[flipped ? "w" : "b"]} label={`${flipped ? "White" : "Black"} has taken`} />
@@ -334,9 +336,59 @@ function Tray({ pieces, rules, label, total }) {
   );
 }
 
+// Dashed arrow along the path of the last move, in board units (each square is 1×1).
+function LastMoveTrail({ last, flipped }) {
+  const at = (sq) => {
+    const r = Math.floor(sq / 8);
+    const c = sq % 8;
+    return [(flipped ? 7 - c : c) + 0.5, (flipped ? 7 - r : r) + 0.5];
+  };
+  const pts = [last.from];
+  if (last.piece.type === "N") {
+    // Bend at the corner of the L route the knight took.
+    const r0 = Math.floor(last.from / 8);
+    const c0 = last.from % 8;
+    const routes = knightRoutes(r0, c0, Math.floor(last.to / 8) - r0, (last.to % 8) - c0);
+    const second = last.route?.length > 0 && routes[1].includes(last.route[0]);
+    pts.push(second ? routes[1][0] : routes[0][1]);
+  }
+  pts.push(last.to);
+  const xy = pts.map(at);
+  // Stop short of the destination centre so the arrowhead doesn't hide the die's number.
+  const [px, py] = xy[xy.length - 2];
+  const [tx, ty] = xy[xy.length - 1];
+  const len = Math.hypot(tx - px, ty - py);
+  xy[xy.length - 1] = [tx - ((tx - px) / len) * 0.3, ty - ((ty - py) / len) * 0.3];
+  const color = last.piece.side === "w" ? "#2563eb" : "#e85d04";
+  const id = `dc-arrow-${last.piece.side}`;
+  return (
+    <svg className="dc-trail" viewBox="0 0 8 8" aria-hidden="true">
+      <defs>
+        <marker id={id} viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill={color} />
+        </marker>
+      </defs>
+      <circle cx={xy[0][0]} cy={xy[0][1]} r="0.12" fill={color} opacity="0.85" />
+      <polyline
+        points={xy.map(([x, y]) => `${x},${y}`).join(" ")}
+        fill="none"
+        stroke={color}
+        strokeWidth="0.09"
+        strokeDasharray="0.2 0.14"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.85"
+        markerEnd={`url(#${id})`}
+        markerStart={last.outcome === "swap" ? `url(#${id})` : undefined}
+      />
+    </svg>
+  );
+}
+
 function Legend({ rules }) {
   return (
     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#5b5f73]">
+      <span><span className="dc-key-trail" style={{ borderColor: "#2563eb" }} /><span className="dc-key-trail" style={{ borderColor: "#e85d04" }} /> last move (White / Black)</span>
       <span><span className="dc-key dc-key-dot" /> move</span>
       <span><span className="dc-key dc-key-ring" /> can capture</span>
       {rules.ties === "both" && <span><span className="dc-key dc-key-tie" /> tie: both removed</span>}

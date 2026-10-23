@@ -148,7 +148,7 @@ const ROOK = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 const BISHOP = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
 
 // The two L routes for a knight jump, as the squares passed over (not the landing square).
-function knightRoutes(r0, c0, dr, dc) {
+export function knightRoutes(r0, c0, dr, dc) {
   const sq = (r, c) => r * 8 + c;
   if (Math.abs(dr) === 2)
     return [
