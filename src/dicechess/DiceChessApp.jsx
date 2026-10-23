@@ -36,7 +36,7 @@ const save = (key, value) => {
 };
 
 const loadRules = () => {
-  const r = load("dicechess.rules.v3", null);
+  const r = load("dicechess.rules.v4", null);
   return r
     ? { ...DEFAULT_RULES, ...r, dice: { ...DEFAULT_RULES.dice, ...r.dice }, growth: { ...DEFAULT_RULES.growth, ...r.growth } }
     : DEFAULT_RULES;
@@ -47,6 +47,7 @@ const END = {
   king: "captured the King",
   stuck: "left the other side with no legal move",
   quiet: "no capture for too long",
+  kings: "only the Kings are left",
 };
 
 export default function DiceChessApp() {
@@ -141,8 +142,10 @@ export default function DiceChessApp() {
 
   const status = state.winner
     ? state.winner === "draw"
-      ? `Draw: ${END.quiet}.`
-      : `${SIDE[state.winner]} wins: ${END[state.endReason]}.`
+      ? `Draw: ${END[state.endReason]}` + (rules.powerDecides !== "off" && state.endReason === "kings" ? ", and both took the same power." : ".")
+      : state.endReason === "kings" || state.endReason === "quiet"
+        ? `${SIDE[state.winner]} wins on power taken (${state.taken[state.winner]} to ${state.taken[state.winner === "w" ? "b" : "w"]}): ${END[state.endReason]}.`
+        : `${SIDE[state.winner]} wins: ${END[state.endReason]}.`
     : aiTurn
       ? `${SIDE[state.turn]} (computer) is thinking…`
       : `${SIDE[state.turn]} to move.`;
@@ -163,7 +166,7 @@ export default function DiceChessApp() {
 
       <main className="mx-auto max-w-6xl px-4 pb-10 grid gap-5 lg:grid-cols-[minmax(0,600px)_1fr]">
         <section>
-          <Tray pieces={captured[flipped ? "w" : "b"]} rules={rules} label={`Taken from ${flipped ? "White" : "Black"}`} />
+          <Tray pieces={captured[flipped ? "w" : "b"]} rules={rules} total={state.taken[flipped ? "b" : "w"]} label={`${flipped ? "Black" : "White"} has taken`} />
           <div className="dc-board-wrap">
             <div className="dc-board" role="grid" aria-label="Dice chess board">
               {rows.map((r) =>
@@ -187,7 +190,7 @@ export default function DiceChessApp() {
                       {p && <Die piece={p} faces={rules.dice[p.type]} />}
                       {m && !m.capture && <span className="dc-dot" />}
                       {m && !m.blocked && m.borrow > 0 && <span className="dc-borrow">+{m.borrow}</span>}
-                      {m && m.capture && !m.blocked && <span className={`dc-ring ${m.outcome === "both" ? "dc-ring-tie" : ""}`} />}
+                      {m && m.capture && !m.blocked && <span className={`dc-ring ${m.outcome === "both" || m.outcome === "swap" ? "dc-ring-tie" : ""}`} />}
                       {m && m.blocked && <span className="dc-block">✕</span>}
                     </button>
                   );
@@ -195,7 +198,7 @@ export default function DiceChessApp() {
               )}
             </div>
           </div>
-          <Tray pieces={captured[flipped ? "b" : "w"]} rules={rules} label={`Taken from ${flipped ? "Black" : "White"}`} />
+          <Tray pieces={captured[flipped ? "b" : "w"]} rules={rules} total={state.taken[flipped ? "w" : "b"]} label={`${flipped ? "White" : "Black"} has taken`} />
           <p className={`mt-2 font-semibold ${state.winner ? "text-lg text-[#b5179e]" : ""}`}>{status}</p>
           {hint && <p className="mt-1 text-sm text-[#b23a48]">{hint}</p>}
           <Legend rules={rules} />
@@ -272,7 +275,7 @@ export default function DiceChessApp() {
 
           {tab === "rules" && (
             <RulesPanel draft={draft} setDraft={setDraft} rules={rules}
-              apply={() => { setRules(draft); save("dicechess.rules.v3", draft); newGame(draft); }}
+              apply={() => { setRules(draft); save("dicechess.rules.v4", draft); newGame(draft); }}
               reset={() => setDraft(DEFAULT_RULES)} />
           )}
 
@@ -317,9 +320,10 @@ function Seg({ value, onChange, options }) {
   );
 }
 
-function Tray({ pieces, rules, label }) {
+function Tray({ pieces, rules, label, total }) {
   return (
-    <div className="dc-tray" aria-label={label} title={label}>
+    <div className="dc-tray items-center" aria-label={`${label} ${total} power`} title={label}>
+      <span className="text-xs text-[#5b5f73] mr-1">{label} <b>{total}</b> power</span>
       {pieces.map((p) => (
         <span key={p.id} className="w-6 h-6 inline-block">
           <Die piece={p} faces={rules.dice[p.type]} />
@@ -335,6 +339,7 @@ function Legend({ rules }) {
       <span><span className="dc-key dc-key-dot" /> move</span>
       <span><span className="dc-key dc-key-ring" /> can capture</span>
       {rules.ties === "both" && <span><span className="dc-key dc-key-tie" /> tie: both removed</span>}
+      {rules.ties === "swap" && <span><span className="dc-key dc-key-tie" /> tie: swap places</span>}
       <span><span className="text-[#b23a48] font-bold">✕</span> too weak to capture</span>
       {rules.knightBorrow && <span><span className="dc-borrow dc-borrow-key">+3</span> knight borrows power</span>}
       <span><span className="dc-key dc-key-full" /> die at its top face{rules.overflow === "wrap" ? " (next move wraps to 1)" : ""}</span>
@@ -419,8 +424,13 @@ function RulesPanel({ draft, setDraft, rules, apply, reset }) {
           </Row>
         )}
         <Row label="Equal numbers">
-          <Seg value={draft.ties} onChange={(v) => set("ties", v)} options={[["blocked", "Can't capture"], ["attacker", "Attacker wins"], ["both", "Both removed"]]} />
+          <Seg value={draft.ties} onChange={(v) => set("ties", v)} options={[["blocked", "Can't capture"], ["attacker", "Attacker wins"], ["both", "Both removed"], ["swap", "Swap places"]]} />
         </Row>
+        {draft.ties === "swap" && (
+          <Row label="On a swap">
+            <Seg value={draft.swapGrows} onChange={(v) => set("swapGrows", v)} options={[[true, "Attacker's die grows"], [false, "Neither die changes"]]} />
+          </Row>
+        )}
         <Row label="At top face">
           <Seg value={draft.overflow} onChange={(v) => set("overflow", v)} options={[["cap", "Stays at max"], ["wrap", "Wraps to 1"]]} />
         </Row>
@@ -436,6 +446,12 @@ function RulesPanel({ draft, setDraft, rules, apply, reset }) {
         <Row label="Draw after">
           <Seg value={draft.drawPlies} onChange={(v) => set("drawPlies", v)} options={[[50, "50"], [100, "100"], [200, "200"]]} />
           <span className="text-sm text-[#5b5f73]">moves with no capture</span>
+        </Row>
+        <Row label="Power decides">
+          <Seg value={draft.powerDecides} onChange={(v) => set("powerDecides", v)} options={[["kings", "When only Kings are left"], ["draws", "Any draw"], ["off", "Never (draw)"]]} />
+        </Row>
+        <Row label="Help Black">
+          <Seg value={draft.whiteStart} onChange={(v) => set("whiteStart", v)} options={[["none", "Off"], ["noGrowth", "White's 1st move doesn't grow"], ["noKing", "White's King skips 1st +1"]]} />
         </Row>
         <div className="flex gap-2 pt-2">
           <button className="dc-btn dc-btn-main" onClick={apply} disabled={!changed}>Apply &amp; new game</button>
@@ -482,7 +498,7 @@ function BalanceTest({ rules }) {
   const run = () => {
     stop.current = false;
     setRunning(true);
-    const acc = { played: 0, w: 0, b: 0, draw: 0, plies: 0, captures: 0, ends: { king: 0, stuck: 0, quiet: 0 }, firstCapture: 0 };
+    const acc = { played: 0, w: 0, b: 0, draw: 0, plies: 0, captures: 0, ends: { king: 0, stuck: 0, quiet: 0, kings: 0 }, firstCapture: 0 };
     const playOne = () => {
       let s = initialState(rules);
       let caps = 0;
@@ -542,7 +558,7 @@ function BalanceTest({ rules }) {
             <li>White wins: <b>{result.w}</b> ({pct(result.w)}%) · Black wins: <b>{result.b}</b> ({pct(result.b)}%) · Draws: <b>{result.draw}</b></li>
             <li>Average game: <b>{Math.round(result.plies / result.played)}</b> moves, <b>{(result.captures / result.played).toFixed(1)}</b> pieces taken</li>
             <li>First capture on average at move <b>{Math.round(result.firstCapture / result.played)}</b></li>
-            <li>Endings: King captured {result.ends.king}, no legal move {result.ends.stuck}, too long without a capture {result.ends.quiet}</li>
+            <li>Endings: King captured {result.ends.king}, no legal move {result.ends.stuck}, too long without a capture {result.ends.quiet}, only Kings left {result.ends.kings}</li>
           </ul>
         </Card>
       )}

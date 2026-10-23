@@ -9,19 +9,22 @@ export const DIE_SIZES = [4, 6, 8, 10, 12, 20];
 export const GROWTHS = ["0", "+1", "+2", "+3", "x2"];
 
 export const DEFAULT_RULES = {
-  dice: { P: 4, N: 6, B: 8, R: 12, Q: 20, K: 20 },
+  dice: { P: 4, N: 6, B: 8, R: 12, Q: 20, K: 10 },
   growth: { P: "+1", N: "+1", B: "+1", R: "x2", Q: "+2", K: "0" }, // what one move does to the die
   kingEvery: 1, // the King gains +1 every this many of its side's turns (0 = never)
   rookFragile: true, // rooks are walls: any enemy can capture one, whatever the numbers
   knightBorrow: true, // knights add the power of friends they jump over until they next move
   startValue: 1,
   compare: "after", // "after": this move's growth counts in the fight; "before": it doesn't
-  ties: "blocked", // "blocked" | "attacker" (attacker wins) | "both" (both dice removed)
+  ties: "blocked", // "blocked" | "attacker" (attacker wins) | "both" (both dice removed) | "swap" (the two pieces swap squares)
+  swapGrows: true, // with ties "swap": the swap counts as a move, so the attacker's die grows
   overflow: "cap", // "cap": stays at max face | "wrap": goes back to 1
   captureBonus: "noGrowth", // "noGrowth" (a capture doesn't grow the die) | "none" (grows as a normal move) | "plusOne" (normal growth and an extra +1) | "reset" (attacker drops to 1)
   pawnDouble: true, // pawns may move two squares on their first move
   promotion: "keep", // pawn reaching the far rank becomes a Queen: "keep" value | "reset" to 1
   drawPlies: 100, // draw after this many moves in a row with no capture
+  powerDecides: "kings", // who took more power wins: "kings" when only Kings are left | "draws" any would-be draw | "off"
+  whiteStart: "none", // help Black: "none" | "noGrowth" (White's first move doesn't change its die) | "noKing" (White's King skips its first +1)
 };
 
 const GROWTH_TEXT = { "0": "doesn't change", "+1": "+1", "+2": "+2", "+3": "+3", x2: "doubles" };
@@ -50,7 +53,11 @@ export function describeRules(r) {
       ? "Equal numbers: the capture is not allowed."
       : r.ties === "attacker"
         ? "Equal numbers: the attacker wins."
-        : "Equal numbers: both dice are removed.",
+        : r.ties === "both"
+          ? "Equal numbers: both dice are removed."
+          : "Equal numbers: nobody is captured, the two pieces swap squares" +
+            (r.swapGrows ? " (the attacker's die grows as for a move)." : " (neither die changes).") +
+            (r.rookFragile ? " A rook is still captured." : ""),
     {
       noGrowth: null,
       none: "A capture counts as a normal move for growth.",
@@ -60,7 +67,16 @@ export function describeRules(r) {
     (r.pawnDouble ? "Pawns may move two squares on their first move. " : "Pawns move one square at a time. ") +
       `A pawn reaching the far side becomes a Queen (D${r.dice.Q}) and ` +
       (r.promotion === "keep" ? "keeps its number." : "resets to 1."),
-    `If nobody captures for ${r.drawPlies} moves the game is a draw. A player with no legal move loses.`,
+    `If nobody captures for ${r.drawPlies} moves the game ends` +
+      (r.powerDecides === "draws" ? ", and so does a game where only the Kings are left." : ". A game where only the Kings are left also ends.") +
+      (r.powerDecides === "off"
+        ? " Both are draws."
+        : r.powerDecides === "kings"
+          ? " The first is a draw. In the second, the side that captured more power (the numbers of the pieces it took) wins."
+          : " The side that captured more power (the numbers of the pieces it took) wins.") +
+      " A player with no legal move loses.",
+    r.whiteStart === "noGrowth" && "To help Black, White's first move doesn't change its die.",
+    r.whiteStart === "noKing" && "To help Black, White's King skips his first +1.",
   ].filter(Boolean);
 }
 
@@ -78,7 +94,7 @@ export function initialState(rules) {
     put(48 + c, "P", "w");
     put(56 + c, BACK[c], "w");
   }
-  return { board, turn: "w", winner: null, endReason: null, plies: 0, quietPlies: 0, last: null };
+  return { board, turn: "w", winner: null, endReason: null, plies: 0, quietPlies: 0, taken: { w: 0, b: 0 }, last: null };
 }
 
 export const other = (side) => (side === "w" ? "b" : "w");
@@ -109,7 +125,7 @@ export function kingGrowthIn(state, side, rules) {
   return rules.kingEvery - (turnsTaken(state.plies, side) % rules.kingEvery);
 }
 
-// "win" | "both" | null (capture not allowed)
+// "win" | "both" | "swap" | null (capture not allowed)
 export function captureOutcome(attack, defender, rules) {
   if (rules.rookFragile && defender.type === "R") return "win";
   const d = power(defender);
@@ -117,6 +133,7 @@ export function captureOutcome(attack, defender, rules) {
   if (attack === d) {
     if (rules.ties === "attacker") return "win";
     if (rules.ties === "both") return "both";
+    if (rules.ties === "swap") return "swap";
   }
   return null;
 }
@@ -240,10 +257,15 @@ export function applyMove(state, move, rules) {
   const piece = board[move.from];
   const target = board[move.to];
   const removed = [];
-  let moved = { ...piece, value: grow(piece, rules), bonus: move.borrow || 0 };
+  const whiteFirst = state.plies === 0 && state.turn === "w";
+  let moved = { ...piece, value: whiteFirst && rules.whiteStart === "noGrowth" ? piece.value : grow(piece, rules), bonus: move.borrow || 0 };
   board[move.from] = null;
 
-  if (target) {
+  if (target && move.outcome === "swap") {
+    // Nobody dies: the defender is pushed back onto the attacker's square.
+    if (!rules.swapGrows) moved.value = piece.value;
+    board[move.from] = target;
+  } else if (target) {
     removed.push(target);
     moved.bonus = 0; // borrowed power is spent on the capture
     if (move.outcome === "both") {
@@ -264,7 +286,7 @@ export function applyMove(state, move, rules) {
 
   // The mover's King grows by itself every few turns.
   let kingGrew = false;
-  if (rules.kingEvery && (turnsTaken(state.plies, state.turn) + 1) % rules.kingEvery === 0) {
+  if (rules.kingEvery && !(whiteFirst && rules.whiteStart === "noKing") && (turnsTaken(state.plies, state.turn) + 1) % rules.kingEvery === 0) {
     const ks = board.findIndex((p) => p && p.side === state.turn && p.type === "K");
     if (ks >= 0) {
       const k = board[ks];
@@ -276,8 +298,14 @@ export function applyMove(state, move, rules) {
     }
   }
 
+  // Power each side has taken, counted at the moment of capture.
+  const taken = { ...(state.taken || { w: 0, b: 0 }) };
+  for (const p of removed) taken[other(p.side)] += power(p);
+  const byPower = () => (taken.w > taken.b ? "w" : taken.b > taken.w ? "b" : "draw");
+
   const next = {
     board,
+    taken,
     turn: other(state.turn),
     winner: null,
     endReason: null,
@@ -286,14 +314,17 @@ export function applyMove(state, move, rules) {
     last: { ...move, piece, target, value: moved ? power(moved) : null, removed, promoted, kingGrew },
   };
 
-  if (target && target.type === "K") {
+  if (target && target.type === "K" && move.outcome !== "swap") {
     next.winner = state.turn;
     next.endReason = "king";
   } else if (!moved && piece.type === "K") {
     next.winner = other(state.turn);
     next.endReason = "king";
+  } else if (board.every((p) => !p || p.type === "K")) {
+    next.winner = rules.powerDecides === "off" ? "draw" : byPower();
+    next.endReason = "kings";
   } else if (next.quietPlies >= rules.drawPlies) {
-    next.winner = "draw";
+    next.winner = rules.powerDecides === "draws" ? byPower() : "draw";
     next.endReason = "quiet";
   } else if (legalMoves(next, rules).length === 0) {
     next.winner = state.turn;
@@ -305,13 +336,15 @@ export function applyMove(state, move, rules) {
 // Short log line for a move, e.g. "♜ a1→a4 (2)" or "♞ b1×c3 +4 (6 beats 2)".
 export function moveText(last) {
   const { piece, target, from, to, value, attack, outcome, promoted, borrow, kingGrew } = last;
-  let s = `${GLYPHS[piece.type]} ${sqName(from)}${target ? "×" : "→"}${sqName(to)}`;
+  const swap = outcome === "swap";
+  let s = `${GLYPHS[piece.type]} ${sqName(from)}${swap ? "⇄" : target ? "×" : "→"}${sqName(to)}`;
   if (borrow) s += ` +${borrow}`;
   if (target) {
     const d = power(target);
     s += ` ${GLYPHS[target.type]}`;
-    s +=
-      outcome === "both"
+    s += swap
+      ? ` (${attack} ties ${d}: swap)`
+      : outcome === "both"
         ? ` (${attack} ties ${d}: both out)`
         : attack > d
           ? ` (${attack} beats ${d})`
