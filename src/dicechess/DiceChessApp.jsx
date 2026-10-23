@@ -36,7 +36,7 @@ const save = (key, value) => {
 };
 
 const loadRules = () => {
-  const r = load("dicechess.rules.v2", null);
+  const r = load("dicechess.rules.v3", null);
   return r
     ? { ...DEFAULT_RULES, ...r, dice: { ...DEFAULT_RULES.dice, ...r.dice }, growth: { ...DEFAULT_RULES.growth, ...r.growth } }
     : DEFAULT_RULES;
@@ -272,7 +272,7 @@ export default function DiceChessApp() {
 
           {tab === "rules" && (
             <RulesPanel draft={draft} setDraft={setDraft} rules={rules}
-              apply={() => { setRules(draft); save("dicechess.rules.v2", draft); newGame(draft); }}
+              apply={() => { setRules(draft); save("dicechess.rules.v3", draft); newGame(draft); }}
               reset={() => setDraft(DEFAULT_RULES)} />
           )}
 
@@ -347,7 +347,7 @@ const GROWTH_WORDS = { "0": "doesn't change", "+1": "goes up by 1", "+2": "goes 
 function PieceInfo({ piece, sq, rules, state }) {
   const faces = rules.dice[piece.type];
   const next = grow(piece, rules);
-  const attack = rules.compare === "after" ? next : power(piece);
+  const attack = rules.captureBonus === "noGrowth" ? piece.value : rules.compare === "after" ? next : power(piece);
   const most = rules.ties === "blocked" ? attack - 1 : attack;
   const kingIn = piece.type === "K" ? kingGrowthIn(state, piece.side, rules) : null;
   return (
@@ -413,9 +413,11 @@ function RulesPanel({ draft, setDraft, rules, apply, reset }) {
         <Row label="Start at">
           <Seg value={draft.startValue} onChange={(v) => set("startValue", v)} options={[[1, "1"], [2, "2"], [3, "3"]]} />
         </Row>
-        <Row label="Fight with">
-          <Seg value={draft.compare} onChange={(v) => set("compare", v)} options={[["after", "Number after this move"], ["before", "Number before moving"]]} />
-        </Row>
+        {draft.captureBonus !== "noGrowth" && (
+          <Row label="Fight with">
+            <Seg value={draft.compare} onChange={(v) => set("compare", v)} options={[["after", "Number after this move"], ["before", "Number before moving"]]} />
+          </Row>
+        )}
         <Row label="Equal numbers">
           <Seg value={draft.ties} onChange={(v) => set("ties", v)} options={[["blocked", "Can't capture"], ["attacker", "Attacker wins"], ["both", "Both removed"]]} />
         </Row>
@@ -423,7 +425,7 @@ function RulesPanel({ draft, setDraft, rules, apply, reset }) {
           <Seg value={draft.overflow} onChange={(v) => set("overflow", v)} options={[["cap", "Stays at max"], ["wrap", "Wraps to 1"]]} />
         </Row>
         <Row label="After capture">
-          <Seg value={draft.captureBonus} onChange={(v) => set("captureBonus", v)} options={[["none", "Nothing extra"], ["plusOne", "Extra +1"], ["reset", "Reset to 1"]]} />
+          <Seg value={draft.captureBonus} onChange={(v) => set("captureBonus", v)} options={[["noGrowth", "No growth from a capture"], ["none", "Grows as normal"], ["plusOne", "Grows, plus extra +1"], ["reset", "Reset to 1"]]} />
         </Row>
         <Row label="Pawn first move">
           <Seg value={draft.pawnDouble} onChange={(v) => set("pawnDouble", v)} options={[[true, "1 or 2 squares"], [false, "1 square"]]} />

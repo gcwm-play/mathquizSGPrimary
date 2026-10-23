@@ -10,15 +10,15 @@ export const GROWTHS = ["0", "+1", "+2", "+3", "x2"];
 
 export const DEFAULT_RULES = {
   dice: { P: 4, N: 6, B: 8, R: 12, Q: 20, K: 20 },
-  growth: { P: "+1", N: "+1", B: "+1", R: "x2", Q: "+3", K: "0" }, // what one move does to the die
-  kingEvery: 2, // the King gains +1 every this many of its side's turns (0 = never)
+  growth: { P: "+1", N: "+1", B: "+1", R: "x2", Q: "+2", K: "0" }, // what one move does to the die
+  kingEvery: 1, // the King gains +1 every this many of its side's turns (0 = never)
   rookFragile: true, // rooks are walls: any enemy can capture one, whatever the numbers
   knightBorrow: true, // knights add the power of friends they jump over until they next move
   startValue: 1,
   compare: "after", // "after": this move's growth counts in the fight; "before": it doesn't
   ties: "blocked", // "blocked" | "attacker" (attacker wins) | "both" (both dice removed)
   overflow: "cap", // "cap": stays at max face | "wrap": goes back to 1
-  captureBonus: "none", // "none" | "plusOne" (extra +1) | "reset" (attacker drops to 1)
+  captureBonus: "noGrowth", // "noGrowth" (a capture doesn't grow the die) | "none" (grows as a normal move) | "plusOne" (normal growth and an extra +1) | "reset" (attacker drops to 1)
   pawnDouble: true, // pawns may move two squares on their first move
   promotion: "keep", // pawn reaching the far rank becomes a Queen: "keep" value | "reset" to 1
   drawPlies: 100, // draw after this many moves in a row with no capture
@@ -38,8 +38,10 @@ export function describeRules(r) {
     r.kingEvery
       ? `The King gains +1 every ${r.kingEvery === 1 ? "turn" : r.kingEvery + " turns"} his side takes, whether he moves or not.`
       : "The King only grows when he moves.",
-    `A piece can capture an enemy only if its number is higher` +
-      (r.compare === "after" ? " after this move's change." : " before this move's change."),
+    r.captureBonus === "noGrowth"
+      ? "A piece can capture an enemy only if its number is higher. A capture doesn't count as a move for growth: the attacker fights with its current number and its die stays the same."
+      : `A piece can capture an enemy only if its number is higher` +
+        (r.compare === "after" ? " after this move's change." : " before this move's change."),
     r.rookFragile && "Rooks are walls: any enemy piece can capture a rook, whatever the numbers.",
     r.knightBorrow &&
       "Knights borrow power: friendly pieces on the knight's L-shaped path add their numbers to the knight's until its next move. " +
@@ -49,11 +51,12 @@ export function describeRules(r) {
       : r.ties === "attacker"
         ? "Equal numbers: the attacker wins."
         : "Equal numbers: both dice are removed.",
-    r.captureBonus === "none"
-      ? "Capturing gives no bonus."
-      : r.captureBonus === "plusOne"
-        ? "Capturing gives an extra +1."
-        : "After capturing, the attacker's die resets to 1.",
+    {
+      noGrowth: null,
+      none: "A capture counts as a normal move for growth.",
+      plusOne: "A capture counts as a normal move for growth, plus an extra +1.",
+      reset: "After capturing, the attacker's die resets to 1.",
+    }[r.captureBonus],
     (r.pawnDouble ? "Pawns may move two squares on their first move. " : "Pawns move one square at a time. ") +
       `A pawn reaching the far side becomes a Queen (D${r.dice.Q}) and ` +
       (r.promotion === "keep" ? "keeps its number." : "resets to 1."),
@@ -210,7 +213,12 @@ export function pieceMoves(state, from, rules) {
   const p = state.board[from];
   return reach(state.board, from, rules).map((m) => {
     const borrow = m.borrow || 0;
-    const attack = rules.compare === "after" ? grow(p, rules) + borrow : power(p);
+    const attack =
+      m.capture && rules.captureBonus === "noGrowth"
+        ? p.value + borrow
+        : rules.compare === "after"
+          ? grow(p, rules) + borrow
+          : power(p);
     const move = { from, to: m.to, capture: m.capture, borrow, route: m.route || [], attack, outcome: null };
     if (!m.capture) return move;
     const outcome = captureOutcome(attack, state.board[m.to], rules);
@@ -242,7 +250,8 @@ export function applyMove(state, move, rules) {
       removed.push(piece);
       moved = null;
       board[move.to] = null;
-    } else if (rules.captureBonus === "plusOne") moved.value = onDie(moved.value + 1, moved, rules);
+    } else if (rules.captureBonus === "noGrowth") moved.value = piece.value;
+    else if (rules.captureBonus === "plusOne") moved.value = onDie(moved.value + 1, moved, rules);
     else if (rules.captureBonus === "reset") moved.value = 1;
   }
 
