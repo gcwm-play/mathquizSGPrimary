@@ -1,4 +1,4 @@
-// Dice Chess rules engine. Pure functions: a state is never mutated.
+// Dice Grid rules engine. Pure functions: a state is never mutated.
 // Board: 64 squares, index = row * 8 + col, row 0 is Black's back rank.
 // A piece is { id, type, side, value, bonus }: value is its die face, bonus is
 // power a knight borrowed from friends it jumped over. Its power is value + bonus.

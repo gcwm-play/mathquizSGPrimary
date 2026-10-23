@@ -36,7 +36,7 @@ const save = (key, value) => {
 };
 
 const loadRules = () => {
-  const r = load("dicechess.rules.v4", null);
+  const r = load("dicegrid.rules.v4", null);
   return r
     ? { ...DEFAULT_RULES, ...r, dice: { ...DEFAULT_RULES.dice, ...r.dice }, growth: { ...DEFAULT_RULES.growth, ...r.growth } }
     : DEFAULT_RULES;
@@ -50,29 +50,29 @@ const END = {
   kings: "only the Kings are left",
 };
 
-export default function DiceChessApp() {
+export default function DiceGridApp() {
   const [rules, setRules] = useState(loadRules);
   const [draft, setDraft] = useState(rules);
   const [history, setHistory] = useState(() => [initialState(rules)]);
-  const [mode, setMode] = useState(() => load("dicechess.mode", "ai")); // ai | hotseat | watch
-  const [humanSide, setHumanSide] = useState(() => load("dicechess.side", "w"));
-  const [level, setLevel] = useState(() => load("dicechess.level", "medium"));
+  const [mode, setMode] = useState(() => load("dicegrid.mode", "ai")); // ai | hotseat | watch
+  const [humanSide, setHumanSide] = useState(() => load("dicegrid.side", "w"));
+  const [level, setLevel] = useState(() => load("dicegrid.level", "medium"));
   const [selected, setSelected] = useState(null);
   const [inspect, setInspect] = useState(null);
   const [hint, setHint] = useState("");
   const [aiInfo, setAiInfo] = useState(null);
   const [tab, setTab] = useState("game");
-  const [notes, setNotes] = useState(() => load("dicechess.notes", ""));
+  const [notes, setNotes] = useState(() => load("dicegrid.notes", ""));
   const [paused, setPaused] = useState(false);
 
   const state = history[history.length - 1];
   const flipped = mode === "ai" && humanSide === "b";
   const aiTurn = !state.winner && (mode === "watch" || (mode === "ai" && state.turn !== humanSide));
 
-  useEffect(() => save("dicechess.mode", mode), [mode]);
-  useEffect(() => save("dicechess.side", humanSide), [humanSide]);
-  useEffect(() => save("dicechess.level", level), [level]);
-  useEffect(() => save("dicechess.notes", notes), [notes]);
+  useEffect(() => save("dicegrid.mode", mode), [mode]);
+  useEffect(() => save("dicegrid.side", humanSide), [humanSide]);
+  useEffect(() => save("dicegrid.level", level), [level]);
+  useEffect(() => save("dicegrid.notes", notes), [notes]);
 
   // Computer moves.
   useEffect(() => {
@@ -160,7 +160,7 @@ export default function DiceChessApp() {
   return (
     <div className="dc-app min-h-screen bg-[#f3efe6] text-[#1f2333]">
       <header className="mx-auto max-w-6xl px-4 pt-4 pb-2 flex flex-wrap items-end gap-x-4 gap-y-1">
-        <h1 className="text-2xl sm:text-3xl font-bold">🎲 Dice Chess</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">🎲 Dice Grid</h1>
         <p className="text-sm text-[#5b5f73]">Prototype — chess moves, dice fights. Rules are a draft: change them in the Rules tab.</p>
       </header>
 
@@ -168,7 +168,7 @@ export default function DiceChessApp() {
         <section>
           <Tray pieces={captured[flipped ? "w" : "b"]} rules={rules} total={state.taken[flipped ? "b" : "w"]} label={`${flipped ? "Black" : "White"} has taken`} />
           <div className="dc-board-wrap">
-            <div className="dc-board" role="grid" aria-label="Dice chess board">
+            <div className="dc-board" role="grid" aria-label="Dice Grid board">
               {rows.map((r) =>
                 cols.map((c) => {
                   const sq = r * 8 + c;
@@ -275,7 +275,7 @@ export default function DiceChessApp() {
 
           {tab === "rules" && (
             <RulesPanel draft={draft} setDraft={setDraft} rules={rules}
-              apply={() => { setRules(draft); save("dicechess.rules.v4", draft); newGame(draft); }}
+              apply={() => { setRules(draft); save("dicegrid.rules.v4", draft); newGame(draft); }}
               reset={() => setDraft(DEFAULT_RULES)} />
           )}
 
@@ -569,7 +569,7 @@ function BalanceTest({ rules }) {
 function Notes({ notes, setNotes, rules }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    const text = `DICE CHESS RULES\n- ${describeRules(rules).join("\n- ")}\n\nNOTES\n${notes}`;
+    const text = `DICE GRID RULES\n- ${describeRules(rules).join("\n- ")}\n\nNOTES\n${notes}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);

@@ -44,7 +44,7 @@ A fifth app at `mayor.html` (`/mathquizSGPrimary/mayor.html` on Pages), and the 
 
 Source: `src/mayor/` (`world.js` terrain, roads and lots; `sim.js` simulation and budget; `housing.js` occupancy and relocation; `events.js` crises and dilemmas; `objectives.js`; `rivals.js` AI mayors and reports; `society.js` births and health; `charts.jsx`; `art.js` and `render.js` drawing; `MapView.jsx` touch input).
 
-## Dice Chess (prototype)
+## Dice Grid (prototype)
 
 A prototype game at `dicegrid.html` (`/mathquizSGPrimary/dicegrid.html` on Pages) for working out the rules of a new game. It is played on a chess board with chess moves, but every piece is a die: pawns are D4, knights D6, bishops D8, rooks D12, the queen D20 and the king D10. Every die starts at 1 and changes each time the piece moves: pawns, knights and bishops +1, queens +2, rooks double. The King doesn't grow by moving but gains +1 every turn. A capture doesn't count as a move for growth, so the attacker fights with its current number. Rooks are walls that any enemy can capture. A knight adds the power of friendly pieces it jumps over until its next move, and loses it after capturing. Otherwise a piece can only capture an enemy with a lower number. Capture the enemy King to win. If only the two Kings are left, the side that captured more power (the numbers of the pieces it took) wins.
 
@@ -53,7 +53,7 @@ A prototype game at `dicegrid.html` (`/mathquizSGPrimary/dicegrid.html` on Pages
 - Balance test tab: the computer plays itself 10–100 times with the current rules and reports win rates, game length, captures and how games ended.
 - Notes tab: rule ideas saved on the device, with a button to copy the rules and notes together.
 
-Source: `src/dicechess/` (`engine.js` rules, `ai.js` computer player).
+Source: `src/dicegrid/` (`engine.js` rules, `ai.js` computer player).
 
 ## Development
 

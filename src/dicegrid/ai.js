@@ -1,4 +1,4 @@
-// Dice Chess computer player: negamax with alpha-beta and a short capture search.
+// Dice Grid computer player: negamax with alpha-beta and a short capture search.
 import { legalMoves, applyMove, maxFace, power } from "./engine.js";
 
 export const LEVELS = {
