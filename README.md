@@ -44,6 +44,17 @@ A fifth app at `mayor.html` (`/mathquizSGPrimary/mayor.html` on Pages), and the 
 
 Source: `src/mayor/` (`world.js` terrain, roads and lots; `sim.js` simulation and budget; `housing.js` occupancy and relocation; `events.js` crises and dilemmas; `objectives.js`; `rivals.js` AI mayors and reports; `society.js` births and health; `charts.jsx`; `art.js` and `render.js` drawing; `MapView.jsx` touch input).
 
+## Dice Chess (prototype)
+
+A prototype game at `dicechess.html` (`/mathquizSGPrimary/dicechess.html` on Pages) for working out the rules of a new game. It is played on a chess board with chess moves, but every piece is a die: pawns are D4, knights D6, bishops D8, rooks D12, and the queen and king D20. Every die starts at 1 and goes up by 1 each time the piece moves; a piece can only capture an enemy showing a lower number. Capture the enemy King to win.
+
+- Play against the computer (Easy, Medium, Hard, Expert), with 2 players on one device, or watch computer vs computer. Undo, a move log, a captured-pieces tray, and a "piece info" card that explains each die. The board shows which captures are allowed and marks enemies too strong to capture with ✕.
+- Rules tab: change the die for each piece and try variations (starting number, whether the +1 counts in the fight, what happens on equal numbers, capping or wrapping at the top face, capture bonuses, pawn first moves, promotion, draw length). The current rules are always summarised in plain English.
+- Balance test tab: the computer plays itself 10–100 times with the current rules and reports win rates, game length, captures and how games ended.
+- Notes tab: rule ideas saved on the device, with a button to copy the rules and notes together.
+
+Source: `src/dicechess/` (`engine.js` rules, `ai.js` computer player).
+
 ## Development
 
 ```bash
