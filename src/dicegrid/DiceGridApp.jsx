@@ -17,6 +17,7 @@ import {
   GROWTHS,
   sqName,
   knightRoutes,
+  kingAttacked,
 } from "./engine.js";
 import { LEVELS, chooseMove, isWinScore } from "./ai.js";
 
@@ -37,7 +38,7 @@ const save = (key, value) => {
 };
 
 const loadRules = () => {
-  const r = load("dicegrid.rules.v6", null);
+  const r = load("dicegrid.rules.v7", null);
   return r
     ? { ...DEFAULT_RULES, ...r, dice: { ...DEFAULT_RULES.dice, ...r.dice }, growth: { ...DEFAULT_RULES.growth, ...r.growth } }
     : DEFAULT_RULES;
@@ -49,6 +50,7 @@ const END = {
   stuck: "left the other side with no legal move",
   quiet: "no capture for too long",
   kings: "only the Kings are left",
+  trapped: "trapped the King",
 };
 
 export default function DiceGridApp() {
@@ -150,7 +152,7 @@ export default function DiceGridApp() {
         : `${SIDE[state.winner]} wins: ${END[state.endReason]}.`
     : aiTurn
       ? `${SIDE[state.turn]} (computer) is thinking…`
-      : `${SIDE[state.turn]} to move.`;
+      : `${SIDE[state.turn]} to move.` + (kingAttacked(state, state.turn === "w" ? "b" : "w", rules) ? ` ${SIDE[state.turn]}'s King is under attack!` : "");
 
   const captured = { w: [], b: [] };
   for (const s of history) if (s.last) for (const p of s.last.removed) captured[p.side].push(p);
@@ -278,7 +280,7 @@ export default function DiceGridApp() {
 
           {tab === "rules" && (
             <RulesPanel draft={draft} setDraft={setDraft} rules={rules}
-              apply={() => { setRules(draft); save("dicegrid.rules.v6", draft); newGame(draft); }}
+              apply={() => { setRules(draft); save("dicegrid.rules.v7", draft); newGame(draft); }}
               reset={() => setDraft(DEFAULT_RULES)} />
           )}
 
@@ -465,6 +467,9 @@ function RulesPanel({ draft, setDraft, rules, apply, reset }) {
         <Row label="Rooks">
           <Seg value={draft.rookFragile} onChange={(v) => set("rookFragile", v)} options={[[true, "Walls: anything can take them"], [false, "Normal"]]} />
         </Row>
+        <Row label="Trapped King">
+          <Seg value={draft.trapWin} onChange={(v) => set("trapWin", v)} options={[[true, "Loses if attacked with no escape"], [false, "Off: only capturing wins"]]} />
+        </Row>
         <Row label="Surround">
           <Seg value={draft.surround} onChange={(v) => set("surround", v)} options={[["off", "Off"], ["king", "+1 per friend touching the King"], ["all", "+1 per friend touching any target"]]} />
         </Row>
@@ -554,7 +559,7 @@ function BalanceTest({ rules }) {
   const run = () => {
     stop.current = false;
     setRunning(true);
-    const acc = { played: 0, w: 0, b: 0, draw: 0, plies: 0, captures: 0, ends: { king: 0, stuck: 0, quiet: 0, kings: 0 }, firstCapture: 0 };
+    const acc = { played: 0, w: 0, b: 0, draw: 0, plies: 0, captures: 0, ends: { king: 0, trapped: 0, stuck: 0, quiet: 0, kings: 0 }, firstCapture: 0 };
     const playOne = () => {
       let s = initialState(rules);
       let caps = 0;
@@ -614,7 +619,7 @@ function BalanceTest({ rules }) {
             <li>White wins: <b>{result.w}</b> ({pct(result.w)}%) · Black wins: <b>{result.b}</b> ({pct(result.b)}%) · Draws: <b>{result.draw}</b></li>
             <li>Average game: <b>{Math.round(result.plies / result.played)}</b> moves, <b>{(result.captures / result.played).toFixed(1)}</b> pieces taken</li>
             <li>First capture on average at move <b>{Math.round(result.firstCapture / result.played)}</b></li>
-            <li>Endings: King captured {result.ends.king}, no legal move {result.ends.stuck}, too long without a capture {result.ends.quiet}, only Kings left {result.ends.kings}</li>
+            <li>Endings: King captured {result.ends.king}, King trapped {result.ends.trapped}, no legal move {result.ends.stuck}, too long without a capture {result.ends.quiet}, only Kings left {result.ends.kings}</li>
           </ul>
         </Card>
       )}

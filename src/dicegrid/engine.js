@@ -13,6 +13,7 @@ export const DEFAULT_RULES = {
   growth: { P: "+1", N: "=1", B: "+1", R: "x2", Q: "+1", K: "0" }, // what one move does to the die ("=1" resets it)
   kingEvery: 1, // the King gains +1 every this many of its side's turns (0 = never)
   rookFragile: true, // rooks are walls: any enemy can capture one, whatever the numbers
+  trapWin: true, // you also win when the enemy King is under attack and every King move still leaves him under attack
   surround: "off", // "king" | "all": each other friendly piece touching the target adds +1 to the attack
   knightBorrow: true, // knights add the power of friends they jump over until they next move
   startValue: 1,
@@ -47,6 +48,8 @@ export function describeRules(r) {
       : `A piece can capture an enemy only if its number is higher` +
         (r.compare === "after" ? " after this move's change." : " before this move's change."),
     r.rookFragile && "Rooks are walls: any enemy piece can capture a rook, whatever the numbers.",
+    r.trapWin &&
+      "Trapped King: if the enemy King is under attack and every move he could make still leaves him under attack, you win (other pieces can't save him by blocking or capturing).",
     r.surround !== "off" &&
       `Surround: when attacking ${r.surround === "king" ? "a King" : "any piece"}, each of your other pieces touching the target adds +1 to the attack.`,
     r.knightBorrow &&
@@ -276,7 +279,48 @@ export function legalMoves(state, rules, side = state.turn) {
   return moves;
 }
 
-export function applyMove(state, move, rules) {
+// Can `side` capture the other side's King right now?
+export function kingAttacked(state, side, rules) {
+  const ks = state.board.findIndex((p) => p && p.type === "K" && p.side !== side);
+  if (ks < 0) return false;
+  for (let sq = 0; sq < 64; sq++) {
+    const p = state.board[sq];
+    if (p && p.side === side && couldReach(p, sq, ks) && pieceMoves(state, sq, rules).some((m) => m.to === ks && !m.blocked))
+      return true;
+  }
+  return false;
+}
+
+// Quick shape test before the full move check: is `to` on a line this piece moves along?
+function couldReach(p, from, to) {
+  const dr = Math.floor(to / 8) - Math.floor(from / 8);
+  const dc = (to % 8) - (from % 8);
+  const ar = Math.abs(dr);
+  const ac = Math.abs(dc);
+  switch (p.type) {
+    case "P": return ac === 1 && dr === (p.side === "w" ? -1 : 1);
+    case "N": return (ar === 2 && ac === 1) || (ar === 1 && ac === 2);
+    case "K": return Math.max(ar, ac) === 1;
+    case "B": return ar === ac;
+    case "R": return ar === 0 || ac === 0;
+    default: return ar === ac || ar === 0 || ac === 0;
+  }
+}
+
+// The side to move has its King under attack and no King move gets him out of it.
+function kingTrapped(state, rules) {
+  const attacker = other(state.turn);
+  if (!kingAttacked(state, attacker, rules)) return false;
+  const ks = state.board.findIndex((p) => p && p.type === "K" && p.side === state.turn);
+  return pieceMoves(state, ks, rules).every((m) => {
+    if (m.blocked) return true;
+    const after = applyMove(state, m, rules, true);
+    return after.winner !== state.turn && kingAttacked(after, attacker, rules);
+  });
+}
+
+// `quick` skips the end-of-game checks that need move generation (used when testing King escapes).
+export function applyMove(state, move, rules, quick = false) {
   const board = state.board.slice();
   const piece = board[move.from];
   const target = board[move.to];
@@ -347,6 +391,11 @@ export function applyMove(state, move, rules) {
   } else if (board.every((p) => !p || p.type === "K")) {
     next.winner = rules.powerDecides === "off" ? "draw" : byPower();
     next.endReason = "kings";
+  } else if (quick) {
+    // caller only needs the position
+  } else if (rules.trapWin && kingTrapped(next, rules)) {
+    next.winner = state.turn;
+    next.endReason = "trapped";
   } else if (next.quietPlies >= rules.drawPlies) {
     next.winner = rules.powerDecides === "draws" ? byPower() : "draw";
     next.endReason = "quiet";
