@@ -33,7 +33,7 @@ export default function Die({ piece, faces, size = "100%", dim = false }) {
         textAnchor="middle"
         fontSize={faces === 4 ? 28 : power(piece) > 9 ? 30 : 36}
         fontWeight="700"
-        fill={piece.bonus > 0 ? (white ? "#7b2cbf" : "#d7a8ff") : white ? "#1f2333" : "#fdf6e3"}
+        fill={piece.boost > 0 ? (white ? "#1b7f6b" : "#7ff0d2") : piece.bonus > 0 ? (white ? "#7b2cbf" : "#d7a8ff") : white ? "#1f2333" : "#fdf6e3"}
       >
         {power(piece)}
       </text>

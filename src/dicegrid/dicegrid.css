@@ -78,6 +78,21 @@
 }
 .dc-borrow-key { position: static; display: inline-block; }
 
+.dc-zap, .dc-boost {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 0 4px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: clamp(9px, 1.8vw, 12px);
+  font-weight: 700;
+  pointer-events: none;
+}
+.dc-zap { background: #d62828; }
+.dc-boost { background: #1b7f6b; }
+.dc-badge-key { position: static; display: inline-block; }
+
 .dc-block {
   position: absolute;
   top: 0;
