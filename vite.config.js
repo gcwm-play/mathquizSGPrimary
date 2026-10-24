@@ -14,6 +14,7 @@ export default defineConfig({
         city: fileURLToPath(new URL("./city.html", import.meta.url)),
         mayor: fileURLToPath(new URL("./mayor.html", import.meta.url)),
         dicegrid: fileURLToPath(new URL("./dicegrid.html", import.meta.url)),
+        dicetactics: fileURLToPath(new URL("./dicetactics.html", import.meta.url)),
       },
     },
   },
