@@ -1,8 +1,8 @@
-// Dice Grid Tactics computer player. Turns are simultaneous, so instead of
+// Dice Grid Tactics computer player. Both sides order at once, so instead of
 // looking ahead move by move it scores each possible order (assuming the enemy
 // mostly stays put, which is usual: only 2 of their units act each turn), then
-// tries the best orders in pairs.
-import { H, UNITS, power, unitOptions, resolve, reachSet, other, orderProblem, rowOf } from "./engine.js";
+// tries the best orders in pairs, both ways round.
+import { H, UNITS, power, unitOptions, resolve, threatSet, other, orderProblem, rowOf } from "./engine.js";
 
 export const LEVELS = {
   easy: { label: "Easy", noise: 3, keep: 6 },
@@ -20,7 +20,7 @@ export function evaluate(state, side) {
     if (!u) return;
     const p = power(u);
     const m = strongest[u.side];
-    for (const t of reachSet(board, sq)) if ((m.get(t) ?? 0) < p) m.set(t, p);
+    for (const t of threatSet(board, sq)) if ((m.get(t) ?? 0) < p) m.set(t, p);
   });
   let score = 0;
   board.forEach((u, sq) => {
@@ -51,7 +51,7 @@ function candidates(state, side) {
   return out;
 }
 
-// Returns up to 2 orders for `side`.
+// Returns up to 2 orders for `side`, in the order they should happen.
 export function chooseOrders(state, side, level = "normal") {
   const { noise, keep } = LEVELS[level];
   const opp = other(side);
@@ -66,8 +66,10 @@ export function chooseOrders(state, side, level = "normal") {
       const a = best[i].orders[0];
       const b = best[j].orders[0];
       if (a.unit === b.unit || orderProblem(state, [a], b)) continue;
-      const s = score([a, b]);
-      if (s > pick.s) pick = { orders: [a, b], s };
+      for (const pair of [[a, b], [b, a]]) {
+        const s = score(pair);
+        if (s > pick.s) pick = { orders: pair, s };
+      }
     }
   }
   return pick.orders;

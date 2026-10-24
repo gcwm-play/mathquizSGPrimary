@@ -150,3 +150,91 @@
 .dt-key-win { border: 2px solid rgba(46, 160, 67, 0.9); }
 .dt-key-tie { border: 2px dashed rgba(230, 140, 0, 0.95); }
 .dt-key-lose { border: 2px dotted rgba(200, 40, 40, 0.9); }
+
+/* Units sit on their own layer so they can slide between squares. */
+.dt-units {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.dt-unit {
+  position: absolute;
+  width: 12.5%;
+  height: 10%;
+  padding: 0.5%;
+  transition-property: left, top;
+  transition-timing-function: cubic-bezier(0.35, 0.1, 0.25, 1);
+}
+.dt-unit svg { width: 100%; height: 100%; }
+.dt-falling { animation: dt-fall 0.9s ease-in forwards; }
+@keyframes dt-fall {
+  0% { opacity: 1; transform: scale(1) rotate(0); filter: brightness(2); }
+  25% { opacity: 1; transform: scale(1.1) rotate(-8deg); }
+  100% { opacity: 0; transform: scale(0.5) rotate(25deg) translateY(30%); }
+}
+.dt-burst {
+  position: absolute;
+  width: 12.5%;
+  height: 10%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(18px, 5vw, 34px);
+  animation: dt-pop 0.9s ease-out forwards;
+  z-index: 2;
+}
+@keyframes dt-pop {
+  0% { transform: scale(0.3); opacity: 0; }
+  30% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+.dt-arrows { z-index: 2; }
+.dt-dot, .dt-ring, .dt-badge, .dt-aim, .dt-order-no { z-index: 3; }
+.dt-inspected { box-shadow: inset 0 0 0 3px rgba(59, 42, 26, 0.55); }
+
+.dt-card { animation: dt-card-in 0.2s ease-out; }
+@keyframes dt-card-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.dt-nth {
+  display: inline-block;
+  min-width: 32px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.dt-diagram {
+  display: inline-grid;
+  grid-template-columns: repeat(7, 24px);
+  grid-template-rows: repeat(7, 24px);
+  border: 2px solid #5b4630;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.dt-dcell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-style: normal;
+}
+.dt-dcell svg { width: 22px; height: 22px; }
+.dt-dcell i { font-style: normal; }
+.dt-ddot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(40, 60, 120, 0.6);
+  font-size: 8px;
+  line-height: 4px;
+  color: transparent;
+}
+.dt-dfar { background: rgba(40, 60, 120, 0.3); }
+.dt-dx { color: #c62828; font-weight: 800; font-size: 14px; }
+.dt-dshoot { color: #8a1c1c; font-size: 14px; }
+.dt-dtouch { font-size: 11px; opacity: 0.7; }
