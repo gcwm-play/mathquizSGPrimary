@@ -14,7 +14,7 @@ export const DEFAULT_RULES = {
   kingEvery: 1, // the King gains +1 every this many of its side's turns (0 = never)
   rookFragile: true, // rooks are walls: any enemy can capture one, whatever the numbers
   pawnActions: true, // pawns may zap an adjacent stronger enemy or boost an adjacent friend instead of moving
-  trapWin: true, // you also win when the enemy King is under attack and every King move still leaves him under attack
+  trapWin: true, // you also win when the enemy King is under attack and no move of his side gets him out of it
   surround: "off", // "king" | "all": each other friendly piece touching the target adds +1 to the attack
   knightBorrow: true, // knights add the power of friends they jump over until they next move
   startValue: 1,
@@ -54,7 +54,7 @@ export function describeRules(r) {
         "or boost a friend on those squares by the pawn's number until that friend next moves (a boost can go past the die's limit and counts in a capture on that move). " +
         "Either way the pawn's own die halves (rounded down, minimum 1), and its side can't use a pawn action again on its next turn.",
     r.trapWin &&
-      "Trapped King: if the enemy King is under attack and every move he could make still leaves him under attack, you win (other pieces can't save him by blocking or capturing).",
+      "Trapped King: if the enemy King is under attack and no move his side could make gets him out of it (moving him, capturing or zapping the attacker, or blocking the line), you win.",
     r.surround !== "off" &&
       `Surround: when attacking ${r.surround === "king" ? "a King" : "any piece"}, each of your other pieces touching the target adds +1 to the attack.`,
     r.knightBorrow &&
@@ -346,13 +346,12 @@ function couldReach(p, from, to) {
   }
 }
 
-// The side to move has its King under attack and no King move gets him out of it.
+// The side to move has its King under attack and no move of any of its pieces
+// (King step, capture, block or pawn action) gets him out of it.
 function kingTrapped(state, rules) {
   const attacker = other(state.turn);
   if (!kingAttacked(state, attacker, rules)) return false;
-  const ks = state.board.findIndex((p) => p && p.type === "K" && p.side === state.turn);
-  return pieceMoves(state, ks, rules).every((m) => {
-    if (m.blocked) return true;
+  return legalMoves(state, rules).every((m) => {
     const after = applyMove(state, m, rules, true);
     return after.winner !== state.turn && kingAttacked(after, attacker, rules);
   });
