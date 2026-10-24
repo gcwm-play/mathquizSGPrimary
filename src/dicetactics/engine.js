@@ -40,7 +40,7 @@ const militiaStartRow = (side) => (side === "blue" ? H - 3 : 2);
 
 // How each unit moves, in words (also shown on the unit card).
 export const MOVE_TEXT = {
-  M: "1 square forward (2 from its starting row). Attacks 1 square diagonally forward.",
+  M: "1 square forward (2 from its starting row), only onto an empty square. It never steps onto an enemy.",
   C: "Jumps in an L shape (2 then 1), over anything.",
   A: "Slides any distance diagonally.",
   S: "Slides any distance straight (up, down, left or right).",
@@ -50,11 +50,11 @@ export const MOVE_TEXT = {
 
 export const EFFECT_TEXT = {
   M: [
-    "Instead of moving: zap a stronger enemy next to it (−its power, never below 1) or boost a friend next to it (+its power until that friend acts).",
+    "Instead of moving: zap an enemy diagonally in front of it from where it stands (the enemy loses the militia's power, never below 1), or boost a friend next to it (+its power until that friend acts).",
     "After a zap or boost its die halves, and your militia rest next turn.",
     "Grows +1 per move. Becomes a Champion on the far side.",
   ],
-  C: ["Charge: friends on its L route add their power until it next acts.", "Its die resets to 1 each move."],
+  C: ["Charge: friends on its L route add their power until it next acts.", "Its die resets to 1 each move.", "Only one Cavalry can be ordered each turn."],
   A: ["Instead of moving: shoot a square exactly 2 away. An enemy there when the shot lands falls if the archer is stronger.", "Grows +1 per move."],
   S: ["Doubles each move.", "If it doesn't move, any attacker beats it."],
   H: ["Grows +1 per move, up to 20."],
@@ -66,13 +66,13 @@ export function describeRules() {
   return [
     `Board: ${W} wide × ${H} long. Each side has a back row, an empty moat row, then a row of Militia.`,
     `Units move like chess pieces: ${["M", "C", "A", "S", "H", "K"].map(u).join(", ")}. Sliding units are blocked by any unit in the way. Every die starts at 1.`,
-    "Each turn both players secretly give up to 2 orders, to 2 different units, and choose which goes 1st and which 2nd.",
+    "Each turn both players secretly give up to 2 orders, to 2 different units, and choose which goes 1st and which 2nd. Only one of the orders can be for a Cavalry.",
     "Both 1st orders happen together, then both 2nd orders happen together on the new board. A 2nd order is cancelled if its unit fell, its path is now blocked, or its target moved away.",
     "Inside each step: militia zaps and boosts first, then moves, then archer shots land, then dice grow.",
     "Fights: a unit ending on the same square as an enemy fights it, and so do two enemies that swap squares. Higher power wins and stays; on a tie both fall. A Siege Tower that didn't move loses any fight.",
     "Growth after moving without a fight: Militia +1, Archer +1, Champion +1, Siege Tower doubles, Cavalry resets to 1. A die stops at its top face. Winning a fight doesn't grow the die. Kings gain +1 every turn.",
     "Cavalry charge: friends on the Cavalry's L route add their power to it until it next acts (so it counts in that step's fight).",
-    "Militia actions (instead of moving): zap an enemy next to it whose power is higher than the militia's, lowering it by the militia's power (never below 1), or boost a friend next to it by the militia's power until that friend next acts (even past its die's limit). The militia's die halves (minimum 1), and its side can't use militia actions on its next turn.",
+    "Militia never step onto enemies. Instead of moving they can zap an enemy on either square diagonally in front of them, from where they stand, lowering its power by the militia's power (never below 1), or boost a friend on any square next to them by the militia's power until that friend next acts (even past its die's limit). The militia's die halves (minimum 1), and its side can't use militia actions on its next turn.",
     "Archers (instead of moving) shoot at a square exactly 2 away. When the shot lands, an enemy on that square falls if the archer's power is higher (a Siege Tower always falls). Enemies can dodge by moving away, and an archer beaten in that step doesn't get its shot off.",
     "A Militia reaching the enemy's back row becomes a Champion and keeps its number.",
     `Win by defeating the enemy King. If both Kings fall in the same step it's a draw. If ${QUIET_TURNS} turns pass with nobody falling, the side that has taken more power wins.`,
@@ -138,12 +138,7 @@ export function reach(board, from) {
         if (r0 === militiaStartRow(u.side) && onBoard(r0 + 2 * f, c0) && !board[at(r0 + 2 * f, c0)])
           out.set(at(r0 + 2 * f, c0), { path: [at(r0 + f, c0), at(r0 + 2 * f, c0)], borrow: 0, attack: false });
       }
-      for (const dc of [-1, 1]) {
-        if (!onBoard(r0 + f, c0 + dc)) continue;
-        const t = board[at(r0 + f, c0 + dc)];
-        if (t && t.side !== u.side) out.set(at(r0 + f, c0 + dc), { path: [at(r0 + f, c0 + dc)], borrow: 0, attack: true });
-      }
-      break;
+      break; // militia don't step onto enemies: they zap them from where they stand
     }
     case "C":
       for (const [dr, dc] of KNIGHT_JUMPS) {
@@ -168,9 +163,13 @@ export function reach(board, from) {
 // Squares a unit threatens (could fight on) next turn — for the computer player.
 export function threatSet(board, from) {
   const u = board[from];
-  if (u.type !== "M") return [...reach(board, from).keys()];
-  const r = rowOf(from) + forward(u.side);
-  return [-1, 1].filter((dc) => onBoard(r, colOf(from) + dc)).map((dc) => at(r, colOf(from) + dc));
+  return u.type === "M" ? [] : [...reach(board, from).keys()]; // a militia zap weakens but never captures
+}
+
+// The two squares diagonally in front of a militia: where it can zap.
+function zapSquares(sq, side) {
+  const r = rowOf(sq) + forward(side);
+  return [-1, 1].filter((dc) => onBoard(r, colOf(sq) + dc)).map((dc) => at(r, colOf(sq) + dc));
 }
 
 const neighbours = (sq) => KING_STEPS.filter(([dr, dc]) => onBoard(rowOf(sq) + dr, colOf(sq) + dc)).map(([dr, dc]) => at(rowOf(sq) + dr, colOf(sq) + dc));
@@ -183,11 +182,13 @@ export function unitOptions(state, sq) {
   const zaps = [];
   const boosts = [];
   if (u.type === "M" && !state.rest[u.side]) {
+    for (const n of zapSquares(sq, u.side)) {
+      const t = board[n];
+      if (t && t.side !== u.side) zaps.push({ kind: "zap", unit: u.id, side: u.side, from: sq, to: n, target: t.id, amount: power(u) });
+    }
     for (const n of neighbours(sq)) {
       const t = board[n];
-      if (!t) continue;
-      if (t.side !== u.side && power(t) > power(u)) zaps.push({ kind: "zap", unit: u.id, side: u.side, from: sq, to: n, target: t.id, amount: power(u) });
-      if (t.side === u.side) boosts.push({ kind: "boost", unit: u.id, side: u.side, from: sq, to: n, target: t.id, amount: power(u) });
+      if (t && t.side === u.side) boosts.push({ kind: "boost", unit: u.id, side: u.side, from: sq, to: n, target: t.id, amount: power(u) });
     }
   }
   const shots = [];
@@ -200,6 +201,8 @@ export function orderProblem(state, orders, order) {
   const others = orders.filter((o) => o.unit !== order.unit);
   if (others.length >= ORDERS_PER_TURN) return `You can give ${ORDERS_PER_TURN} orders a turn.`;
   if (order.kind === "move" && others.some((o) => o.kind === "move" && o.to === order.to)) return "Another of your units is already moving there.";
+  const isCavalry = (o) => state.board[o.from]?.type === "C";
+  if (isCavalry(order) && others.some(isCavalry)) return "Only one Cavalry can be given an order each turn.";
   return null;
 }
 
@@ -431,14 +434,14 @@ export function resolve(state, ordersBySide) {
 }
 
 // Every square in a small diagram around a unit, for the unit card:
-// returns [{ dr, dc, kind }] with kind "move" | "attack" | "far" | "shoot" | "touch".
+// returns [{ dr, dc, kind }] with kind "move" | "far" | "zap" | "shoot" | "touch" (boost reach).
 export function movePattern(type, side) {
   const out = [];
   const f = forward(side);
   const ray = (dirs, n) => dirs.forEach(([dr, dc]) => { for (let k = 1; k <= n; k++) out.push({ dr: dr * k, dc: dc * k, kind: k === n ? "far" : "move" }); });
   switch (type) {
     case "M":
-      out.push({ dr: f, dc: 0, kind: "move" }, { dr: 2 * f, dc: 0, kind: "far" }, { dr: f, dc: -1, kind: "attack" }, { dr: f, dc: 1, kind: "attack" });
+      out.push({ dr: f, dc: 0, kind: "move" }, { dr: 2 * f, dc: 0, kind: "far" }, { dr: f, dc: -1, kind: "zap" }, { dr: f, dc: 1, kind: "zap" });
       for (const [dr, dc] of KING_STEPS) if (!(dr === f && dc === 0) && !(dr === f && Math.abs(dc) === 1)) out.push({ dr, dc, kind: "touch" });
       break;
     case "C": KNIGHT_JUMPS.forEach(([dr, dc]) => out.push({ dr, dc, kind: "move" })); break;

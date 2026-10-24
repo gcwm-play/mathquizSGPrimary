@@ -568,13 +568,13 @@ function MoveDiagram({ u }) {
           const centre = dr === 0 && dc === 0;
           return (
             <span key={i} className={`dt-dcell ${(dr + dc) % 2 ? "dt-dark" : "dt-light"}`}>
-              {centre ? <Token unit={u} /> : kind === "move" ? <i className="dt-ddot" /> : kind === "far" ? <i className="dt-ddot dt-dfar">…</i> : kind === "attack" ? <i className="dt-dx">✕</i> : kind === "shoot" ? <i className="dt-dshoot">◎</i> : kind === "touch" ? <i className="dt-dtouch">⚡</i> : null}
+              {centre ? <Token unit={u} /> : kind === "move" ? <i className="dt-ddot" /> : kind === "far" ? <i className="dt-ddot dt-dfar">…</i> : kind === "zap" ? <i className="dt-dx">⚡</i> : kind === "shoot" ? <i className="dt-dshoot">◎</i> : kind === "touch" ? <i className="dt-dtouch">✚</i> : null}
             </span>
           );
         })}
       </div>
       <p className="text-[10px] text-[#6b5b45] mt-1 max-w-[168px]">
-        ● move{u.type === "M" ? " · ✕ attack · ⚡ zap/boost reach" : ""}{"AHS".includes(u.type) ? " · … keeps sliding" : ""}{u.type === "A" ? " · ◎ shot" : ""}
+        ● move{u.type === "M" ? " · ⚡ zap · ✚ boost reach" : ""}{"AHS".includes(u.type) ? " · … keeps sliding" : ""}{u.type === "A" ? " · ◎ shot" : ""}
       </p>
     </div>
   );

@@ -61,7 +61,7 @@ A follow-on prototype at `dicetactics.html` (`/mathquizSGPrimary/dicetactics.htm
 
 - Each turn both players secretly give up to 2 orders (to 2 different units) and choose which goes 1st and 2nd. Both 1st orders happen together, then both 2nd orders on the new board (a 2nd order is cancelled if its unit fell, its path got blocked or its target moved). The turn plays back with animation: units slide, fights flash and fallen units fade.
 - Units ending on the same square as an enemy fight (as do two enemies swapping squares); higher power wins and a tie means both fall. A Siege Tower that stays put loses any fight.
-- Cavalry charge through friends to borrow their power; Archers shoot a square 2 away after movement, so targets can dodge; Militia zap stronger neighbours or boost friends.
+- Cavalry charge with the power of friends on their L route (only one Cavalry can be ordered per turn); Archers shoot a square 2 away after movement, so targets can dodge; Militia never step onto enemies: they zap an enemy diagonally in front of them from where they stand (lowering its power, never below 1) or boost a friend next to them.
 - Tapping a unit opens a card with its sprite, numbers, a movement diagram and its special effects (plus the order buttons for your own units).
 - Win by defeating the enemy King. Modes: vs Computer (Easy / Normal), 2 players on one device with hidden orders and a pass-the-device screen, and Computer vs Computer. Battle log, balance test and notes tabs.
 
