@@ -449,6 +449,26 @@ function runStep(board0, orders, nextId) {
   return { board, events, removed, moved, acted, deployed, nextId };
 }
 
+// The board as it will be after one of your own orders, ignoring whatever the
+// enemy does (their orders are secret). Used to plan a 2nd order.
+export function planAfter(state, order) {
+  return { ...state, board: runStep(state.board, [order], state.nextId ?? 1000).board };
+}
+
+// Keep only the orders that still make sense in this order: the 1st on the
+// board now, the 2nd on the board after the 1st. Returns { orders, dropped }.
+export function checkPlan(state, orders) {
+  const kept = [];
+  const dropped = [];
+  for (const o of orders) {
+    const board = kept.length ? planAfter(state, kept[0]) : state;
+    const fresh = refreshOrder(board, o);
+    if (typeof fresh === "string") dropped.push(o);
+    else kept.push(fresh);
+  }
+  return { orders: kept, dropped };
+}
+
 const kingsLeft = (board) => ({
   blue: board.some((u) => u && u.type === "K" && u.side === "blue"),
   red: board.some((u) => u && u.type === "K" && u.side === "red"),
