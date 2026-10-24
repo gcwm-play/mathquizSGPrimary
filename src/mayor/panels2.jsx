@@ -352,11 +352,8 @@ export function DecisionPanel({ world: w, onPick }) {
       {!fantasy && <HistoryNote world={w} />}
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {card.options.map((o) => {
-          // if nothing is affordable, the cheapest option can still be taken on debt,
-          // or the game would be stuck with the clock paused
-          const short = (x) => x.cost > 0 && x.cost > w.cash && !w.sandbox;
-          const cheapest = card.options.every(short) && o === card.options.reduce((a, b) => (b.cost < a.cost ? b : a));
-          const poor = short(o) && !cheapest;
+          // with no money for anything, the card offers borrowing (o.debt) or doing nothing
+          const poor = o.cost > 0 && o.cost > w.cash && !w.sandbox && !o.debt;
           return (
             <button key={o.id} disabled={poor} onClick={() => onPick(o.id)} className="city-btn flex flex-col rounded-2xl border-2 border-[var(--ink)]/15 bg-[var(--card)] p-2.5 text-left disabled:opacity-50">
               <span className="font-bold leading-tight">{o.label}</span>
@@ -390,7 +387,7 @@ export function DecisionPanel({ world: w, onPick }) {
               </ul>
               {o.tip && <span className="mt-1 text-[12px] text-[var(--muted)]">{o.tip}</span>}
               {poor && <span className="mt-1 text-[12px] font-bold text-[var(--bad)]">Not enough money</span>}
-              {cheapest && <span className="mt-1 text-[12px] font-bold text-[var(--bad)]">Can't afford any option: this one is paid by borrowing (you go deeper into debt)</span>}
+              {o.debt && <span className="mt-1 text-[12px] font-bold text-[var(--bad)]">You can't afford this: it would be paid by borrowing</span>}
             </button>
           );
         })}

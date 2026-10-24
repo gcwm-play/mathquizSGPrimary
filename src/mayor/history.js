@@ -548,7 +548,8 @@ export const HISTORY = {
   },
 };
 
-export const historyKey = (d) => (d ? `${d.kind}:${d.id}` : null);
+// a dilemma told a different way (a variant) is not the real event, unless marked
+export const historyKey = (d) => (!d || (d.v && d.v !== "base" && !d.hist) ? null : `${d.kind}:${d.id}`);
 export const historyOf = (d) => HISTORY[historyKey(d)] || null;
 
 // Earlier history decisions whose real outcome hasn't been shown yet.
