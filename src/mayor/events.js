@@ -3,10 +3,10 @@
 // Everything stored in the save is plain data (ids); behaviour lives here.
 import { clamp } from "./geom.js";
 import { LOT_TYPES, STRUCTS } from "./defs.js";
-import { charge, noteImpact, genLots, refillLots } from "./world.js";
+import { charge, noteImpact, genLots, refillLots, townOf } from "./world.js";
 import { REGIONS } from "./regions.js";
 import { settlePetition } from "./character.js";
-import { recordHistory } from "./history.js";
+import { recordHistory, HISTORY } from "./history.js";
 import { fantasyCard, decideFantasy, stepFantasy, fantasyOn, fantasySevere } from "./fantasy.js";
 
 const MULT = ["business", "tourism", "trade", "land", "jobs", "health", "upkeep", "growth"];
@@ -384,6 +384,10 @@ export const DILEMMAS = [
   {
     id: "roadPricing", repeat: 30, icon: "🚗", title: "Traffic jams", from: 1975, to: 2100, town: "worst:transport",
     text: (c) => `Rush-hour traffic in ${c.town} is crawling. Planners suggest charging cars to enter the busiest roads.`,
+    variants: [
+      { id: "parking", text: (c) => `Cars parked along the roads of ${c.town} are choking traffic and blocking buses at every stop.`, opts: { charge: { label: "Charge for street parking", pros: ["Roads clear up", "New income"], cons: ["Drivers are furious"] }, widen: { label: "Build multi-storey car parks", pros: ["Drivers happy", "Roads clear"], cons: ["Expensive", "Encourages more cars"] } } },
+      { id: "cbd", town: "biggest", cond: (w) => w.year >= 1990, text: (c) => `Office workers driving into ${c.town} are gridlocking the roads. Shop owners say their customers can't get in.`, opts: { charge: { label: "Charge cars entering the town centre", pros: ["Traffic flows", "New income"], cons: ["Drivers are furious", "Some shoppers stay away"] } } },
+    ],
     options: [
       { id: "charge", label: "Introduce road pricing", pros: ["Traffic flows", "New income"], cons: ["Drivers are furious"], gainMonthly: 25, anger: 0.8, needs: { transport: 10, months: 240, all: true }, log: "introduced road pricing" },
       { id: "widen", label: "Widen the roads", pros: ["Drivers happy"], cons: ["Expensive", "Jams return later"], cost: 700, needs: { transport: 8, months: 60 } },
@@ -429,6 +433,11 @@ export const DILEMMAS = [
   {
     id: "dengue", repeat: 15, icon: "🦟", title: "Dengue cluster", from: 1966, to: 2300, town: "random",
     text: (c) => `A dengue cluster has broken out in ${c.town}. Mosquitoes are breeding in flower pots and drains.`,
+    variants: [
+      { id: "site", town: "building", text: (c) => `Rainwater pooling on a construction site in ${c.town} has become a mosquito breeding ground. Dozens of neighbours have dengue.`, opts: { campaign: { label: "Order the builder to clear the site", pros: ["Cheap", "The builder pays the fine"], cons: ["Work is delayed"] }, ignore: { label: "Leave it to the builder" } } },
+      { id: "school", town: "school", text: (c) => `Several pupils at a school in ${c.town} have come down with dengue. Parents are alarmed and want the school checked.` },
+      { id: "gutters", cond: (w) => w.year >= 1980 && w.lots.some((l) => l.b?.type === "slab"), text: (c) => `Blocked roof gutters on old blocks in ${c.town} are full of stagnant water. Mosquitoes are spreading dengue floor by floor.` },
+    ],
     options: [
       { id: "fog", label: "Fogging & house-to-house checks", pros: ["Cluster ends fast"], cons: ["Costly", "Annoying"], cost: 200, anger: 0.2, needs: { health: 4, months: 12 } },
       { id: "campaign", label: "Public 'Mozzie wipeout' campaign", pros: ["Cheap", "Community pitches in"], cons: ["Slower"], cost: 60, needs: { health: -4, community: 4, months: 6 } },
@@ -438,6 +447,11 @@ export const DILEMMAS = [
   {
     id: "haze", repeat: 15, icon: "🌫️", title: "Haze", from: 1990, to: 2300,
     text: () => "Forest fires across the strait have blanketed your region in smoke. The air quality index is in the unhealthy range.",
+    variants: [
+      { id: "exams", text: () => "The haze has arrived in the middle of the PSLE and O-level exams. Parents want to know if pupils will sit their papers in the smoke.", opts: { schools: { label: "Postpone exams and close schools", pros: ["Children safe"], cons: ["Exam timetable thrown into chaos"] } } },
+      { id: "record", history: true, cond: (w) => w.year >= 1997, text: () => "The worst haze on record: the air quality index has passed 400, the hazardous level. Clinics are full of children with asthma.", opts: { masks: { needs: { health: 5, months: 3, all: true } }, nothing: { needs: { health: -9, months: 4, all: true } } } },
+      { id: "event", cond: (w) => w.year >= 2000, text: () => "Thick haze has rolled in days before a big marathon and the National Day rehearsals. Organisers ask whether to call them off.", opts: { schools: { label: "Cancel the outdoor events", pros: ["Nobody falls ill"], cons: ["Thousands disappointed"] } } },
+    ],
     options: [
       { id: "masks", label: "Free masks & air purifiers for seniors", pros: ["Protects the vulnerable"], cons: ["Costly"], cost: 300, trust: 2, needs: { health: 3, months: 3, all: true } },
       { id: "schools", label: "Close schools until it clears", pros: ["Children safe"], cons: ["Parents scramble"], mood: [-1, 2] },
@@ -447,6 +461,11 @@ export const DILEMMAS = [
   {
     id: "floods", repeat: 15, icon: "🌧️", title: "Flash floods", from: 1966, to: 2300, town: "random",
     text: (c) => `A freak storm flooded shops and car parks in ${c.town}. The drains can't cope.`,
+    variants: [
+      { id: "underpass", text: (c) => `A flash flood trapped cars in an underpass in ${c.town}. Firefighters had to pull drivers out through their windows.` },
+      { id: "market", town: "market", text: (c) => `Heavy rain flooded the market in ${c.town} overnight. Stallholders lost their stock and want help.` },
+      { id: "tide", cond: (w) => w.year >= 2000, text: (c) => `A king tide and a storm arrived together. Low-lying streets near the sea in ${c.town} are under water.`, opts: { drain: { label: "Build tidal gates and bigger drains", pros: ["Ready for higher seas"] } } },
+    ],
     options: [
       { id: "drain", label: "Rebuild the drains bigger", pros: ["Fewer floods for decades"], cons: ["Expensive"], cost: 600, needs: { safety: 4, months: 240 }, log: "rebuilt {town}'s drains after floods" },
       { id: "repair", label: "Repair the damage", pros: ["Cheaper"], cons: ["It may happen again"], cost: 200, later: { months: 48, chance: 0.5, text: "{town} flooded again. The old drains still can't cope.", cost: 300, anger: 0.5 } },
@@ -478,8 +497,13 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "mrtFault", icon: "🚇", title: "Train breakdowns", from: 1995, to: 2300, cond: (w, A) => A.mrtRunning,
-    text: () => "Your MRT line has broken down three times this month. Commuters are fuming.",
+    id: "mrtFault", repeat: 15, icon: "🚇", title: "Train breakdowns", from: 1995, to: 2300, town: "mrt", cond: (w, A) => A.mrtRunning,
+    text: (c) => `The MRT line through ${c.town} has broken down three times this month. Commuters are fuming.`,
+    variants: [
+      { id: "power", history: true, text: (c) => `A power fault stopped trains between stations near ${c.town} at rush hour. Hundreds of passengers were stuck in hot carriages for over an hour.`, opts: { renew: { label: "Replace the old power rails", pros: ["Reliable trains for years"] } } },
+      { id: "flood", history: true, cond: (w) => w.structs.some((st) => st.type === "mrtUg"), text: (c) => `Rainwater flooded an MRT tunnel near ${c.town} and stopped trains for a whole morning. The pumps had not been maintained.`, opts: { renew: { label: "Flood-proof the tunnels and pumps", pros: ["Tunnels stay dry"], cons: ["Costly, night closures"] }, patch: { label: "Clean the pumps", cons: ["It could happen again"] } } },
+      { id: "crowd", text: (c) => `Trains through ${c.town} are so packed at rush hour that people wait for three trains before they can squeeze on.`, opts: { renew: { label: "Buy more trains and run them more often", pros: ["Shorter waits for years"], cons: ["Costly"] }, patch: { label: "Ask people to travel off-peak", pros: ["Cheap"], cons: ["Few people change", "Crowds return"] } } },
+    ],
     options: [
       { id: "renew", label: "Replace the old signalling", pros: ["Reliable trains for years"], cons: ["Costly, weekend closures"], cost: 900, mood: [-1, 6], needs: { transport: 6, months: 240, all: true }, log: "renewed the MRT signalling system" },
       { id: "patch", label: "Patch it up", pros: ["Cheap"], cons: ["Breakdowns will return"], cost: 150, later: { months: 30, chance: 0.6, text: "The patched MRT line broke down again during rush hour.", angerAll: 0.5 } },
@@ -511,8 +535,14 @@ export const DILEMMAS = [
     ],
   },
   {
-    id: "shipyard", repeat: 25, icon: "🔥", title: "Industrial accident", from: 1970, to: 2100, cond: (w) => w.lots.some((l) => l.zone === "ind" && l.b),
+    id: "shipyard", repeat: 20, icon: "🔥", title: "Industrial accident", from: 1970, to: 2100, cond: (w) => w.lots.some((l) => l.zone === "ind" && l.b),
     text: () => "An explosion at a shipyard has injured workers. Unions demand tougher safety rules.",
+    baseCond: (w) => ["west", "south", "north"].includes(w.region),
+    variants: [
+      { id: "factory", town: "ind", text: (c) => `A fire at a factory in ${c.town} has injured workers. Unions say safety checks were skipped to save money.` },
+      { id: "crane", town: "building", text: (c) => `A crane collapsed on a building site in ${c.town}. Workers were hurt and the road below was closed for days.` },
+      { id: "leak", town: "ind", cond: (w) => w.year >= 1980, text: (c) => `A chemical leak at a plant in ${c.town} sent nearby residents to hospital with breathing problems.`, opts: { rules: { pros: ["Safer workplaces", "Residents feel safer"] }, fine: { cons: ["Residents angry", "Workers unhappy"] } } },
+    ],
     options: [
       { id: "rules", label: "Tougher safety rules", pros: ["Safer workplaces"], cons: ["Firms pay more"], effect: { indDemand: -0.1, months: 24 }, rep: 2, needs: { safety: 4, months: 240, all: true } },
       { id: "fine", label: "Fine the company and move on", pros: ["One-off income"], cons: ["Workers unhappy"], gain: 200, angerAll: 0.3 },
@@ -529,6 +559,11 @@ export const DILEMMAS = [
   {
     id: "busStrike", repeat: 25, icon: "🚌", title: "Bus drivers' strike", from: 1980, to: 2300,
     text: () => "Bus drivers have walked off the job over pay and dormitory conditions.",
+    variants: [
+      { id: "old", town: "worst:transport", title: "Breaking-down buses", text: (c) => `Old buses keep breaking down in ${c.town}. Commuters wait 40 minutes in the sun for the next one.`, opts: { pay: { label: "Help pay for newer buses", pros: ["Reliable service"], cons: ["Ongoing cost"] }, talk: { label: "Make the bus company fix it", pros: ["No cost to you"], cons: ["Weeks of bad service"] }, hard: { label: "Tell commuters to be patient", pros: ["No new costs"], cons: ["Commuters fume", "Bad headlines"] } } },
+      { id: "fares", title: "Bus fares going up", text: () => "The bus company wants to raise fares. Commuter groups say families on low incomes can't afford it.", opts: { pay: { label: "Subsidise fares for low-income families", pros: ["Fares stay affordable"], cons: ["Ongoing cost"] }, talk: { label: "Let an independent fare council decide", pros: ["Seen as fair"], cons: ["Weeks of argument"] }, hard: { label: "Let the fares rise", pros: ["No new costs"], cons: ["Everyone pays more", "Bad headlines"] } } },
+      { id: "route", town: "worst:transport", title: "No bus to town", text: (c) => `Residents of ${c.town} are petitioning for a direct bus to the city. Today the trip needs three changes.`, opts: { pay: { label: "Fund a new express route", pros: ["Faster trips"], cons: ["Ongoing cost"] }, talk: { label: "Ask the operator to study it", pros: ["Cheap"], cons: ["Residents wait months"] }, hard: { label: "Say the network is fine", pros: ["No new costs"], cons: ["Residents feel ignored"] } } },
+    ],
     options: [
       { id: "pay", label: "Raise their pay", pros: ["Buses back tomorrow"], cons: ["Ongoing cost"], costMonthly: 12, trust: 1 },
       { id: "talk", label: "Mediate between company and drivers", pros: ["Fair deal"], cons: ["Two weeks of chaos"], needs: { transport: -8, months: 1, all: true }, rep: 1 },
@@ -538,6 +573,11 @@ export const DILEMMAS = [
   {
     id: "festival", repeat: 20, icon: "🏮", title: "Festival in the void deck", from: 1966, to: 2300, town: "random",
     text: (c) => `Residents of ${c.town} want to hold a big getai and festival in the void decks. Some neighbours worry about the noise.`,
+    variants: [
+      { id: "raya", title: "Hari Raya bazaar", text: (c) => `Families in ${c.town} want to hold a Hari Raya bazaar in the car park for a month. Drivers will lose their spaces.` },
+      { id: "deepavali", title: "Deepavali lights", text: (c) => `Residents in ${c.town} want Deepavali lights along the main road and a street bazaar on weekend nights.` },
+      { id: "lantern", title: "Mid-Autumn lantern walk", text: (c) => `A residents' committee in ${c.town} wants a lantern walk for the Mid-Autumn Festival, with stalls in the void decks until late.` },
+    ],
     options: [
       { id: "allow", label: "Allow it and help fund it", pros: ["Community spirit"], cons: ["Noise complaints"], cost: 60, needs: { community: 8, months: 12 }, mood: [1, 2] },
       { id: "quiet", label: "Allow it with a 10pm curfew", pros: ["Everyone half happy"], cons: ["Organisers grumble"], needs: { community: 4, months: 12 } },
@@ -547,6 +587,11 @@ export const DILEMMAS = [
   {
     id: "trees", repeat: 20, icon: "🌳", title: "Falling trees", from: 1970, to: 2300, town: "random",
     text: (c) => `A storm brought down old rain trees in ${c.town}, crushing cars. Should all big trees be pruned hard?`,
+    variants: [
+      { id: "playground", title: "A falling branch", text: (c) => `A falling branch narrowly missed children at a playground in ${c.town}. Parents want every big tree checked.` },
+      { id: "roots", title: "Cracked footpaths", text: (c) => `Roots of old trees in ${c.town} are cracking footpaths and lifting drain covers. Seniors are tripping at night.`, opts: { arborist: { label: "Fix the paths and keep the trees", pros: ["Shade stays", "Paths safe"] }, chop: { label: "Remove the trees" } } },
+      { id: "tembusu", title: "A heritage tree", cond: (w) => w.year >= 2001, text: (c) => `Residents in ${c.town} want a 100-year-old tembusu tree protected, but it stands in the way of a new road.`, opts: { arborist: { label: "Protect it and bend the road", pros: ["Residents proud", "A landmark kept"], cons: ["The road costs more"] }, chop: { label: "Cut it down for the road", pros: ["Road built on time"], cons: ["Residents upset", "Less greenery"] } } },
+    ],
     options: [
       { id: "arborist", label: "Hire arborists to check every tree", pros: ["Safe and green"], cons: ["Costly"], cost: 250, needs: { safety: 3, months: 120 } },
       { id: "chop", label: "Cut down risky trees", pros: ["Cheap and safe"], cons: ["Less shade and greenery"], needs: { green: -8, months: 120 } },
@@ -572,6 +617,10 @@ export const DILEMMAS = [
   {
     id: "topup", repeat: 12, icon: "🏛️", title: "Central government offer", from: 1966, to: 2300, cond: (w) => w.cash < 6000,
     text: () => "The Ministry offers your region an emergency top-up, but wants you to hand over control of some land in return.",
+    variants: [
+      { id: "loan", title: "A loan offer", text: () => "A government fund offers your region a low-interest loan, to be repaid from future land sales.", opts: { take: { label: "Take the loan", pros: ["Cash now"], cons: ["Less from land sales for 10 years"], rep: -1, trust: -1, effect: { land: 0.94, months: 120 } }, refuse: { label: "Manage without it" } } },
+      { id: "developer", title: "A developer's deal", cond: (w) => w.year >= 1975, text: () => "A big developer offers cash up front in exchange for first pick of your best land for 10 years.", opts: { take: { label: "Take the deal", pros: ["Cash now"], cons: ["The developer gets the best sites", "Looks like a sell-out"], rep: -4, effect: { land: 0.92, months: 120 } }, refuse: { label: "Keep the land for residents" } } },
+    ],
     options: [
       { id: "take", label: "Take the money", pros: ["Cash now"], cons: ["Less say over your land", "Looks weak"], gain: 2500, rep: -3, trust: -2 },
       { id: "refuse", label: "Manage on our own", pros: ["Independence"], cons: ["Tight budget"], rep: 1 },
@@ -580,6 +629,11 @@ export const DILEMMAS = [
   {
     id: "scandal", repeat: 20, icon: "📰", title: "Town council scandal", from: 1970, to: 2300, town: "random",
     text: (c) => `The newspapers report that ${c.town}'s town council paid a contractor linked to an official. People expect you to act.`,
+    variants: [
+      { id: "lifts", text: (c) => `Residents in ${c.town} say the town council billed for lift repairs that were never done. Seniors have climbed stairs for weeks.` },
+      { id: "tender", text: (c) => `An officer at ${c.town}'s town council is accused of leaking tender prices to a friend's company.` },
+      { id: "fund", text: (c) => `Money from a ${c.town} fund meant for needy families was spent on staff dinners and trips.` },
+    ],
     options: [
       { id: "probe", label: "Independent investigation", pros: ["Clean government", "Trust rises"], cons: ["Embarrassing headlines"], cost: 100, trust: 4, rep: 2, mood: [-1, 3], log: "ordered an independent probe into a town council scandal" },
       { id: "quiet", label: "Handle it quietly", pros: ["No fuss"], cons: ["If it leaks, trust collapses"], later: { months: 18, chance: 0.5, text: "The cover-up leaked. Residents feel betrayed.", trust: -10, rep: -5, angerAll: 0.5 } },
@@ -588,6 +642,11 @@ export const DILEMMAS = [
   {
     id: "cats", repeat: 25, icon: "🐈", title: "Community cats", from: 2000, to: 2300, town: "random",
     text: (c) => `Residents in ${c.town} are split over stray cats: some feed them, others complain about the mess.`,
+    variants: [
+      { id: "dogs", title: "Stray dogs", text: (c) => `A pack of stray dogs is roaming near a school in ${c.town}. Some parents are scared; animal groups want them rehomed.`, opts: { tnr: { label: "Catch, sterilise and rehome them", pros: ["Humane", "Children safe"] }, remove: { label: "Have them removed", cons: ["Animal lovers outraged"] } } },
+      { id: "birds", title: "Birds at the food centre", town: "market", text: (c) => `Crows and mynahs are swarming the food centre in ${c.town}, and diners complain about droppings on the tables.`, opts: { tnr: { label: "Bird-proof the food centre", pros: ["Cleaner tables"], cons: ["Some cost"], cost: 80 }, remove: { label: "Cull the birds", cons: ["Animal groups object"] } } },
+      { id: "monkeys", title: "Monkeys in the kitchen", cond: (w) => ["bukit", "central", "north"].includes(w.region), text: (c) => `Long-tailed macaques from the nature reserve are raiding kitchens and bins in ${c.town}.`, opts: { tnr: { label: "Monkey-proof bins and teach residents", pros: ["Humane", "Fewer raids over time"] }, remove: { label: "Trap and relocate them", cons: ["Nature groups object"] } } },
+    ],
     options: [
       { id: "tnr", label: "Sterilise & manage them", pros: ["Humane", "Fewer complaints over time"], cons: ["Small cost"], cost: 40, needs: { community: 3, months: 60 } },
       { id: "remove", label: "Remove the cats", pros: ["Mess gone"], cons: ["Cat lovers outraged"], anger: 0.4 },
@@ -621,18 +680,52 @@ export const DILEMMAS = [
 export const DILEMMA = Object.fromEntries(DILEMMAS.map((d) => [d.id, d]));
 
 // ---------------- applying outcomes ----------------
-export function pickTown(w, A, how, rng) {
-  if (!how) return null;
+// Towns a card could be about: "random", "biggest", "worst:<need>", or towns
+// that have the thing the card is about ("mrt", "ind", "building", "market").
+export function townsFor(w, A, how) {
   const live = w.towns.map((t, i) => i).filter((i) => A.towns[i].pop > 0);
   const pool = live.length ? live : w.towns.map((_, i) => i);
-  if (how === "random") return pool[Math.floor(rng() * pool.length)];
+  const has = (test) => pool.filter((i) => w.lots.some((l) => l.town === i && test(l)));
+  const near = (types) => pool.filter((i) => w.structs.some((st) => types.includes(st.type) && st.state !== "build" && townOf(w, st.x, st.y) === i));
+  if (how === "mrt") return pool.filter((i) => (A.liveStations || []).some((st) => townOf(w, st.x, st.y) === i));
+  if (how === "ind") return has((l) => l.b && l.b.state !== "build" && LOT_TYPES[l.b.type]?.zone === "ind" && l.b.type !== "farm");
+  if (how === "building") return has((l) => l.b?.state === "build");
+  if (how === "market") return near(["market", "hawker"]);
+  if (how === "school") return near(["school", "secondary"]);
+  return pool;
+}
+export function pickTown(w, A, how, rng) {
+  if (!how) return null;
+  const pool = townsFor(w, A, how);
+  if (!pool.length) return null;
   if (how === "biggest") return pool.reduce((a, b) => (A.towns[b].pop > A.towns[a].pop ? b : a), pool[0]);
   if (how.startsWith("worst:")) {
     const k = how.slice(6);
     return pool.reduce((a, b) => ((A.towns[b].needs[k] ?? 50) < (A.towns[a].needs[k] ?? 50) ? b : a), pool[0]);
   }
-  return null;
+  return pool[Math.floor(rng() * pool.length)];
 }
+
+// ---------------- variants ----------------
+// The same dilemma told different ways, so a card that comes back feels new.
+// Each variant can have its own text, town rule and condition (an MRT fault
+// only where trains run), and can change an option's wording or numbers.
+// Only variants marked history: true carry the card's history note.
+export const variantsOf = (d) => [{ id: "base", cond: d.baseCond, town: d.town, history: true }, ...(d.variants || []).map((v) => ({ town: d.town, ...v }))];
+const variantOk = (w, A, d, v) => (!v.cond || v.cond(w, A)) && (!v.town || townsFor(w, A, v.town).length > 0);
+function pickVariant(w, A, d, rng) {
+  const ok = variantsOf(d).filter((v) => variantOk(w, A, d, v));
+  if (!ok.length) return null;
+  const seen = w.varSeen?.[d.id] || [];
+  // ones not yet seen; for a card with a history note, the original comes first
+  const fresh = ok.filter((v) => !seen.includes(v.id));
+  const first = HISTORY[`dilemma:${d.id}`] && fresh[0]?.id === "base";
+  const pool = fresh.length ? (first ? [fresh[0]] : fresh) : ok.filter((v) => v.id !== seen[seen.length - 1]);
+  const v = (pool.length ? pool : ok)[Math.floor(rng() * (pool.length || ok.length))];
+  w.varSeen = { ...(w.varSeen || {}), [d.id]: fresh.length ? [...seen, v.id] : [v.id] };
+  return v;
+}
+export const variantOf = (d, vid) => (vid && vid !== "base" ? (d.variants || []).find((v) => v.id === vid) : null);
 
 export const fill = (text, w, town) => (text || "").replace(/\{town\}/g, town != null ? w.towns[town].name : "the region");
 
@@ -802,13 +895,16 @@ export function getDecision(w) {
   let text;
   let icon;
   let tag;
+  let options;
   if (d.kind === "dilemma") {
     def = DILEMMA[d.id];
     if (!def) return null;
-    title = def.title;
-    text = def.text({ town: d.town != null ? w.towns[d.town].name : "the region" });
-    icon = def.icon;
+    const v = variantOf(def, d.v);
+    title = v?.title || def.title;
+    text = (v?.text || def.text)({ town: d.town != null ? w.towns[d.town].name : "the region" });
+    icon = v?.icon || def.icon;
     tag = "Decision";
+    options = def.options.map((o) => (v?.opts?.[o.id] ? { ...o, ...v.opts[o.id] } : o));
   } else {
     const C = CRISES[d.id];
     if (!C) return null;
@@ -818,7 +914,7 @@ export function getDecision(w) {
     icon = C.icon;
     tag = d.kind === "crisis" ? "Crisis" : C.name;
   }
-  const options = def.options || def.choices;
+  options = brokeOptions(w, options || def.options || def.choices, d, title);
   return {
     kind: d.kind,
     icon,
@@ -826,11 +922,49 @@ export function getDecision(w) {
     text,
     tag,
     hint: d.kind === "crisis" ? CRISES[d.id].hint : null,
-    options: options.map((o) => {
-      const C = optionCost(w, o);
-      return { ...o, ...C, effects: describeEffects(w, o, d.town) };
-    }),
+    // raw: the option as written, before costs are scaled to the region
+    options: options.map((o) => ({ ...o, ...optionCost(w, o), raw: o, effects: describeEffects(w, o, d.town) })),
   };
+}
+
+// With no money for any option that costs something, the cheapest can be paid
+// by borrowing (at a premium). If every option costs money, there is one more
+// choice: do nothing, at a heavy price.
+// The lesson: keep reserves for the day something goes wrong.
+const BORROW = 1.25;
+function brokeOptions(w, options, d, title) {
+  if (w.sandbox) return options;
+  const cost = (o) => optionCost(w, o).cost;
+  const paid = options.filter((o) => cost(o) > 0);
+  if (!paid.length || paid.some((o) => cost(o) <= w.cash)) return options;
+  const cheapest = paid.reduce((a, b) => (cost(b) < cost(a) ? b : a));
+  // a free option is already there: borrowing is the only thing to add
+  const free = paid.length < options.length;
+  const need = options.map((o) => o.needs && Object.keys(o.needs).find((k) => k !== "months" && k !== "all")).find(Boolean);
+  const crisis = d.kind !== "dilemma";
+  const ignore = {
+    id: "ignoreBroke",
+    label: "Do nothing: there's no money",
+    pros: ["Costs nothing today"],
+    cons: ["The problem is left to grow", "Residents feel abandoned", "Trust and reputation take a big hit"],
+    trust: -8,
+    rep: -5,
+    angerAll: 0.8,
+    mood: [-3, 18],
+    ...(need ? { needs: { [need]: -14, months: 36, all: true } } : {}),
+    ...(crisis ? { crisis: 1.35, crisisMonths: 6 } : {}),
+    tone: "bad",
+    log: `did nothing about "${title}" because the treasury was empty`,
+    okText: "💸 With an empty treasury there was nothing to fix it with. Mayors keep reserves for moments like this: aim to keep a few months of spending in the bank.",
+  };
+  return [
+    ...options.map((o) =>
+      o === cheapest
+        ? { ...o, cost: o.cost * BORROW, debt: true, cons: [...(o.cons || []), `Paid with borrowed money: costs ${Math.round((BORROW - 1) * 100)}% more`] }
+        : o,
+    ),
+    ...(free ? [] : [ignore]),
+  ];
 }
 
 export function decide(w, optId, push, rng = Math.random) {
@@ -847,7 +981,7 @@ export function decide(w, optId, push, rng = Math.random) {
     ok = false;
     if (o.failText) push(fill(o.failText, w, d.town));
   }
-  const rolled = ok ? rollOutcome({ ...o, chance: null }, rng) : null;
+  const rolled = ok ? rollOutcome({ ...(o.raw || o), chance: null }, rng) : null;
   if (ok) applyOutcome(w, rolled, d.town, push, rng);
   if (d.kind === "crisis" && w.crisis) w.crisis.choice = optId;
   if (ok && o.log) w.log.push({ year: w.year, text: fill(o.log, w, d.town), tone: o.tone || "good" });
@@ -985,15 +1119,19 @@ export function stepEvents(w, A, rng, push) {
     }
     const last = {};
     for (const x of w.dilemmaLog) last[x.id] = x.t;
-    const pool = DILEMMAS.filter((d) => {
+    const fits = DILEMMAS.filter((d) => {
       if (w.year < d.from || w.year > d.to) return false;
       if (d.scheduled || (d.region && d.region !== w.region)) return false;
-      if (last[d.id] != null && (!d.repeat || w.t - last[d.id] < d.repeat * 12)) return false;
-      return !d.cond || d.cond(w, A);
+      if (d.cond && !d.cond(w, A)) return false;
+      return variantsOf(d).some((v) => variantOk(w, A, d, v));
     });
+    // no repeats while there are cards you haven't seen; then the ones seen longest ago
+    const unseen = fits.filter((d) => last[d.id] == null);
+    const again = fits.filter((d) => last[d.id] != null && d.repeat && w.t - last[d.id] >= d.repeat * 12);
+    const pool = unseen.length ? unseen : again;
     if (pool.length) {
       // newer issues are a little more likely than ones that have been waiting since the 1960s
-      const weights = pool.map((d) => 1 + Math.min(1.5, Math.max(0, w.year - d.from) < 10 ? 1 : 0) + rng());
+      const weights = pool.map((d) => (unseen.length ? 1 + (w.year - d.from < 10 ? 1 : 0) : (w.t - last[d.id]) / 120) + rng());
       let r = rng() * weights.reduce((a, b) => a + b, 0);
       let d = pool[0];
       for (let k = 0; k < pool.length; k++) {
@@ -1003,7 +1141,8 @@ export function stepEvents(w, A, rng, push) {
           break;
         }
       }
-      w.decision = { kind: "dilemma", id: d.id, town: pickTown(w, A, d.town, rng) };
+      const v = pickVariant(w, A, d, rng);
+      if (v) w.decision = { kind: "dilemma", id: d.id, v: v.id, ...(v.id !== "base" && v.history ? { hist: true } : {}), town: pickTown(w, A, v.town, rng) };
     }
     // the next one comes 2½ to 5½ years later, sometimes with a longer lull
     w.nextDilemma = w.t + 30 + Math.floor(rng() * 36) + (rng() < 0.25 ? 18 : 0) + (fantasyOn(w) ? 24 : 0);
