@@ -11,6 +11,10 @@ import {
   EFFECT_TEXT,
   initialState,
   unitOptions,
+  canReplenish,
+  replenishOptions,
+  REPLENISH_EVERY,
+  MOUNTED_MAX,
   orderProblem,
   resolve,
   describeRules,
@@ -44,7 +48,19 @@ const END = {
   bothKings: "both Kings fell in the same step",
   quiet: `${QUIET_TURNS} turns with nobody falling, decided by power taken`,
 };
-const ORDER_WORD = { move: "moves to", zap: "zaps", boost: "boosts", shoot: "shoots at" };
+const ORDER_WORD = { move: "moves to", zap: "zaps", boost: "boosts", shoot: "shoots at", dismount: "drops its rider on" };
+
+// One line describing an order, e.g. "Cavalry b1 moves to c3 (picks up Militia)".
+function orderText(o, board) {
+  if (o.kind === "deploy") return `New Militia on ${sqName(o.to)}`;
+  const u = board[o.from];
+  const name = u ? UNITS[u.type].name : "Unit";
+  const t = o.kind === "zap" || o.kind === "boost" ? board[o.to] : null;
+  let s = `${name} ${sqName(o.from)} ${ORDER_WORD[o.kind]} ${t ? `${UNITS[t.type].name} ` : ""}${sqName(o.to)}`;
+  if (o.pickup !== undefined && board[o.pickup]) s += ` (picks up ${UNITS[board[o.pickup].type].name})`;
+  if (o.kind === "zap" || o.kind === "boost") s += ` (${o.kind === "zap" ? "−" : "+"}${o.amount})`;
+  return s;
+}
 const NTH = ["1st", "2nd"];
 const MOVE_MS = 550; // how long units take to slide
 const RESULT_MS = 950; // how long fights and falls show before the next step
@@ -87,6 +103,7 @@ export default function TacticsApp() {
   const [notes, setNotes] = useState(() => load("dicetactics.notes", ""));
   const [paused, setPaused] = useState(false);
   const [play, setPlay] = useState(null); // { next, frames, i }
+  const [deploying, setDeploying] = useState(false); // choosing a square for a replenished militia
 
   const state = history[history.length - 1];
   const over = !!state.winner;
@@ -171,7 +188,16 @@ export default function TacticsApp() {
   const myOrders = orders[side];
   const canOrder = phase === "orders" && !over && mode !== "watch";
   const opts = useMemo(() => (selected === null ? null : unitOptions(state, selected)), [selected, state]);
-  const shown = !opts ? [] : action === "boost" ? opts.boosts : action === "shoot" ? opts.shots : [...opts.moves, ...opts.zaps];
+  const shown = deploying
+    ? replenishOptions(state, side)
+    : !opts
+      ? []
+      : {
+          boost: opts.boosts,
+          shoot: opts.shots,
+          ride: opts.moves.filter((m) => m.pickup !== undefined),
+          dismount: opts.dismounts,
+        }[action] || [...opts.moves.filter((m) => m.pickup === undefined), ...opts.zaps];
 
   const addOrder = (o) => {
     const problem = orderProblem(state, myOrders, o);
@@ -194,10 +220,12 @@ export default function TacticsApp() {
     if (phase === "play" || phase === "pass") return;
     const u = state.board[sq];
     const o = shown.find((x) => x.to === sq);
-    if (o && selected !== null && canOrder) {
+    if (o && canOrder && (selected !== null || deploying)) {
       addOrder(o);
+      setDeploying(false);
       return;
     }
+    setDeploying(false);
     if (u) setInspect(sq);
     if (canOrder && u && u.side === side) setSelected(sq === selected ? null : sq);
     else setSelected(null);
@@ -317,6 +345,16 @@ export default function TacticsApp() {
           {canOrder && (
             <div className="mt-3 space-y-2">
               <OrderList orders={myOrders} state={state} onRemove={removeOrder} onSwap={swapOrders} />
+              {canReplenish(state, side) && !myOrders.some((o) => o.kind === "deploy") && (
+                <button className={`dt-seg ${deploying ? "dt-seg-on" : ""}`} onClick={() => { setSelected(null); setInspect(null); setDeploying((d) => !d); }}>
+                  ＋ Replenish a Militia ({state.reserve[side]} fallen){deploying ? " — tap a square on your Militia row" : ""}
+                </button>
+              )}
+              {!canReplenish(state, side) && state.reserve?.[side] > 0 && (
+                <p className="text-xs text-[#6b5b45]">
+                  Fallen Militia: {state.reserve[side]}. You can replenish one on turn {Math.ceil(state.turn / REPLENISH_EVERY) * REPLENISH_EVERY}.
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 <button className="dt-btn dt-btn-main" onClick={lockIn}>
                   Lock in orders ({myOrders.length}/{ORDERS_PER_TURN})
@@ -410,13 +448,18 @@ export default function TacticsApp() {
 
 // What tapping this square would do for the selected unit.
 function Marker({ o, state }) {
+  if (o.kind === "deploy") return <span className="dt-badge dt-boost">＋</span>;
+  if (o.kind === "dismount") return <><span className="dt-dot" /><span className="dt-badge dt-charge">⬇</span></>;
   if (o.kind === "move") {
     const t = state.board[o.to];
-    if (!t) return <>{o.borrow > 0 ? <span className="dt-badge dt-charge">+{o.borrow}</span> : null}<span className="dt-dot" /></>;
-    const mine = state.board[o.from].value + o.borrow + (state.board[o.from].boost || 0);
+    const me = state.board[o.from];
+    const rider = o.pickup !== undefined ? state.board[o.pickup] : null;
+    const badge = rider && <span className="dt-badge dt-charge">🐴+{power(rider)}</span>;
+    if (!t) return <>{badge}<span className="dt-dot" /></>;
+    const mine = rider ? Math.min(MOUNTED_MAX, me.value + power(rider)) + (me.boost || 0) : power(me);
     const theirs = t.type === "S" ? 0 : power(t);
     const cls = mine > theirs ? "dt-ring-win" : mine === theirs ? "dt-ring-tie" : "dt-ring-lose";
-    return <><span className={`dt-ring ${cls}`} />{o.borrow > 0 && <span className="dt-badge dt-charge">+{o.borrow}</span>}</>;
+    return <><span className={`dt-ring ${cls}`} />{badge}</>;
   }
   if (o.kind === "zap") return <span className="dt-badge dt-zap">⚡−{o.amount}</span>;
   if (o.kind === "boost") return <span className="dt-badge dt-boost">✚+{o.amount}</span>;
@@ -439,6 +482,12 @@ function OrderArrows({ orders, faded = false, numbered = false }) {
       </defs>
       {orders.map((o, i) => {
         const n = ++index[o.side];
+        if (o.kind === "deploy")
+          return (
+            <text key={i} x={colOf(o.to) + 0.5} y={rowOf(o.to) + 0.72} textAnchor="middle" fontSize="0.7" fontWeight="700" fill={SIDE_COLOR[o.side]}>
+              ＋
+            </text>
+          );
         const pts = [o.from, ...(o.kind === "move" ? o.path : [o.to])].map(pt);
         const [px, py] = pts[pts.length - 2];
         const [tx, ty] = pts[pts.length - 1];
@@ -477,17 +526,10 @@ function OrderList({ orders, state, onRemove, onSwap }) {
     <div className="space-y-1">
       <ol className="text-sm space-y-1">
         {orders.map((o, i) => {
-          const u = state.board[o.from];
-          const t = o.kind === "zap" || o.kind === "boost" ? state.board[o.to] : null;
           return (
             <li key={o.unit} className="flex items-center gap-2 flex-wrap">
               <span className="dt-nth" style={{ background: SIDE_COLOR[o.side] }}>{NTH[i]}</span>
-              <span>
-                {UNITS[u.type].name} {sqName(o.from)} {ORDER_WORD[o.kind]} {t ? `${UNITS[t.type].name} ` : ""}
-                {sqName(o.to)}
-                {o.kind === "move" && o.borrow > 0 ? ` (charge +${o.borrow})` : ""}
-                {o.kind === "zap" || o.kind === "boost" ? ` (${o.kind === "zap" ? "−" : "+"}${o.amount})` : ""}
-              </span>
+              <span>{orderText(o, state.board)}</span>
               {onRemove && (
                 <button className="text-[#b23a48] text-xs underline" onClick={() => onRemove(o.unit)}>
                   cancel
@@ -521,10 +563,11 @@ function UnitCard({ u, sq, own, opts, action, setAction, rest, onClose }) {
           </div>
           <p className="text-sm mt-1">
             D{info.die} showing <b>{u.value}</b>
-            {u.bonus > 0 && <> + <b className="text-[#7b2cbf]">{u.bonus}</b> charge</>}
+            {u.rider && <> + <b className="text-[#7b2cbf]">{power(u.rider)}</b> rider{u.value + power(u.rider) > MOUNTED_MAX ? ` (capped at ${MOUNTED_MAX})` : ""}</>}
             {u.boost > 0 && <> + <b className="text-[#1b7f6b]">{u.boost}</b> boost</>}
             {" "}= power <b>{power(u)}</b>
           </p>
+          {u.rider && <p className="text-sm">Carrying a {SIDE_NAME[u.side]} {UNITS[u.rider.type].name} (D{UNITS[u.rider.type].die} showing {u.rider.value}).</p>}
         </div>
       </div>
       <div className="mt-2 grid sm:grid-cols-[auto_1fr] gap-3 items-start">
@@ -539,8 +582,14 @@ function UnitCard({ u, sq, own, opts, action, setAction, rest, onClose }) {
       {own && opts && (
         <div className="mt-3 flex flex-wrap gap-2 items-center text-sm">
           <button className={`dt-seg ${action === "move" ? "dt-seg-on" : ""}`} onClick={() => setAction("move")}>
-            Move{opts.zaps.length ? " / zap" : ""} ({opts.moves.length + opts.zaps.length})
+            {u.type === "C" ? "Move alone" : "Move"}{opts.zaps.length ? " / zap" : ""} ({opts.moves.filter((m) => m.pickup === undefined).length + opts.zaps.length})
           </button>
+          {opts.moves.some((m) => m.pickup !== undefined) && (
+            <button className={`dt-seg ${action === "ride" ? "dt-seg-on" : ""}`} onClick={() => setAction("ride")}>🐴 Pick up a rider</button>
+          )}
+          {opts.dismounts.length > 0 && (
+            <button className={`dt-seg ${action === "dismount" ? "dt-seg-on" : ""}`} onClick={() => setAction("dismount")}>⬇ Dismount rider</button>
+          )}
           {opts.boosts.length > 0 && (
             <button className={`dt-seg ${action === "boost" ? "dt-seg-on" : ""}`} onClick={() => setAction("boost")}>✚ Boost a friend (+{opts.boosts[0].amount})</button>
           )}
@@ -587,7 +636,8 @@ function Legend() {
       <span><span className="dt-key dt-key-win" /> attack: you're stronger</span>
       <span><span className="dt-key dt-key-tie" /> tie: both fall</span>
       <span><span className="dt-key dt-key-lose" /> attack: they're stronger</span>
-      <span><span className="dt-badge dt-charge dt-badge-key">+3</span> cavalry charge</span>
+      <span><span className="dt-badge dt-charge dt-badge-key">🐴+3</span> pick up a rider</span>
+      <span><span className="dt-badge dt-boost dt-badge-key">＋</span> replenish a Militia</span>
       <span><span className="dt-badge dt-zap dt-badge-key">⚡−2</span> zap</span>
       <span><span className="dt-badge dt-boost dt-badge-key">✚+2</span> boost</span>
       <span>◎ archer target</span>
@@ -608,7 +658,7 @@ function BattleLog({ history }) {
               <p className="font-semibold">Turn {n}</p>
               {["blue", "red"].map((side) => (
                 <p key={side} style={{ color: SIDE_COLOR[side] }}>
-                  {SIDE_NAME[side]}: {s.lastOrders[side].map((o, i) => `${NTH[i]} ${UNITS[history[n - 1].board[o.from].type].name} ${sqName(o.from)} ${ORDER_WORD[o.kind]} ${sqName(o.to)}`).join("; ") || "no orders"}
+                  {SIDE_NAME[side]}: {s.lastOrders[side].map((o, i) => `${NTH[i]} ${orderText(o, history[n - 1].board)}`).join("; ") || "no orders"}
                 </p>
               ))}
               {s.events.map((e, i) => <p key={i} className="text-[#2a2118]">• {NTH[e.step - 1]}: {e.text}</p>)}

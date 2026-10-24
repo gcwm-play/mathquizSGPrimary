@@ -1,9 +1,9 @@
 // Dice Grid Tactics rules engine. Pure functions: a state is never mutated.
 // Board: W × H squares, index = row * W + col. Row 0 is Red's back row (top),
 // row H-1 is Blue's back row (bottom).
-// A unit is { id, type, side, value, bonus, boost }: value is its die face,
-// bonus is a cavalry charge (friends jumped over, kept until it next acts),
-// boost is militia support (kept until it next acts). Power = value + bonus + boost.
+// A unit is { id, type, side, value, boost, rider? }: value is its die face,
+// boost is militia support (kept until it next acts), rider is a unit carried
+// by a Cavalry. Power = value (+ rider's power, up to 12 together) + boost.
 
 export const W = 8;
 export const H = 10;
@@ -12,7 +12,7 @@ export const other = (side) => (side === "blue" ? "red" : "blue");
 
 export const UNITS = {
   M: { name: "Militia", die: 4, growth: "+1", worth: 1, chess: "Pawn" },
-  C: { name: "Cavalry", die: 6, growth: "=1", worth: 3, chess: "Knight" },
+  C: { name: "Cavalry", die: 4, growth: "+1", worth: 3, chess: "Knight", start: 2 },
   A: { name: "Archer", die: 8, growth: "+1", worth: 3, chess: "Bishop" },
   S: { name: "Siege Tower", die: 12, growth: "x2", worth: 4, chess: "Rook" },
   H: { name: "Champion", die: 20, growth: "+1", worth: 8, chess: "Queen" },
@@ -20,6 +20,9 @@ export const UNITS = {
 };
 
 export const ORDERS_PER_TURN = 2;
+export const RIDERS = "MAH"; // units that can mount a Cavalry
+export const MOUNTED_MAX = 12; // a Cavalry plus its rider count for at most this much
+export const REPLENISH_EVERY = 3; // fallen militia can be replaced on turns 3, 6, 9…
 export const QUIET_TURNS = 30; // turns in a row with nobody falling before power taken decides
 
 const BACK = ["S", "C", "A", "H", "K", "A", "C", "S"];
@@ -28,7 +31,7 @@ const ROOK_DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 const BISHOP_DIRS = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
 const KNIGHT_JUMPS = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
 
-export const power = (u) => u.value + (u.bonus || 0) + (u.boost || 0);
+export const power = (u) => (u.rider ? Math.min(MOUNTED_MAX, u.value + power(u.rider)) : u.value) + (u.boost || 0);
 export const rowOf = (sq) => Math.floor(sq / W);
 export const colOf = (sq) => sq % W;
 export const sqName = (sq) => "abcdefgh"[colOf(sq)] + (H - rowOf(sq));
@@ -41,7 +44,7 @@ const militiaStartRow = (side) => (side === "blue" ? H - 3 : 2);
 // How each unit moves, in words (also shown on the unit card).
 export const MOVE_TEXT = {
   M: "1 square forward (2 from its starting row), only onto an empty square. It never steps onto an enemy.",
-  C: "Jumps in an L shape (2 then 1), over anything.",
+  C: "Jumps in an L shape (2 then 1), over anything. Can carry one rider.",
   A: "Slides any distance diagonally.",
   S: "Slides any distance straight (up, down, left or right).",
   H: "Slides any distance straight or diagonally.",
@@ -54,7 +57,12 @@ export const EFFECT_TEXT = {
     "After a zap or boost its die halves, and your militia rest next turn.",
     "Grows +1 per move. Becomes a Champion on the far side.",
   ],
-  C: ["Charge: friends on its L route add their power until it next acts.", "Its die resets to 1 each move.", "Only one Cavalry can be ordered each turn."],
+  C: [
+    "Starts at 2, +1 per move, up to 4.",
+    "Can pick up a Militia, Archer or Champion standing on its L route. The rider's power adds to the Cavalry's (up to 12 together); they move and fight as one, and if the Cavalry falls its rider falls too.",
+    "A rider can dismount onto an empty square next to the Cavalry (1 order).",
+    "Only one Cavalry can be ordered each turn.",
+  ],
   A: ["Instead of moving: shoot a square exactly 2 away. An enemy there when the shot lands falls if the archer is stronger.", "Grows +1 per move."],
   S: ["Doubles each move.", "If it doesn't move, any attacker beats it."],
   H: ["Grows +1 per move, up to 20."],
@@ -65,13 +73,14 @@ export function describeRules() {
   const u = (t) => `${UNITS[t].name} = ${UNITS[t].chess} (D${UNITS[t].die})`;
   return [
     `Board: ${W} wide × ${H} long. Each side has a back row, an empty moat row, then a row of Militia.`,
-    `Units move like chess pieces: ${["M", "C", "A", "S", "H", "K"].map(u).join(", ")}. Sliding units are blocked by any unit in the way. Every die starts at 1.`,
+    `Units move like chess pieces: ${["M", "C", "A", "S", "H", "K"].map(u).join(", ")}. Sliding units are blocked by any unit in the way. Every die starts at 1, except Cavalry at 2.`,
     "Each turn both players secretly give up to 2 orders, to 2 different units, and choose which goes 1st and which 2nd. Only one of the orders can be for a Cavalry.",
     "Both 1st orders happen together, then both 2nd orders happen together on the new board. A 2nd order is cancelled if its unit fell, its path is now blocked, or its target moved away.",
     "Inside each step: militia zaps and boosts first, then moves, then archer shots land, then dice grow.",
     "Fights: a unit ending on the same square as an enemy fights it, and so do two enemies that swap squares. Higher power wins and stays; on a tie both fall. A Siege Tower that didn't move loses any fight.",
-    "Growth after moving without a fight: Militia +1, Archer +1, Champion +1, Siege Tower doubles, Cavalry resets to 1. A die stops at its top face. Winning a fight doesn't grow the die. Kings gain +1 every turn.",
-    "Cavalry charge: friends on the Cavalry's L route add their power to it until it next acts (so it counts in that step's fight).",
+    "Growth after moving without a fight: Militia, Cavalry, Archer and Champion +1, Siege Tower doubles. A die stops at its top face. Winning a fight doesn't grow the die. Kings gain +1 every turn.",
+    `Riding: a Cavalry can pick up a Militia, Archer or Champion standing on its L route. The rider's power adds to the Cavalry's (up to ${MOUNTED_MAX} together); they move and fight as one, and if the Cavalry falls its rider falls too. A rider can dismount onto an empty square next to the Cavalry, which takes 1 order.`,
+    `Replenish: on turns ${REPLENISH_EVERY}, ${REPLENISH_EVERY * 2}, ${REPLENISH_EVERY * 3}… a side that has lost Militia can use 1 order to place a new Militia (at 1) on an empty square of its starting Militia row, once per turn.`,
     "Militia never step onto enemies. Instead of moving they can zap an enemy on either square diagonally in front of them, from where they stand, lowering its power by the militia's power (never below 1), or boost a friend on any square next to them by the militia's power until that friend next acts (even past its die's limit). The militia's die halves (minimum 1), and its side can't use militia actions on its next turn.",
     "Archers (instead of moving) shoot at a square exactly 2 away. When the shot lands, an enemy on that square falls if the archer's power is higher (a Siege Tower always falls). Enemies can dodge by moving away, and an archer beaten in that step doesn't get its shot off.",
     "A Militia reaching the enemy's back row becomes a Champion and keeps its number.",
@@ -83,7 +92,7 @@ export function initialState() {
   const board = Array(W * H).fill(null);
   let id = 0;
   const put = (r, c, type, side) => {
-    board[at(r, c)] = { id: id++, type, side, value: 1, bonus: 0, boost: 0 };
+    board[at(r, c)] = { id: id++, type, side, value: UNITS[type].start || 1, boost: 0 };
   };
   for (let c = 0; c < W; c++) {
     put(0, c, BACK[c], "red");
@@ -91,7 +100,20 @@ export function initialState() {
     put(H - 3, c, "M", "blue");
     put(H - 1, c, BACK[c], "blue");
   }
-  return { board, turn: 1, winner: null, endReason: null, quiet: 0, taken: { blue: 0, red: 0 }, rest: { blue: false, red: false }, lastOrders: null, events: [], steps: [] };
+  return {
+    board,
+    nextId: id,
+    turn: 1,
+    winner: null,
+    endReason: null,
+    quiet: 0,
+    taken: { blue: 0, red: 0 },
+    rest: { blue: false, red: false },
+    reserve: { blue: 0, red: 0 }, // fallen militia that can still be replenished
+    lastOrders: null,
+    events: [],
+    steps: [],
+  };
 }
 
 // The two L routes for a knight jump: the squares passed over (not the landing square).
@@ -107,17 +129,18 @@ function knightRoutes(r0, c0, dr, dc) {
   ];
 }
 
-// Squares a unit can move to: Map(dest -> { path, borrow, attack }). `path`
-// lists the squares passed through, ending at the destination.
+// Squares a unit can move to: Map(dest -> { path, attack, pickups }). `path`
+// lists the squares passed through, ending at the destination. For a Cavalry,
+// `pickups` lists riders it could collect on the way: [{ sq, path }].
 export function reach(board, from) {
   const u = board[from];
   const r0 = rowOf(from);
   const c0 = colOf(from);
   const out = new Map();
-  const add = (to, path, borrow = 0) => {
+  const add = (to, path, pickups = []) => {
     const t = board[to];
     if (t && t.side === u.side) return;
-    out.set(to, { path, borrow, attack: !!t });
+    out.set(to, { path, attack: !!t, pickups });
   };
   const slide = (dirs, max = Infinity) => {
     for (const [dr, dc] of dirs) {
@@ -134,9 +157,9 @@ export function reach(board, from) {
     case "M": {
       const f = forward(u.side);
       if (onBoard(r0 + f, c0) && !board[at(r0 + f, c0)]) {
-        out.set(at(r0 + f, c0), { path: [at(r0 + f, c0)], borrow: 0, attack: false });
+        out.set(at(r0 + f, c0), { path: [at(r0 + f, c0)], attack: false, pickups: [] });
         if (r0 === militiaStartRow(u.side) && onBoard(r0 + 2 * f, c0) && !board[at(r0 + 2 * f, c0)])
-          out.set(at(r0 + 2 * f, c0), { path: [at(r0 + f, c0), at(r0 + 2 * f, c0)], borrow: 0, attack: false });
+          out.set(at(r0 + 2 * f, c0), { path: [at(r0 + f, c0), at(r0 + 2 * f, c0)], attack: false, pickups: [] });
       }
       break; // militia don't step onto enemies: they zap them from where they stand
     }
@@ -144,12 +167,14 @@ export function reach(board, from) {
       for (const [dr, dc] of KNIGHT_JUMPS) {
         if (!onBoard(r0 + dr, c0 + dc)) continue;
         const to = at(r0 + dr, c0 + dc);
-        let best = { route: knightRoutes(r0, c0, dr, dc)[0], borrow: 0 };
-        for (const route of knightRoutes(r0, c0, dr, dc)) {
-          const borrow = route.reduce((s, sq) => s + (board[sq] && board[sq].side === u.side ? power(board[sq]) : 0), 0);
-          if (borrow > best.borrow) best = { route, borrow };
-        }
-        add(to, [...best.route, to], best.borrow);
+        const routes = knightRoutes(r0, c0, dr, dc);
+        const pickups = [];
+        if (!u.rider)
+          for (const route of routes) {
+            const sq = route.find((x) => board[x] && board[x].side === u.side && RIDERS.includes(board[x].type));
+            if (sq !== undefined && !pickups.some((p) => p.sq === sq)) pickups.push({ sq, path: [...route, to] });
+          }
+        add(to, [...routes[0], to], pickups);
       }
       break;
     case "A": slide(BISHOP_DIRS); break;
@@ -178,7 +203,14 @@ const neighbours = (sq) => KING_STEPS.filter(([dr, dc]) => onBoard(rowOf(sq) + d
 export function unitOptions(state, sq) {
   const { board } = state;
   const u = board[sq];
-  const moves = [...reach(board, sq)].map(([to, m]) => ({ kind: "move", unit: u.id, side: u.side, from: sq, to, path: m.path, borrow: m.borrow, attack: m.attack }));
+  const moves = [];
+  for (const [to, m] of reach(board, sq)) {
+    moves.push({ kind: "move", unit: u.id, side: u.side, from: sq, to, path: m.path, attack: m.attack });
+    for (const p of m.pickups) moves.push({ kind: "move", unit: u.id, side: u.side, from: sq, to, path: p.path, attack: m.attack, pickup: p.sq, rider: board[p.sq].id });
+  }
+  const dismounts = u.rider
+    ? neighbours(sq).filter((n) => !board[n]).map((n) => ({ kind: "dismount", unit: u.id, side: u.side, from: sq, to: n }))
+    : [];
   const zaps = [];
   const boosts = [];
   if (u.type === "M" && !state.rest[u.side]) {
@@ -193,7 +225,19 @@ export function unitOptions(state, sq) {
   }
   const shots = [];
   if (u.type === "A") for (let to = 0; to < W * H; to++) if (dist(sq, to) === 2) shots.push({ kind: "shoot", unit: u.id, side: u.side, from: sq, to, amount: power(u) });
-  return { moves, zaps, boosts, shots };
+  return { moves, zaps, boosts, shots, dismounts };
+}
+
+// Can `side` replenish a fallen militia this turn?
+export const canReplenish = (state, side) => state.turn % REPLENISH_EVERY === 0 && (state.reserve?.[side] || 0) > 0;
+
+// Squares a replenished militia could be placed on.
+export function replenishOptions(state, side) {
+  if (!canReplenish(state, side)) return [];
+  const r = militiaStartRow(side);
+  const out = [];
+  for (let c = 0; c < W; c++) if (!state.board[at(r, c)]) out.push({ kind: "deploy", unit: `deploy-${side}`, side, from: at(r, c), to: at(r, c) });
+  return out;
 }
 
 // Can this order join the side's other orders? Returns a reason, or null if fine.
@@ -201,7 +245,7 @@ export function orderProblem(state, orders, order) {
   const others = orders.filter((o) => o.unit !== order.unit);
   if (others.length >= ORDERS_PER_TURN) return `You can give ${ORDERS_PER_TURN} orders a turn.`;
   if (order.kind === "move" && others.some((o) => o.kind === "move" && o.to === order.to)) return "Another of your units is already moving there.";
-  const isCavalry = (o) => state.board[o.from]?.type === "C";
+  const isCavalry = (o) => o.kind !== "deploy" && state.board[o.from]?.type === "C";
   if (isCavalry(order) && others.some(isCavalry)) return "Only one Cavalry can be given an order each turn.";
   return null;
 }
@@ -209,10 +253,17 @@ export function orderProblem(state, orders, order) {
 // Re-check an order against the board as it is now (for 2nd orders). Returns
 // the refreshed order, or a reason string if it can't happen any more.
 export function refreshOrder(state, o) {
+  if (o.kind === "deploy") return state.board[o.to] ? "its square is taken" : o;
   const sq = state.board.findIndex((u) => u && u.id === o.unit);
   if (sq < 0) return "its unit fell";
   const opts = unitOptions(state, sq);
-  if (o.kind === "move") return opts.moves.find((m) => m.to === o.to) || "its path is now blocked";
+  if (o.kind === "move")
+    return (
+      opts.moves.find((m) => m.to === o.to && m.pickup === o.pickup && m.rider === o.rider) ||
+      opts.moves.find((m) => m.to === o.to && m.pickup === undefined) ||
+      "its path is now blocked"
+    );
+  if (o.kind === "dismount") return opts.dismounts.find((m) => m.to === o.to) || "the square next to it is taken";
   if (o.kind === "shoot") return opts.shots.find((m) => m.to === o.to) || "the archer can't shoot there now";
   const list = o.kind === "zap" ? opts.zaps : opts.boosts;
   return list.find((m) => m.target === o.target) || (state.rest[o.side] ? "militia are resting" : "its target isn't next to it any more");
@@ -240,17 +291,37 @@ function grow(u) {
 const label = (u) => `${SIDE_NAME[u.side]} ${UNITS[u.type].name}`;
 
 // One step: each side's order for this step (or none) happens at once.
-// Returns { board, events, removed, moved: [{ id, from, to }], acted: { blue, red } }.
-function runStep(board0, orders) {
+// Returns { board, events, removed, moved: [{ id, from, to }], acted, deployed, nextId }.
+function runStep(board0, orders, nextId) {
   const board = board0.slice();
   const events = [];
   const removed = [];
   const where = new Map();
   board.forEach((u, sq) => u && where.set(u.id, sq));
   const fell = (u, sq, why) => {
+    if (u.rider) {
+      removed.push({ unit: { ...u, rider: null }, sq }, { unit: u.rider, sq });
+      events.push({ kind: "fall", sq, text: `${label(u)} falls (${why}), and its ${UNITS[u.rider.type].name} rider with it.` });
+      return;
+    }
     removed.push({ unit: u, sq });
     events.push({ kind: "fall", sq, text: `${label(u)} falls (${why}).` });
   };
+
+  // New militia and dismounting riders take their squares first.
+  const deployed = { blue: 0, red: 0 };
+  for (const o of orders) {
+    if (o.kind === "deploy") {
+      board[o.to] = { id: nextId++, type: "M", side: o.side, value: 1, boost: 0 };
+      deployed[o.side]++;
+      events.push({ kind: "deploy", sq: o.to, text: `${SIDE_NAME[o.side]} replenishes a Militia on ${sqName(o.to)}.` });
+    } else if (o.kind === "dismount") {
+      const c = board[o.from];
+      board[o.to] = { ...c.rider, boost: 0 };
+      board[o.from] = { ...c, rider: null };
+      events.push({ kind: "dismount", sq: o.to, text: `${label(c.rider)} dismounts onto ${sqName(o.to)}.` });
+    }
+  }
 
   // Militia zaps and boosts, measured from the start of the step.
   const acted = { blue: false, red: false };
@@ -269,16 +340,27 @@ function runStep(board0, orders) {
   }
   for (const o of actions) {
     const m = board[o.from];
-    board[o.from] = { ...m, value: Math.max(1, Math.floor(m.value / 2)), bonus: 0, boost: 0 };
+    board[o.from] = { ...m, value: Math.max(1, Math.floor(m.value / 2)), boost: 0 };
   }
 
-  // Movement. A mover fights with its die + this move's charge + boost.
+  // Movement. Units fight with their power (a Cavalry's includes its rider).
   const movers = orders.filter((o) => o.kind === "move" && board[o.from] && board[o.from].id === o.unit);
-  const fightPower = (u, mover) => u.value + (mover.borrow || 0) + (u.boost || 0);
+  const fightPower = (u) => power(u);
   const fightText = (a, pa, b, pb) => `${label(a)} ${pa} vs ${label(b)} ${pb}`;
   const alive = new Map(movers.map((o) => [o.unit, board[o.from]]));
   const fought = new Set();
+  const moved = movers.map((o) => ({ id: o.unit, from: o.from, to: o.to }));
   for (const o of movers) board[o.from] = null;
+  // A Cavalry collects its rider on the way, if the rider is still there.
+  for (const o of movers) {
+    if (o.pickup === undefined) continue;
+    const r = board[o.pickup];
+    if (!r || r.id !== o.rider) continue;
+    board[o.pickup] = null;
+    alive.set(o.unit, { ...alive.get(o.unit), rider: { ...r, boost: 0 } });
+    moved.push({ id: r.id, from: o.pickup, to: o.to });
+    events.push({ kind: "mount", sq: o.pickup, text: `${label(r)} mounts the Cavalry.` });
+  }
 
   // Two enemies swapping squares meet on the way.
   if (movers.length === 2 && movers[0].side !== movers[1].side && movers[0].from === movers[1].to && movers[0].to === movers[1].from) {
@@ -330,7 +412,7 @@ function runStep(board0, orders) {
     }
     const win = contenders[0];
     if (!win) board[sq] = null;
-    else if (win.o) board[sq] = fought.has(win.o.unit) ? { ...win.u, bonus: 0, boost: 0 } : { ...win.u, value: grow(win.u), bonus: win.o.borrow || 0, boost: 0 };
+    else if (win.o) board[sq] = fought.has(win.o.unit) ? { ...win.u, boost: 0 } : { ...win.u, value: grow(win.u), boost: 0 };
   }
   // Militia reaching the far side become Champions.
   for (const o of movers) {
@@ -364,7 +446,7 @@ function runStep(board0, orders) {
     }
   }
 
-  return { board, events, removed, moved: movers.map((o) => ({ id: o.unit, from: o.from, to: o.to })), acted };
+  return { board, events, removed, moved, acted, deployed, nextId };
 }
 
 const kingsLeft = (board) => ({
@@ -381,6 +463,8 @@ export function resolve(state, ordersBySide) {
   const events = [];
   const removed = [];
   const acted = { blue: false, red: false };
+  const reserve = { ...(state.reserve || { blue: 0, red: 0 }) };
+  let nextId = state.nextId ?? 1000;
   let kings = kingsLeft(board);
   for (let i = 0; i < ORDERS_PER_TURN; i++) {
     const run = [];
@@ -392,7 +476,10 @@ export function resolve(state, ordersBySide) {
       if (typeof fresh === "string") stepEvents.push({ kind: "cancel", sq: o.from, text: `${SIDE_NAME[side]}'s 2nd order is cancelled: ${fresh}.` });
       else run.push(fresh);
     }
-    const r = runStep(board, run);
+    const r = runStep(board, run, nextId);
+    nextId = r.nextId;
+    for (const side of ["blue", "red"]) reserve[side] -= r.deployed[side];
+    for (const { unit } of r.removed) if (unit.type === "M") reserve[unit.side]++;
     steps.push({ before: board, after: r.board, orders: run, moved: r.moved, removed: r.removed, events: [...stepEvents, ...r.events] });
     events.push(...stepEvents.map((e) => ({ ...e, step: i + 1 })), ...r.events.map((e) => ({ ...e, step: i + 1 })));
     removed.push(...r.removed);
@@ -410,6 +497,8 @@ export function resolve(state, ordersBySide) {
   for (const { unit } of removed) taken[other(unit.side)] += power(unit);
   const next = {
     board,
+    nextId,
+    reserve,
     turn: state.turn + 1,
     winner: null,
     endReason: null,

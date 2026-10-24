@@ -2,14 +2,14 @@
 // looking ahead move by move it scores each possible order (assuming the enemy
 // mostly stays put, which is usual: only 2 of their units act each turn), then
 // tries the best orders in pairs, both ways round.
-import { H, UNITS, power, unitOptions, resolve, threatSet, other, orderProblem, rowOf } from "./engine.js";
+import { H, UNITS, power, unitOptions, replenishOptions, resolve, threatSet, other, orderProblem, rowOf } from "./engine.js";
 
 export const LEVELS = {
   easy: { label: "Easy", noise: 3, keep: 6 },
   normal: { label: "Normal", noise: 0.25, keep: 12 },
 };
 
-const unitValue = (u) => UNITS[u.type].worth + 0.4 * power(u) + 0.03 * (UNITS[u.type].die - u.value);
+const unitValue = (u) => UNITS[u.type].worth + (u.rider ? UNITS[u.rider.type].worth : 0) + 0.4 * power(u) + 0.03 * (UNITS[u.type].die - u.value);
 
 // Score for `side`: material, plus danger from enemies that could reach a unit next turn.
 export function evaluate(state, side) {
@@ -44,10 +44,11 @@ function candidates(state, side) {
   state.board.forEach((u, sq) => {
     if (!u || u.side !== side) return;
     const o = unitOptions(state, sq);
-    out.push(...o.moves, ...o.zaps, ...o.boosts);
+    out.push(...o.moves, ...o.zaps, ...o.boosts, ...o.dismounts);
     // Archers mostly aim where enemies stand now.
     out.push(...o.shots.filter((s) => state.board[s.to] && state.board[s.to].side !== side));
   });
+  out.push(...replenishOptions(state, side));
   return out;
 }
 
