@@ -44,6 +44,29 @@ A fifth app at `mayor.html` (`/mathquizSGPrimary/mayor.html` on Pages), and the 
 
 Source: `src/mayor/` (`world.js` terrain, roads and lots; `sim.js` simulation and budget; `housing.js` occupancy and relocation; `events.js` crises and dilemmas; `objectives.js`; `rivals.js` AI mayors and reports; `society.js` births and health; `charts.jsx`; `art.js` and `render.js` drawing; `MapView.jsx` touch input).
 
+## Dice Grid (prototype)
+
+A prototype game at `dicegrid.html` (`/mathquizSGPrimary/dicegrid.html` on Pages) for working out the rules of a new game. It is played on a chess board with chess moves, but every piece is a die: pawns are D4, knights D6, bishops D8, rooks D12, the queen D20 and the king D10. Every die starts at 1 and changes each time the piece moves: pawns, bishops and queens +1, rooks double, and knights reset to 1. The King doesn't grow by moving but gains +1 every turn. A capture doesn't count as a move for growth, so the attacker fights with its current number. Rooks are walls that any enemy can capture. Instead of moving, a pawn can zap a stronger enemy next to it (lowering its number by the pawn's) or boost a friend next to it until that friend moves (even past its die's limit); the pawn's die halves, and its side can't use a pawn action on its next turn. A knight adds the power of friendly pieces it jumps over until its next move, and loses it after capturing. Otherwise a piece can only capture an enemy with a lower number. Capture the enemy King, or trap him (under attack with no King move that escapes), to win. If only the two Kings are left, the side that captured more power (the numbers of the pieces it took) wins.
+
+- Play against the computer (Easy, Medium, Hard, Expert), with 2 players on one device, or watch computer vs computer. Undo, a move log, a captured-pieces tray, and a "piece info" card that explains each die. The board shows which captures are allowed and marks enemies too strong to capture with ✕.
+- Rules tab: change each piece's die and how much it grows per move, and try variations (King growth, rook walls, knight borrowing, surrounding a target for +1 per friend, swapping places on equal numbers, power deciding draws, helping Black with a weaker first move, starting number, whether this move's growth counts in the fight, what happens on equal numbers, capping or wrapping at the top face, capture bonuses, pawn first moves, promotion, draw length). The current rules are always summarised in plain English.
+- Balance test tab: the computer plays itself 10–100 times with the current rules and reports win rates, game length, captures and how games ended.
+- Notes tab: rule ideas saved on the device, with a button to copy the rules and notes together.
+
+Source: `src/dicegrid/` (`engine.js` rules, `ai.js` computer player).
+
+## Dice Grid Tactics (prototype)
+
+A follow-on prototype at `dicetactics.html` (`/mathquizSGPrimary/dicetactics.html` on Pages) that takes Dice Grid's dice mechanics to a tabletop-wargame board. The board is 8 wide × 10 long; each side has a back row, an empty moat row and a row of Militia. Units are original pixel-art medieval sprites in team colours and move like chess pieces: Militia = pawn (D4), Cavalry = knight (D6), Archer = bishop (D8), Siege Tower = rook (D12), Champion = queen (D20), King = king (D10).
+
+- Each turn both players secretly give up to 2 orders (to 2 different units) and choose which goes 1st and 2nd. Both 1st orders happen together, then both 2nd orders on the new board (a 2nd order is cancelled if its unit fell, its path got blocked or its target moved). The turn plays back with animation: units slide, fights flash and fallen units fade.
+- Units ending on the same square as an enemy fight (as do two enemies swapping squares); higher power wins and a tie means both fall. A Siege Tower that stays put loses any fight.
+- Cavalry charge through friends to borrow their power; Archers shoot a square 2 away after movement, so targets can dodge; Militia zap stronger neighbours or boost friends.
+- Tapping a unit opens a card with its sprite, numbers, a movement diagram and its special effects (plus the order buttons for your own units).
+- Win by defeating the enemy King. Modes: vs Computer (Easy / Normal), 2 players on one device with hidden orders and a pass-the-device screen, and Computer vs Computer. Battle log, balance test and notes tabs.
+
+Source: `src/dicetactics/` (`engine.js` rules, `ai.js` computer player, `sprites.js` pixel art, `TacticsApp.jsx`).
+
 ## Development
 
 ```bash
