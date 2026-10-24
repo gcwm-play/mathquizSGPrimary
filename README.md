@@ -55,6 +55,17 @@ A prototype game at `dicegrid.html` (`/mathquizSGPrimary/dicegrid.html` on Pages
 
 Source: `src/dicegrid/` (`engine.js` rules, `ai.js` computer player).
 
+## Dice Grid Tactics (prototype)
+
+A follow-on prototype at `dicetactics.html` (`/mathquizSGPrimary/dicetactics.html` on Pages) that takes Dice Grid's dice mechanics to a tabletop-wargame board. The board is 8 wide × 10 long; each side has a back row, an empty moat row and a row of Militia. Units are original pixel-art medieval sprites in team colours: Militia (D4), Cavalry (D6), Archer (D8), Siege Tower (D12), Champion (D20) and King (D10), each with a move range.
+
+- Each turn both players secretly give up to 2 orders (to 2 different units), then the orders are revealed and happen at once: militia zaps and boosts, then all movement, then archer shots, then dice grow.
+- Units ending on the same square as an enemy fight (as do two enemies swapping squares); higher power wins and a tie means both fall. A Siege Tower that stays put loses any fight.
+- Cavalry charge through friends to borrow their power; Archers shoot a square 2 away after movement, so targets can dodge; Militia zap stronger neighbours or boost friends.
+- Win by defeating the enemy King. Modes: vs Computer (Easy / Normal), 2 players on one device with hidden orders and a pass-the-device screen, and Computer vs Computer. Battle log, balance test and notes tabs.
+
+Source: `src/dicetactics/` (`engine.js` rules, `ai.js` computer player, `sprites.js` pixel art, `TacticsApp.jsx`).
+
 ## Development
 
 ```bash
