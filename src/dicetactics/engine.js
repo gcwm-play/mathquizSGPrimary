@@ -53,7 +53,7 @@ export const MOVE_TEXT = {
 
 export const EFFECT_TEXT = {
   M: [
-    "Instead of moving: zap an enemy diagonally in front of it from where it stands (the enemy loses the militia's power, never below 1), or boost a friend next to it (+its power until that friend acts).",
+    "Instead of moving: zap an enemy diagonally in front of it from where it stands. The enemy loses the militia's power, and falls if that takes it to 0 (so a 1 zapping a 1 wins). Or boost a friend next to it (+its power until that friend acts).",
     "After a zap or boost its die halves, and your militia rest next turn.",
     "Grows +1 per move. Becomes a Champion on the far side.",
   ],
@@ -81,7 +81,7 @@ export function describeRules() {
     "Growth after moving without a fight: Militia, Cavalry, Archer and Champion +1, Siege Tower doubles. A die stops at its top face. Winning a fight doesn't grow the die. Kings gain +1 every turn.",
     `Riding: a Cavalry can pick up a Militia, Archer or Champion standing on its L route. The rider's power adds to the Cavalry's (up to ${MOUNTED_MAX} together); they move and fight as one, and if the Cavalry falls its rider falls too. A rider can dismount onto an empty square next to the Cavalry, which takes 1 order.`,
     `Replenish: on turns ${REPLENISH_EVERY}, ${REPLENISH_EVERY * 2}, ${REPLENISH_EVERY * 3}… a side that has lost Militia can use 1 order to place a new Militia (at 1) on an empty square of its starting Militia row, once per turn.`,
-    "Militia never step onto enemies. Instead of moving they can zap an enemy on either square diagonally in front of them, from where they stand, lowering its power by the militia's power (never below 1), or boost a friend on any square next to them by the militia's power until that friend next acts (even past its die's limit). The militia's die halves (minimum 1), and its side can't use militia actions on its next turn.",
+    "Militia never step onto enemies. Instead of moving they can zap an enemy on either square diagonally in front of them, from where they stand, lowering its power by the militia's power (if that takes it to 0 or less, it falls), or boost a friend on any square next to them by the militia's power until that friend next acts (even past its die's limit). The militia's die halves (minimum 1), and its side can't use militia actions on its next turn.",
     "Archers (instead of moving) shoot at a square exactly 2 away. When the shot lands, an enemy on that square falls if the archer's power is higher (a Siege Tower always falls). Enemies can dodge by moving away, and an archer beaten in that step doesn't get its shot off.",
     "A Militia reaching the enemy's back row becomes a Champion and keeps its number.",
     `Win by defeating the enemy King. If both Kings fall in the same step it's a draw. If ${QUIET_TURNS} turns pass with nobody falling, the side that has taken more power wins.`,
@@ -188,7 +188,7 @@ export function reach(board, from) {
 // Squares a unit threatens (could fight on) next turn — for the computer player.
 export function threatSet(board, from) {
   const u = board[from];
-  return u.type === "M" ? [] : [...reach(board, from).keys()]; // a militia zap weakens but never captures
+  return u.type === "M" ? zapSquares(from, u.side) : [...reach(board, from).keys()];
 }
 
 // The two squares diagonally in front of a militia: where it can zap.
@@ -213,6 +213,9 @@ export function unitOptions(state, sq) {
     : [];
   const zaps = [];
   const boosts = [];
+  // Zaps this militia could make if its side weren't resting (shown on the board).
+  const resting =
+    u.type === "M" && state.rest[u.side] ? zapSquares(sq, u.side).filter((n) => board[n] && board[n].side !== u.side) : [];
   if (u.type === "M" && !state.rest[u.side]) {
     for (const n of zapSquares(sq, u.side)) {
       const t = board[n];
@@ -225,7 +228,7 @@ export function unitOptions(state, sq) {
   }
   const shots = [];
   if (u.type === "A") for (let to = 0; to < W * H; to++) if (dist(sq, to) === 2) shots.push({ kind: "shoot", unit: u.id, side: u.side, from: sq, to, amount: power(u) });
-  return { moves, zaps, boosts, shots, dismounts };
+  return { moves, zaps, boosts, shots, dismounts, resting };
 }
 
 // Can `side` replenish a fallen militia this turn?
@@ -329,18 +332,26 @@ function runStep(board0, orders, nextId) {
   for (const o of actions) {
     const tsq = where.get(o.target);
     const t = board[tsq];
+    if (!t || t.id !== o.target) continue; // already zapped down this step
     const before = power(t);
     acted[o.side] = true;
+    const word = o.kind === "zap" ? "zaps" : "boosts";
+    if (o.kind === "zap" && o.amount >= before) {
+      events.push({ kind: "zap", sq: tsq, text: `${label(board0[o.from])} ${word} ${label(t)} −${o.amount} (${before}→0).` });
+      fell(t, tsq, "zapped");
+      board[tsq] = null;
+      continue;
+    }
     board[tsq] = o.kind === "zap" ? weaken(t, o.amount) : { ...t, boost: (t.boost || 0) + o.amount };
     events.push({
       kind: o.kind,
       sq: tsq,
-      text: `${label(board0[o.from])} ${o.kind === "zap" ? "zaps" : "boosts"} ${label(t)} ${o.kind === "zap" ? "−" : "+"}${o.amount} (${before}→${power(board[tsq])}).`,
+      text: `${label(board0[o.from])} ${word} ${label(t)} ${o.kind === "zap" ? "−" : "+"}${o.amount} (${before}→${power(board[tsq])}).`,
     });
   }
   for (const o of actions) {
     const m = board[o.from];
-    board[o.from] = { ...m, value: Math.max(1, Math.floor(m.value / 2)), boost: 0 };
+    if (m && m.id === o.unit) board[o.from] = { ...m, value: Math.max(1, Math.floor(m.value / 2)), boost: 0 };
   }
 
   // Movement. Units fight with their power (a Cavalry's includes its rider).

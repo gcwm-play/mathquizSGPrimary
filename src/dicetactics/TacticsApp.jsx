@@ -327,6 +327,7 @@ export default function TacticsApp() {
                     {c === 0 && <span className="dt-coord dt-rank">{H - r}</span>}
                     {r === H - 1 && <span className="dt-coord dt-file">{"abcdefgh"[c]}</span>}
                     {o && <Marker o={o} state={planState} />}
+                    {!frame && opts?.resting.includes(sq) && action === "move" && <span className="dt-badge dt-rest">💤 resting</span>}
                   </button>
                 );
               })}
@@ -484,7 +485,10 @@ function Marker({ o, state }) {
     const cls = mine > theirs ? "dt-ring-win" : mine === theirs ? "dt-ring-tie" : "dt-ring-lose";
     return <><span className={`dt-ring ${cls}`} />{badge}</>;
   }
-  if (o.kind === "zap") return <span className="dt-badge dt-zap">⚡−{o.amount}</span>;
+  if (o.kind === "zap") {
+    const t = state.board[o.to];
+    return <>{t && o.amount >= power(t) && <span className="dt-ring dt-ring-win" />}<span className="dt-badge dt-zap">⚡−{o.amount}</span></>;
+  }
   if (o.kind === "boost") return <span className="dt-badge dt-boost">✚+{o.amount}</span>;
   return <span className="dt-aim">◎</span>;
 }

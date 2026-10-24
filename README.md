@@ -63,7 +63,7 @@ A follow-on prototype at `dicetactics.html` (`/mathquizSGPrimary/dicetactics.htm
 - Units ending on the same square as an enemy fight (as do two enemies swapping squares); higher power wins and a tie means both fall. A Siege Tower that stays put loses any fight.
 - Cavalry start at 2 on a D4 and can pick up a Militia, Archer or Champion on their L route as a rider (their powers add, up to 12; if the Cavalry falls the rider falls too; a rider can dismount for 1 order). Only one Cavalry can be ordered per turn.
 - On turns 3, 6, 9… a side that has lost Militia can use 1 order to place a new Militia on its starting Militia row.
-- Archers shoot a square 2 away after movement, so targets can dodge; Militia never step onto enemies: they zap an enemy diagonally in front of them from where they stand (lowering its power, never below 1) or boost a friend next to them.
+- Archers shoot a square 2 away after movement, so targets can dodge; Militia never step onto enemies: they zap an enemy diagonally in front of them from where they stand (lowering its power by the militia's; a unit taken to 0 falls) or boost a friend next to them.
 - Tapping a unit opens a card with its sprite, numbers, a movement diagram and its special effects (plus the order buttons for your own units).
 - Win by defeating the enemy King. Modes: vs Computer (Easy / Normal), 2 players on one device with hidden orders and a pass-the-device screen, and Computer vs Computer. Battle log, balance test and notes tabs.
 
