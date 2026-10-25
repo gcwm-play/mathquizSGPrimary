@@ -52,6 +52,15 @@ const END = {
 };
 const ORDER_WORD = { move: "moves to", zap: "zaps", boost: "boosts", shoot: "shoots at", dismount: "drops its rider on" };
 
+// A few words for an order chip, e.g. "Cavalry b1→c3 🐴".
+function shortOrderText(o, board) {
+  if (o.kind === "deploy") return `＋ Militia ${sqName(o.to)}`;
+  const u = board[o.from];
+  const name = u ? UNITS[u.type].name : "Unit";
+  const icon = { move: "→", zap: " ⚡", boost: " ✚", shoot: " 🏹", dismount: " ⬇" }[o.kind];
+  return `${name} ${sqName(o.from)}${icon}${sqName(o.to)}${o.pickup !== undefined ? " 🐴" : ""}`;
+}
+
 // One line describing an order, e.g. "Cavalry b1 moves to c3 (picks up Militia)".
 function orderText(o, board) {
   if (o.kind === "deploy") return `New Militia on ${sqName(o.to)}`;
@@ -106,6 +115,7 @@ export default function TacticsApp() {
   const [paused, setPaused] = useState(false);
   const [play, setPlay] = useState(null); // { next, frames, i }
   const [deploying, setDeploying] = useState(false); // choosing a square for a replenished militia
+  const [sheet, setSheet] = useState(false); // phone: full unit card shown as a sheet
 
   const state = history[history.length - 1];
   const over = !!state.winner;
@@ -131,6 +141,7 @@ export default function TacticsApp() {
 
   const lockIn = () => {
     setSelected(null);
+    setInspect(null);
     if (mode === "hotseat" && side === "blue") {
       setPhase("pass");
       return;
@@ -288,31 +299,32 @@ export default function TacticsApp() {
             : `Turn ${state.turn}: ${SIDE_NAME[side]}, give up to ${ORDERS_PER_TURN} orders (${myOrders.length}/${ORDERS_PER_TURN}).`;
 
   const card = inspect !== null && state.board[inspect] && phase !== "play" ? inspect : null;
-  const cardView = card !== null && (
-    <UnitCard
-      key={card}
-      u={state.board[card]}
-      sq={card}
-      own={canOrder && selected === card}
-      opts={selected === card ? opts : null}
-      planning={canOrder && selected === card && slot === 1 && !!myOrders[0]}
-      existing={myOrders.find((o) => o.from === card && o.kind !== "deploy")}
-      onRemove={removeOrder}
-      action={action}
-      setAction={setAction}
-      rest={state.rest[state.board[card].side]}
-      onClose={() => { setInspect(null); setSelected(null); }}
-    />
-  );
+  const cardProps = card !== null && {
+    u: state.board[card],
+    sq: card,
+    own: canOrder && selected === card,
+    opts: selected === card ? opts : null,
+    planning: canOrder && selected === card && slot === 1 && !!myOrders[0],
+    existing: canOrder ? myOrders.find((o) => o.from === card && o.kind !== "deploy") : null,
+    onRemove: removeOrder,
+    action,
+    setAction,
+    rest: state.rest[state.board[card].side],
+    onClose: () => {
+      setInspect(null);
+      setSelected(null);
+      setSheet(false);
+    },
+  };
 
   return (
     <div className="dt-app min-h-screen bg-[#efe6d2] text-[#2a2118]">
-      <header className="mx-auto max-w-6xl px-4 pt-4 pb-2 flex flex-wrap items-end gap-x-4 gap-y-1">
-        <h1 className="text-2xl sm:text-3xl font-bold">⚔️ Dice Grid Tactics</h1>
-        <p className="text-sm text-[#6b5b45]">Prototype — both sides give 2 secret orders; 1st orders happen together, then 2nd orders.</p>
+      <header className="mx-auto max-w-6xl px-3 sm:px-4 pt-2 sm:pt-4 pb-1 sm:pb-2 flex flex-wrap items-end gap-x-4 gap-y-1">
+        <h1 className="text-xl sm:text-3xl font-bold">⚔️ Dice Grid Tactics</h1>
+        <p className="hidden sm:block text-sm text-[#6b5b45]">Prototype — both sides give 2 secret orders; 1st orders happen together, then 2nd orders.</p>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pb-10 grid gap-5 lg:grid-cols-[minmax(0,520px)_1fr]">
+      <main className="mx-auto max-w-6xl px-3 sm:px-4 pb-10 grid gap-5 lg:grid-cols-[minmax(0,520px)_1fr]">
         <section>
           <div className="dt-board-wrap">
             <div className="dt-board" role="grid" aria-label="Dice Grid Tactics board">
@@ -361,44 +373,58 @@ export default function TacticsApp() {
             )}
           </div>
 
-          <p className={`mt-2 font-semibold ${over && !frame ? "text-lg text-[#8a2be2]" : ""}`}>{status}</p>
-          {hint && <p className="mt-1 text-sm text-[#b23a48]">{hint}</p>}
+          {/* Everything needed to play a turn sits right under the board. */}
+          <div className="dt-dock">
+            <p className={`font-semibold text-sm sm:text-base ${over && !frame ? "text-[#8a2be2]" : ""}`}>{status}</p>
+            {hint && <p className="text-xs sm:text-sm text-[#b23a48]">{hint}</p>}
 
-          {cardView && <div className="lg:hidden">{cardView}</div>}
-
-          {canOrder && (
-            <div className="mt-3 space-y-2">
-              <OrderList orders={myOrders} state={state} onRemove={removeOrder} onSwap={swapOrders} onClear={clearOrders} />
-              {canReplenish(state, side) && !myOrders.some((o) => o.kind === "deploy") && (
-                <button className={`dt-seg ${deploying ? "dt-seg-on" : ""}`} onClick={() => { setSelected(null); setInspect(null); setDeploying((d) => !d); }}>
-                  ＋ Replenish a Militia ({state.reserve[side]} fallen){deploying ? " — tap a square on your Militia row" : ""}
-                </button>
-              )}
-              {!canReplenish(state, side) && state.reserve?.[side] > 0 && (
-                <p className="text-xs text-[#6b5b45]">
-                  Fallen Militia: {state.reserve[side]}. You can replenish one on turn {Math.ceil(state.turn / REPLENISH_EVERY) * REPLENISH_EVERY}.
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                <button className="dt-btn dt-btn-main" onClick={lockIn}>
-                  Lock in orders ({myOrders.length}/{ORDERS_PER_TURN})
-                </button>
-                {mode === "ai" && history.length > 1 && <button className="dt-btn" onClick={undoTurn}>Undo last turn</button>}
+            {cardProps && (
+              <div className="lg:hidden">
+                <UnitBar {...cardProps} onInfo={() => setSheet(true)} />
               </div>
-            </div>
-          )}
+            )}
 
-          {(phase === "reveal" || phase === "play") && (
-            <div className="mt-2 space-y-2">
-              <div className="grid sm:grid-cols-2 gap-2">
+            {canOrder && (
+              <>
+                <OrderChips orders={myOrders} state={state} onRemove={removeOrder} onSwap={swapOrders} onClear={clearOrders} />
+                <div className="flex flex-wrap gap-2 items-center">
+                  <button className="dt-btn dt-btn-main" onClick={lockIn}>
+                    Lock in ({myOrders.length}/{ORDERS_PER_TURN})
+                  </button>
+                  {canReplenish(state, side) && !myOrders.some((o) => o.kind === "deploy") && (
+                    <button className={`dt-seg ${deploying ? "dt-seg-on" : ""}`} onClick={() => { setSelected(null); setInspect(null); setDeploying((d) => !d); }}>
+                      ＋ Replenish ({state.reserve[side]})
+                    </button>
+                  )}
+                  {mode === "ai" && history.length > 1 && <button className="dt-seg" onClick={undoTurn}>↶ Undo turn</button>}
+                </div>
+                {deploying && <p className="text-xs text-[#6b5b45]">Tap an empty square on your Militia row.</p>}
+                {!canReplenish(state, side) && state.reserve?.[side] > 0 && (
+                  <p className="text-xs text-[#6b5b45]">
+                    Fallen Militia: {state.reserve[side]}. Next replenish: turn {Math.ceil(state.turn / REPLENISH_EVERY) * REPLENISH_EVERY}.
+                  </p>
+                )}
+              </>
+            )}
+
+            {(phase === "reveal" || phase === "play") && (
+              <>
                 {["blue", "red"].map((s) => (
-                  <div key={s}>
-                    <p className="text-sm font-semibold" style={{ color: SIDE_COLOR[s] }}>{SIDE_NAME[s]}'s orders</p>
-                    <OrderList orders={orders[s]} state={state} />
+                  <div key={s} className="flex items-center gap-2">
+                    <span className="text-xs font-semibold w-10 shrink-0" style={{ color: SIDE_COLOR[s] }}>{SIDE_NAME[s]}</span>
+                    <OrderChips orders={orders[s]} state={state} />
                   </div>
                 ))}
+                {phase === "reveal" && mode !== "watch" && <button className="dt-btn dt-btn-main self-start" onClick={resolveTurn}>⚔ Play the turn</button>}
+              </>
+            )}
+          </div>
+
+          {sheet && cardProps && (
+            <div className="dt-sheet lg:hidden" onClick={() => setSheet(false)}>
+              <div className="dt-sheet-body" onClick={(e) => e.stopPropagation()}>
+                <UnitCard {...cardProps} showActions={false} onClose={() => setSheet(false)} />
               </div>
-              {phase === "reveal" && mode !== "watch" && <button className="dt-btn dt-btn-main" onClick={resolveTurn}>⚔ Play the turn</button>}
             </div>
           )}
 
@@ -406,7 +432,11 @@ export default function TacticsApp() {
         </section>
 
         <section className="min-w-0">
-          {cardView && <div className="hidden lg:block mb-3 -mt-3">{cardView}</div>}
+          {cardProps && (
+            <div className="hidden lg:block mb-3 -mt-3">
+              <UnitCard key={card} {...cardProps} />
+            </div>
+          )}
           <nav className="flex flex-wrap gap-1 mb-3">
             {[["game", "Game"], ["rules", "Rules"], ["log", "Battle log"], ["test", "Balance test"], ["notes", "Notes"]].map(([k, label]) => (
               <button key={k} onClick={() => setTab(k)} className={`dt-tab ${tab === k ? "dt-tab-on" : ""}`}>
@@ -547,37 +577,29 @@ function OrderArrows({ orders, faded = false, numbered = false }) {
   );
 }
 
-function OrderList({ orders, state, onRemove, onSwap, onClear }) {
-  if (!orders.length) return <p className="text-sm text-[#6b5b45]">No orders yet. Tap one of your units.</p>;
+// Orders as small chips: "1st Cavalry b1→d2 ✕".
+function OrderChips({ orders, state, onRemove, onSwap, onClear }) {
+  if (!orders.length) return <p className="text-xs text-[#6b5b45]">{onRemove ? "No orders yet. Tap one of your units." : "No orders."}</p>;
   return (
-    <div className="space-y-1">
-      <ol className="text-sm space-y-1">
-        {orders.map((o, i) => {
-          return (
-            <li key={o.unit} className="flex items-center gap-2 flex-wrap">
-              <span className="dt-nth" style={{ background: SIDE_COLOR[o.side] }}>{NTH[i]}</span>
-              <span>{orderText(o, state.board)}</span>
-              {onRemove && (
-                <button className="dt-remove" onClick={() => onRemove(o.unit)} aria-label={`Remove ${NTH[i]} order`}>
-                  ✕ Remove
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-      <div className="flex flex-wrap gap-2">
-        {onSwap && orders.length === 2 && (
-          <button className="dt-seg text-xs" onClick={onSwap}>⇅ Swap 1st and 2nd</button>
-        )}
-        {onClear && <button className="dt-seg text-xs" onClick={onClear}>Clear orders</button>}
-      </div>
+    <div className="flex flex-wrap gap-1.5 items-center">
+      {orders.map((o, i) => (
+        <span key={o.unit} className="dt-chip" title={orderText(o, state.board)}>
+          <span className="dt-nth" style={{ background: SIDE_COLOR[o.side] }}>{NTH[i]}</span>
+          {shortOrderText(o, state.board)}
+          {onRemove && (
+            <button className="dt-chip-x" onClick={() => onRemove(o.unit)} aria-label={`Remove ${NTH[i]} order`}>✕</button>
+          )}
+        </span>
+      ))}
+      {onSwap && orders.length === 2 && <button className="dt-seg text-xs" onClick={onSwap} aria-label="Swap 1st and 2nd">⇅ Swap</button>}
+      {onClear && <button className="dt-seg text-xs" onClick={onClear}>Clear</button>}
     </div>
   );
 }
 
 // The card shown when a unit is tapped: its look, numbers, movement and effects.
-function UnitCard({ u, sq, own, opts, action, setAction, rest, onClose, planning, existing, onRemove }) {
+function UnitCard({ showActions = true, ...props }) {
+  const { u, sq, onClose } = props;
   const info = UNITS[u.type];
   return (
     <div className="dt-card mt-3 rounded-xl border border-[#dccfae] bg-white/90 shadow-md p-3">
@@ -609,40 +631,68 @@ function UnitCard({ u, sq, own, opts, action, setAction, rest, onClose, planning
           </ul>
         </div>
       </div>
+      {showActions && <UnitActions {...props} />}
+    </div>
+  );
+}
+
+// The order buttons for a selected unit (shared by the card and the phone bar).
+function UnitActions({ u, own, opts, action, setAction, rest, planning, existing, onRemove, compact = false }) {
+  const plain = opts ? opts.moves.filter((m) => m.pickup === undefined).length + opts.zaps.length : 0;
+  return (
+    <>
       {existing && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm rounded-lg bg-[#fff4dc] px-2 py-1">
-          <span>
-            Ordered: {ORDER_WORD[existing.kind]} {sqName(existing.to)}
-          </span>
-          <button className="dt-remove" onClick={() => onRemove(existing.unit)}>✕ Remove this order</button>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm rounded-lg bg-[#fff4dc] px-2 py-1">
+          <span>Ordered: {ORDER_WORD[existing.kind]} {sqName(existing.to)}</span>
+          <button className="dt-remove" onClick={() => onRemove(existing.unit)}>✕ Remove{compact ? "" : " this order"}</button>
         </div>
       )}
       {planning && (
-        <p className="mt-2 text-xs text-[#6b5b45]">
-          Planning your 2nd order: the board is read as it will be after your 1st order (the enemy's moves are still secret).
+        <p className="mt-1 text-xs text-[#6b5b45]">
+          {compact ? "2nd order: squares shown as after your 1st order." : "Planning your 2nd order: the board is read as it will be after your 1st order (the enemy's moves are still secret)."}
         </p>
       )}
       {own && opts && (
-        <div className="mt-3 flex flex-wrap gap-2 items-center text-sm">
+        <div className={`${compact ? "mt-1" : "mt-3"} flex flex-wrap gap-1.5 items-center text-sm`}>
           <button className={`dt-seg ${action === "move" ? "dt-seg-on" : ""}`} onClick={() => setAction("move")}>
-            {u.type === "C" ? "Move alone" : "Move"}{opts.zaps.length ? " / zap" : ""} ({opts.moves.filter((m) => m.pickup === undefined).length + opts.zaps.length})
+            {u.type === "C" && !compact ? "Move alone" : "Move"}{opts.zaps.length ? " / zap" : ""} ({plain})
           </button>
           {opts.moves.some((m) => m.pickup !== undefined) && (
-            <button className={`dt-seg ${action === "ride" ? "dt-seg-on" : ""}`} onClick={() => setAction("ride")}>🐴 Pick up a rider</button>
+            <button className={`dt-seg ${action === "ride" ? "dt-seg-on" : ""}`} onClick={() => setAction("ride")}>🐴 {compact ? "Ride" : "Pick up a rider"}</button>
           )}
           {opts.dismounts.length > 0 && (
-            <button className={`dt-seg ${action === "dismount" ? "dt-seg-on" : ""}`} onClick={() => setAction("dismount")}>⬇ Dismount rider</button>
+            <button className={`dt-seg ${action === "dismount" ? "dt-seg-on" : ""}`} onClick={() => setAction("dismount")}>⬇ Dismount{compact ? "" : " rider"}</button>
           )}
           {opts.boosts.length > 0 && (
-            <button className={`dt-seg ${action === "boost" ? "dt-seg-on" : ""}`} onClick={() => setAction("boost")}>✚ Boost a friend (+{opts.boosts[0].amount})</button>
+            <button className={`dt-seg ${action === "boost" ? "dt-seg-on" : ""}`} onClick={() => setAction("boost")}>✚ Boost{compact ? "" : " a friend"} (+{opts.boosts[0].amount})</button>
           )}
           {opts.shots.length > 0 && (
             <button className={`dt-seg ${action === "shoot" ? "dt-seg-on" : ""}`} onClick={() => setAction("shoot")}>🏹 Shoot</button>
           )}
-          {u.type === "M" && rest && <span className="text-[#6b5b45]">Militia actions are resting this turn.</span>}
-          <span className="text-[#6b5b45] w-full">Tap a highlighted square on the board to give the order.</span>
+          {u.type === "M" && rest && <span className="text-xs text-[#6b5b45]">💤 Militia resting this turn.</span>}
+          {!compact && <span className="text-[#6b5b45] w-full">Tap a highlighted square on the board to give the order.</span>}
         </div>
       )}
+    </>
+  );
+}
+
+// Phone: a one-row summary of the tapped unit with its order buttons; the full card opens as a sheet.
+function UnitBar({ onInfo, ...props }) {
+  const { u, onClose } = props;
+  const info = UNITS[u.type];
+  return (
+    <div className="dt-card rounded-xl border border-[#dccfae] bg-white/90 shadow-sm px-2 py-1.5">
+      <div className="flex items-center gap-2">
+        <span className="w-10 h-10 shrink-0"><Token unit={u} /></span>
+        <p className="text-sm font-semibold leading-tight flex-1 min-w-0">
+          <span style={{ color: SIDE_COLOR[u.side] }}>{SIDE_NAME[u.side]}</span> {info.name} · {power(u)}
+          <span className="block text-xs font-normal text-[#6b5b45] truncate">moves like a {info.chess}{u.rider ? ` · carrying ${UNITS[u.rider.type].name}` : ""}</span>
+        </p>
+        <button className="dt-seg text-xs" onClick={onInfo}>ℹ Details</button>
+        <button className="text-[#6b5b45] text-lg leading-none px-1" onClick={onClose} aria-label="Close">×</button>
+      </div>
+      <UnitActions {...props} compact />
     </div>
   );
 }
