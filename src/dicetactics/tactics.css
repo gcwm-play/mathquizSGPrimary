@@ -52,7 +52,8 @@
   width: 24%;
   height: 24%;
   border-radius: 50%;
-  background: rgba(40, 60, 120, 0.4);
+  background: rgba(40, 60, 120, 0.55);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
   pointer-events: none;
 }
 .dt-ring {
@@ -238,3 +239,15 @@
 .dt-dx { color: #c62828; font-weight: 800; font-size: 14px; }
 .dt-dshoot { color: #8a1c1c; font-size: 14px; }
 .dt-dtouch { font-size: 11px; opacity: 0.7; }
+
+.dt-remove {
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b23a48;
+  background: #fff;
+  border: 1px solid #e3b4ba;
+}
+.dt-remove:hover { background: #fdecee; }
+.dt-rest { background: #8a8172; }

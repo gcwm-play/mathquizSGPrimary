@@ -13,6 +13,8 @@ import {
   unitOptions,
   canReplenish,
   replenishOptions,
+  planAfter,
+  checkPlan,
   REPLENISH_EVERY,
   MOUNTED_MAX,
   orderProblem,
@@ -187,9 +189,20 @@ export default function TacticsApp() {
 
   const myOrders = orders[side];
   const canOrder = phase === "orders" && !over && mode !== "watch";
-  const opts = useMemo(() => (selected === null ? null : unitOptions(state, selected)), [selected, state]);
+  // A new order for the selected unit (or a replenish) becomes the 1st or the 2nd
+  // order. A 2nd order is planned on the board as it will be after your 1st.
+  const ownIndex = myOrders.findIndex((o) => (deploying ? o.kind === "deploy" : selected !== null && o.from === selected && o.kind !== "deploy"));
+  const slot = ownIndex >= 0 ? ownIndex : myOrders.length;
+  const planState = useMemo(
+    () => (canOrder && slot === 1 && myOrders[0] ? planAfter(state, myOrders[0]) : state),
+    [canOrder, slot, myOrders, state],
+  );
+  const opts = useMemo(
+    () => (selected === null || !planState.board[selected] ? null : unitOptions(planState, selected)),
+    [selected, planState],
+  );
   const shown = deploying
-    ? replenishOptions(state, side)
+    ? replenishOptions(planState, side)
     : !opts
       ? []
       : {
@@ -205,16 +218,23 @@ export default function TacticsApp() {
       setHint(problem);
       return;
     }
-    setOrders((all) => {
-      const list = all[side];
-      const i = list.findIndex((x) => x.unit === o.unit);
-      const nextList = i >= 0 ? list.map((x, j) => (j === i ? o : x)) : [...list, o];
-      return { ...all, [side]: nextList };
-    });
+    const list = myOrders.filter((x) => x.unit !== o.unit);
+    list.splice(Math.min(slot, list.length), 0, o);
+    setPlan(list);
     setSelected(null);
   };
-  const removeOrder = (unitId) => setOrders((all) => ({ ...all, [side]: all[side].filter((o) => o.unit !== unitId) }));
-  const swapOrders = () => setOrders((all) => ({ ...all, [side]: [...all[side]].reverse() }));
+  // Store a new list of orders, dropping any 2nd order that no longer works.
+  const setPlan = (list) => {
+    const { orders: kept, dropped } = checkPlan(state, list);
+    setOrders((all) => ({ ...all, [side]: kept }));
+    setHint(dropped.length ? `Removed ${dropped.map((o) => orderText(o, state.board)).join(", ")}: it only worked after your other order.` : "");
+  };
+  const removeOrder = (unitId) => setPlan(myOrders.filter((o) => o.unit !== unitId));
+  const swapOrders = () => setPlan([...myOrders].reverse());
+  const clearOrders = () => {
+    setOrders((all) => ({ ...all, [side]: [] }));
+    setHint("");
+  };
 
   const clickSquare = (sq) => {
     if (phase === "play" || phase === "pass") return;
@@ -275,6 +295,9 @@ export default function TacticsApp() {
       sq={card}
       own={canOrder && selected === card}
       opts={selected === card ? opts : null}
+      planning={canOrder && selected === card && slot === 1 && !!myOrders[0]}
+      existing={myOrders.find((o) => o.from === card && o.kind !== "deploy")}
+      onRemove={removeOrder}
       action={action}
       setAction={setAction}
       rest={state.rest[state.board[card].side]}
@@ -303,7 +326,8 @@ export default function TacticsApp() {
                   <button key={sq} className={cls} onClick={() => clickSquare(sq)} aria-label={sqName(sq) + (u ? ` ${SIDE_NAME[u.side]} ${UNITS[u.type].name} ${power(u)}` : "")}>
                     {c === 0 && <span className="dt-coord dt-rank">{H - r}</span>}
                     {r === H - 1 && <span className="dt-coord dt-file">{"abcdefgh"[c]}</span>}
-                    {o && <Marker o={o} state={state} />}
+                    {o && <Marker o={o} state={planState} />}
+                    {!frame && opts?.resting.includes(sq) && action === "move" && <span className="dt-badge dt-rest">💤 resting</span>}
                   </button>
                 );
               })}
@@ -344,7 +368,7 @@ export default function TacticsApp() {
 
           {canOrder && (
             <div className="mt-3 space-y-2">
-              <OrderList orders={myOrders} state={state} onRemove={removeOrder} onSwap={swapOrders} />
+              <OrderList orders={myOrders} state={state} onRemove={removeOrder} onSwap={swapOrders} onClear={clearOrders} />
               {canReplenish(state, side) && !myOrders.some((o) => o.kind === "deploy") && (
                 <button className={`dt-seg ${deploying ? "dt-seg-on" : ""}`} onClick={() => { setSelected(null); setInspect(null); setDeploying((d) => !d); }}>
                   ＋ Replenish a Militia ({state.reserve[side]} fallen){deploying ? " — tap a square on your Militia row" : ""}
@@ -461,7 +485,10 @@ function Marker({ o, state }) {
     const cls = mine > theirs ? "dt-ring-win" : mine === theirs ? "dt-ring-tie" : "dt-ring-lose";
     return <><span className={`dt-ring ${cls}`} />{badge}</>;
   }
-  if (o.kind === "zap") return <span className="dt-badge dt-zap">⚡−{o.amount}</span>;
+  if (o.kind === "zap") {
+    const t = state.board[o.to];
+    return <>{t && o.amount >= power(t) && <span className="dt-ring dt-ring-win" />}<span className="dt-badge dt-zap">⚡−{o.amount}</span></>;
+  }
   if (o.kind === "boost") return <span className="dt-badge dt-boost">✚+{o.amount}</span>;
   return <span className="dt-aim">◎</span>;
 }
@@ -520,7 +547,7 @@ function OrderArrows({ orders, faded = false, numbered = false }) {
   );
 }
 
-function OrderList({ orders, state, onRemove, onSwap }) {
+function OrderList({ orders, state, onRemove, onSwap, onClear }) {
   if (!orders.length) return <p className="text-sm text-[#6b5b45]">No orders yet. Tap one of your units.</p>;
   return (
     <div className="space-y-1">
@@ -531,23 +558,26 @@ function OrderList({ orders, state, onRemove, onSwap }) {
               <span className="dt-nth" style={{ background: SIDE_COLOR[o.side] }}>{NTH[i]}</span>
               <span>{orderText(o, state.board)}</span>
               {onRemove && (
-                <button className="text-[#b23a48] text-xs underline" onClick={() => onRemove(o.unit)}>
-                  cancel
+                <button className="dt-remove" onClick={() => onRemove(o.unit)} aria-label={`Remove ${NTH[i]} order`}>
+                  ✕ Remove
                 </button>
               )}
             </li>
           );
         })}
       </ol>
-      {onSwap && orders.length === 2 && (
-        <button className="dt-seg text-xs" onClick={onSwap}>⇅ Swap 1st and 2nd</button>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {onSwap && orders.length === 2 && (
+          <button className="dt-seg text-xs" onClick={onSwap}>⇅ Swap 1st and 2nd</button>
+        )}
+        {onClear && <button className="dt-seg text-xs" onClick={onClear}>Clear orders</button>}
+      </div>
     </div>
   );
 }
 
 // The card shown when a unit is tapped: its look, numbers, movement and effects.
-function UnitCard({ u, sq, own, opts, action, setAction, rest, onClose }) {
+function UnitCard({ u, sq, own, opts, action, setAction, rest, onClose, planning, existing, onRemove }) {
   const info = UNITS[u.type];
   return (
     <div className="dt-card mt-3 rounded-xl border border-[#dccfae] bg-white/90 shadow-md p-3">
@@ -579,6 +609,19 @@ function UnitCard({ u, sq, own, opts, action, setAction, rest, onClose }) {
           </ul>
         </div>
       </div>
+      {existing && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm rounded-lg bg-[#fff4dc] px-2 py-1">
+          <span>
+            Ordered: {ORDER_WORD[existing.kind]} {sqName(existing.to)}
+          </span>
+          <button className="dt-remove" onClick={() => onRemove(existing.unit)}>✕ Remove this order</button>
+        </div>
+      )}
+      {planning && (
+        <p className="mt-2 text-xs text-[#6b5b45]">
+          Planning your 2nd order: the board is read as it will be after your 1st order (the enemy's moves are still secret).
+        </p>
+      )}
       {own && opts && (
         <div className="mt-3 flex flex-wrap gap-2 items-center text-sm">
           <button className={`dt-seg ${action === "move" ? "dt-seg-on" : ""}`} onClick={() => setAction("move")}>
