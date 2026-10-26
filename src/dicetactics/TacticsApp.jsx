@@ -27,6 +27,7 @@ import {
   colOf,
 } from "./engine.js";
 import { LEVELS, chooseOrders } from "./ai.js";
+import { terrainImage } from "./terrain.js";
 
 const load = (key, fallback) => {
   try {
@@ -327,13 +328,13 @@ export default function TacticsApp() {
       <main className="mx-auto max-w-6xl px-3 sm:px-4 pb-10 grid gap-5 lg:grid-cols-[minmax(0,520px)_1fr]">
         <section>
           <div className="dt-board-wrap">
-            <div className="dt-board" role="grid" aria-label="Dice Grid Tactics board">
+            <div className="dt-board" role="grid" aria-label="Dice Grid Tactics board" style={{ backgroundImage: `url(${terrainImage()})` }}>
               {Array.from({ length: W * H }, (_, sq) => {
                 const u = state.board[sq];
                 const r = rowOf(sq);
                 const c = colOf(sq);
                 const o = !frame && shown.find((x) => x.to === sq);
-                const cls = ["dt-sq", (r + c) % 2 ? "dt-dark" : "dt-light", sq === selected && "dt-selected", sq === card && sq !== selected && "dt-inspected"].filter(Boolean).join(" ");
+                const cls = ["dt-sq", sq === selected && "dt-selected", sq === card && sq !== selected && "dt-inspected"].filter(Boolean).join(" ");
                 return (
                   <button key={sq} className={cls} onClick={() => clickSquare(sq)} aria-label={sqName(sq) + (u ? ` ${SIDE_NAME[u.side]} ${UNITS[u.type].name} ${power(u)}` : "")}>
                     {c === 0 && <span className="dt-coord dt-rank">{H - r}</span>}
