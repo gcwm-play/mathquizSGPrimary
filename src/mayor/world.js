@@ -1441,7 +1441,7 @@ function migrateLegacy() {
   }
 }
 
-const slotInfo = (d) => ({ name: d.name, region: d.region, year: d.year, month: d.month, pop: d.stats?.pop || 0, mode: d.mode || "campaign", difficulty: d.difficulty, over: !!d.gameOver, updated: Date.now() });
+const slotInfo = (d) => ({ name: d.name, region: d.region, year: d.year, month: d.month, pop: d.stats?.pop || 0, approval: Math.round(d.approval ?? 0), mode: d.mode || "campaign", difficulty: d.difficulty, over: !!d.gameOver, updated: Date.now() });
 
 // Write, and if storage is full, free space by dropping other regions' backups.
 function put(k, value, region) {

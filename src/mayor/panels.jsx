@@ -708,7 +708,7 @@ export function HelpPanel({ onClose }) {
   );
 }
 
-function Toggle({ id, label, hint, checked, onChange }) {
+export function Toggle({ id, label, hint, checked, onChange }) {
   return (
     <label htmlFor={id} className="flex cursor-pointer items-start gap-3 rounded-2xl bg-[var(--soft)] p-3">
       <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-1 h-5 w-5 accent-[var(--brand)]" />
