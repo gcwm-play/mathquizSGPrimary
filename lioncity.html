@@ -58,17 +58,21 @@ p{margin:0;text-wrap:pretty}
 @media (min-width:768px){.nav ul{display:flex}}
 
 /* hero */
-.hero{position:relative;background:var(--sky);display:flex;flex-direction:column;align-items:center;overflow:hidden;isolation:isolate}
-.hero-copy{position:relative;text-align:center;padding:128px 16px 48px;display:flex;flex-direction:column;align-items:center;gap:24px}
+/* the art's sky is flat #c1ecfd, so the section matches it and the art is pulled up under the copy */
+.hero{position:relative;background:#c1ecfd;display:flex;flex-direction:column;align-items:center;isolation:isolate}
+.hero-copy{position:relative;z-index:1;text-align:center;padding:128px 16px 48px;display:flex;flex-direction:column;align-items:center;gap:24px}
+.hero-art{display:block;width:100%;margin-top:-17vw}
+.hero-art img{width:100%}
+@media (max-width:639px){.hero-art{margin-top:-68vw}}
 .eyebrow{font-size:14px;line-height:20px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);padding:4px 12px;border-radius:9999px;border:2px solid #2f2b4a26;background:#fffdf699}
-.hero h1{font-size:36px;line-height:40px;font-weight:700;max-width:680px;background:linear-gradient(90deg,#2f2b4a,#6d6890);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero h1{font-size:30px;line-height:36px;font-weight:700;max-width:680px;background:linear-gradient(90deg,#2f2b4a,#6d6890);-webkit-background-clip:text;background-clip:text;color:transparent}
 @media (min-width:640px){.hero h1{font-size:60px;line-height:1}}
 .hero .sub{max-width:680px;font-size:18px;line-height:28px;color:var(--mute)}
 .hero .fine{max-width:600px;font-size:16px;line-height:24px;color:var(--mute)}
 .hero .fine a{text-decoration:none;border-radius:4px}
 .hero .fine a:hover{color:var(--ink)}
 .hero .fine b{color:var(--ink);font-weight:600}
-.shot{position:relative;width:min(1120px,calc(100% - 32px));margin:0 0 -96px}
+.shot{position:relative;z-index:2;width:min(1120px,calc(100% - 32px));margin:-6vw auto 0}
 .frame{border-radius:24px;padding:8px;background:var(--cream);border:2px solid var(--ink);box-shadow:0 8px 0 var(--ink),0 32px 64px #2f2b4a33}
 .frame-bar{display:flex;align-items:center;gap:8px;padding:4px 8px 12px}
 .frame-bar i{width:12px;height:12px;border-radius:9999px;background:var(--soft);border:2px solid #2f2b4a26}
@@ -76,12 +80,12 @@ p{margin:0;text-wrap:pretty}
 .frame img{border-radius:16px}
 .shot .phone{display:none}
 @media (max-width:639px){
-  .shot{width:min(300px,calc(100% - 64px))}
+  .shot{width:min(300px,calc(100% - 64px));margin-top:-16vw}
   .shot .desk{display:none}.shot .phone{display:block}
   .frame{border-radius:32px}.frame img{border-radius:24px}
   .frame-bar{display:none}
 }
-.after-hero{height:96px}
+.after-hero{height:32px}
 
 /* sections */
 section{scroll-margin-top:80px}
@@ -178,6 +182,7 @@ footer a:hover{color:var(--ink)}
 .hero .rv{transition-duration:.8s}
 .hero .rv:nth-child(2){transition-delay:.06s}.hero .rv:nth-child(3){transition-delay:.12s}.hero .rv:nth-child(4){transition-delay:.18s}.hero .rv:nth-child(5){transition-delay:.24s}
 .shot.rv{transform:translateY(64px)}.shot.rv.in{transform:none;transition-delay:.3s}
+.hero-art.rv{transform:translateY(16px)}.hero-art.rv.in{transform:none;transition-delay:.15s}
 
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
@@ -203,21 +208,25 @@ footer a:hover{color:var(--ink)}
 <main id="main">
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-copy">
-    <p class="eyebrow rv">A free browser game · Singapore from 1965</p>
+    <p class="eyebrow rv">Free browser game · Singapore, 1965</p>
     <h1 id="hero-title" class="rv">It's 1965.<br>Singapore needs homes.<br>You're the mayor.</h1>
     <p class="sub rv">Plan one region of Singapore through a century of growth, crises and elections. Lay the roads, zone the HDB estates, open hawker centres and MRT lines, balance the budget, and win the vote every six years.</p>
     <a class="btn btn-main btn-lg rv" href="mayor.html">Play now, it's free
       <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M221.66 133.66l-72 72a8 8 0 0 1-11.32-11.32L196.69 136H40a8 8 0 0 1 0-16h156.69l-58.35-58.34a8 8 0 0 1 11.32-11.32l72 72a8 8 0 0 1 0 11.32Z"/></svg></a>
     <p class="fine rv"><a href="#history"><b>36 real moments from Singapore's history,</b> from the British withdrawal in 1968 to COVID-19. Make your call, then find out what Singapore did.</a></p>
   </div>
-  <figure class="shot rv">
+  <picture class="hero-art rv">
+    <source media="(max-width: 639px)" srcset="landing/lioncity/hero-mobile.webp" width="941" height="1672">
+    <img src="landing/lioncity/hero.webp" width="1672" height="941" alt="" fetchpriority="high">
+  </picture>
+</section>
+<figure class="shot rv">
     <div class="frame">
       <div class="frame-bar" aria-hidden="true"><i></i><i></i><i></i><span>gcwm-play.github.io/mathquizSGPrimary/mayor.html</span></div>
       <img class="desk" src="landing/lioncity/game-desktop.webp" width="1800" height="1125" fetchpriority="high" alt="The game in 2005: a coastal region with Chinatown's shophouses, HDB blocks, a polyclinic, an MRT line and a river, with the budget, population and happiness along the top.">
       <img class="phone" src="landing/lioncity/game-phone.webp" width="585" height="1266" loading="lazy" alt="The game on a phone: Tampines in 1991 with HDB blocks, an MRT line and the build tools along the bottom.">
     </div>
-  </figure>
-</section>
+</figure>
 <div class="after-hero"></div>
 
 <section class="tagline" aria-label="Tagline">
