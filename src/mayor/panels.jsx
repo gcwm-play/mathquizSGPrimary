@@ -131,11 +131,12 @@ export function TownsPanel({ world: w, onClose, onShow, onChange, toast }) {
 const RENEW_KINDS = {
   hdb: { icon: "🔧", button: "Upgrade old HDB blocks", none: "No HDB blocks due for upgrading", title: "Upgrade all old HDB blocks" },
   com: { icon: "🏗️", button: "Redevelop old shops & offices", none: "No shops or offices to redevelop", title: "Redevelop old shops & offices" },
+  ind: { icon: "🏭", button: "Redevelop old factories", none: "No factories with a newer type to become", title: "Redevelop old factories" },
 };
 function TownRenew({ world: w, index: i, onChange, toast }) {
   const [open, setOpen] = useState(null);
-  const plans = { hdb: bulkRenewPlan(w, i, "hdb"), com: bulkRenewPlan(w, i, "com") };
-  if (!plans.hdb.items.length && !plans.com.items.length && w.year < 1989) return null;
+  const plans = { hdb: bulkRenewPlan(w, i, "hdb"), com: bulkRenewPlan(w, i, "com"), ind: bulkRenewPlan(w, i, "ind") };
+  if (!plans.hdb.items.length && !plans.com.items.length && !plans.ind.items.length && w.year < 1989) return null;
   const P = open ? plans[open] : null;
   const K = open ? RENEW_KINDS[open] : null;
   const s = P?.part;
@@ -144,11 +145,11 @@ function TownRenew({ world: w, index: i, onChange, toast }) {
   const angerVotes = P && open === "hdb" ? Math.round(s.n * UPGRADE_ANGER * 3.5) : 0;
   const types = P ? [...new Set(P.items.slice(0, P.afford || P.items.length).map(({ l }) => LOT_TYPES[l.b.type].name))].slice(0, 3).join(", ") : "";
   const shophouses = P && open === "com" ? P.items.slice(0, P.afford).filter(({ l }) => l.b.type === "shophouse").length : 0;
-  const to = P && open === "com" ? [...new Set(P.items.map(({ o }) => LOT_TYPES[o.to]?.name))].join(", ") : "";
+  const to = P && open !== "hdb" ? [...new Set(P.items.map(({ o }) => LOT_TYPES[o.to]?.name))].join(", ") : "";
   return (
     <div className="mt-2">
       <div className="flex flex-wrap gap-1.5">
-        {["hdb", "com"].map((k) => (
+        {["hdb", "com", "ind"].map((k) => (
           <button
             key={k}
             disabled={!plans[k].items.length}
@@ -194,6 +195,12 @@ function TownRenew({ world: w, index: i, onChange, toast }) {
                   <>
                     <li>✅ Replaced with {to}: {fmtNum(s.jobsAfter)} jobs when done, up from {fmtNum(s.jobsNow)}</li>
                     <li className="text-[var(--bad)]">💼 {fmtNum(s.jobsNow)} jobs stop while they're rebuilt</li>
+                    {open === "ind" && s.pollNow !== s.pollAfter && (
+                      <li className={s.pollAfter < s.pollNow ? "" : "text-[var(--bad)]"}>
+                        🌬️ Pollution from these sites {s.pollAfter < s.pollNow ? "falls" : "rises"} from {s.pollNow} to {s.pollAfter}
+                        {s.pollAfter < s.pollNow ? ": cleaner air for nearby homes" : ""}
+                      </li>
+                    )}
                     {s.residents > 0 && <li className="text-[var(--bad)]">🚚 {fmtNum(s.residents)} people living above the shops must move out</li>}
                     {shophouses > 0 && (
                       <li>

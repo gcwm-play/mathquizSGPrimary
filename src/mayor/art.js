@@ -224,7 +224,7 @@ export const HDB_PAINT = ["#ff8a80", "#6fb8ff", "#5fd69d", "#ffc94d", "#b79cff",
 const SHOP_PAINT = ["#ffd6e0", "#c7f0db", "#cfe3ff", "#fff1b8", "#e6d7ff", "#ffdcc2"];
 
 // ---------- lot buildings ----------
-export const LOT_HEIGHT = { emergency: 30, lowrise: 40, slab: 70, point: 100, ng: 80, modern: 95, bto: 150, terrace: 30, condo: 80, luxury: 160, shophouse: 35, ncentre: 30, mall: 50, office: 150, mixed: 170, farm: 20, factory: 50, jtc: 50, hitech: 45 };
+export const LOT_HEIGHT = { emergency: 30, lowrise: 40, slab: 70, point: 100, ng: 80, modern: 95, bto: 150, terrace: 30, condo: 80, luxury: 160, shophouse: 35, ncentre: 30, mall: 50, office: 150, mixed: 170, farm: 20, factory: 50, jtc: 50, hitech: 45, biomed: 90, rampup: 95, smart: 50, eco: 60 };
 
 export function drawLotBuilding(ctx, q, b, progress = 1) {
   const v = b.v || 0;
@@ -410,6 +410,56 @@ export function drawLotBuilding(ctx, q, b, progress = 1) {
       const pr = boxUV(ctx, q, 0.12, 0.2, 0.88, 0.8, 24, "#fff4e6");
       windows(ctx, pr, { rows: 4, perUnit: 3, color: "#5c7cfa" });
       gableUV(ctx, q, 0.1, 0.18, 0.9, 0.82, 24, 9, "#e8590c", "v");
+      break;
+    }
+    case "biomed": {
+      // two glass research towers joined by a sky bridge, on a green campus
+      flatUV(ctx, q, 0.03, 0.03, 0.97, 0.97, "#a7e07f", 0, false);
+      shadowUV(ctx, q, 0.1, 0.12, 0.9, 0.88, 86);
+      const a = boxUV(ctx, q, 0.1, 0.12, 0.45, 0.88, 82, "#e6f7f1", 0, { wall: (f) => shade("#7fd6b9", f + 0.1), top: "#c9f2e3" });
+      windows(ctx, a, { rows: 8, perUnit: 2, color: "rgba(255,255,255,0.6)", wf: 0.8, hf: 0.45 });
+      const b = boxUV(ctx, q, 0.55, 0.12, 0.9, 0.88, 64, "#e6f7f1", 0, { wall: (f) => shade("#63c7a6", f + 0.1), top: "#c9f2e3" });
+      windows(ctx, b, { rows: 6, perUnit: 2, color: "rgba(255,255,255,0.6)", wf: 0.8, hf: 0.45 });
+      boxUV(ctx, q, 0.45, 0.4, 0.55, 0.6, 6, "#ffffff", 50);
+      break;
+    }
+    case "rampup": {
+      // a tall stack of factory floors with a spiral lorry ramp at one end
+      shadowUV(ctx, q, 0.06, 0.1, 0.94, 0.9, 92);
+      const pr = boxUV(ctx, q, 0.06, 0.1, 0.72, 0.9, 88, "#e9ecef", 0, { wall: (f) => shade("#adb5bd", f) });
+      windows(ctx, pr, { rows: 6, perUnit: 2, color: "#ffa94d", wf: 0.95, hf: 0.3 });
+      for (let k = 0; k < 5; k++) boxUV(ctx, q, 0.74, 0.25, 0.94, 0.75, 4, k % 2 ? "#ced4da" : "#868e96", k * 17);
+      break;
+    }
+    case "smart": {
+      // a long clean low plant with solar roofs and a robot-blue band
+      flatUV(ctx, q, 0.03, 0.03, 0.97, 0.97, "#a7e07f", 0, false);
+      shadowUV(ctx, q, 0.06, 0.15, 0.94, 0.85, 26);
+      const pr = boxUV(ctx, q, 0.06, 0.15, 0.94, 0.85, 24, "#f8f9fa", 0, { top: "#2b3a67" });
+      windows(ctx, pr, { rows: 1, perUnit: 1, color: "#4dabf7", wf: 0.97, hf: 0.3 });
+      for (const u of [0.15, 0.4, 0.65]) boxUV(ctx, q, u, 0.25, u + 0.2, 0.75, 2, "#3b5bdb", 24);
+      break;
+    }
+    case "eco": {
+      // green-roofed sheds, a wind turbine and a water tank
+      flatUV(ctx, q, 0.03, 0.03, 0.97, 0.97, "#a7e07f", 0, false);
+      shadowUV(ctx, q, 0.06, 0.3, 0.7, 0.9, 30);
+      const pr = boxUV(ctx, q, 0.06, 0.3, 0.7, 0.9, 28, "#fffbe6", 0, { top: "#69db7c" });
+      windows(ctx, pr, { rows: 2, perUnit: 2, color: "#40c057", hf: 0.5 });
+      const [tx, ty] = quadPoint(q, 0.82, 0.7);
+      cyl(ctx, tx, ty, 6, 16, "#d0ebff");
+      const [mx, my] = quadPoint(q, 0.82, 0.25);
+      const [sx, sy] = P(mx, my);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx, sy - 58);
+      for (const a of [0, 2.1, 4.2]) {
+        ctx.moveTo(sx, sy - 58);
+        ctx.lineTo(sx + Math.cos(a) * 16, sy - 58 + Math.sin(a) * 16);
+      }
+      ctx.stroke();
       break;
     }
     case "hitech": {

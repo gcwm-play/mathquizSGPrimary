@@ -1409,14 +1409,18 @@ export function bulkRenewPlan(w, town, kind) {
   }
   items.sort((a, b) => (a.l.b.built ?? 0) - (b.l.b.built ?? 0));
   const sum = (list) => {
-    const s = { n: list.length, cost: 0, months: 0, residents: 0, jobsNow: 0, jobsAfter: 0, homesAfter: 0 };
+    const s = { n: list.length, cost: 0, months: 0, residents: 0, jobsNow: 0, jobsAfter: 0, homesAfter: 0, pollNow: 0, pollAfter: 0 };
     for (const { l, o } of list) {
       const T = LOT_TYPES[l.b.type];
       s.cost += o.cost;
       s.months = Math.max(s.months, o.months);
       s.residents += residents(l.b);
       s.jobsNow += T.jobs || 0;
-      if (o.to) s.jobsAfter += LOT_TYPES[o.to].jobs || 0;
+      s.pollNow += T.poll || 0;
+      if (o.to) {
+        s.jobsAfter += LOT_TYPES[o.to].jobs || 0;
+        s.pollAfter += LOT_TYPES[o.to].poll || 0;
+      }
     }
     return s;
   };
