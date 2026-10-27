@@ -229,7 +229,7 @@ export const CRISES = {
     mitigate: { label: "Homes near clinics & community centres", fn: (w, A) => clamp(coverShare(A, "health") * 0.6 + coverShare(A, "community") * 0.5, 0, 1) },
     hint: "Polyclinics and community centres let seniors age in place.",
     choices: [
-      { id: "kampong", label: "Build 'kampong admiralty' senior hubs", pros: ["Seniors thrive", "Big reputation boost"], cons: ["Costly"], cost: 1600, crisis: 0.55, rep: 5, needs: { community: 10, months: 120, all: true }, log: "built senior-friendly 'vertical kampong' hubs" },
+      { id: "kampong", label: "Build senior hubs with care, clinics and homes together", pros: ["Seniors thrive", "Big reputation boost"], cons: ["Costly"], cost: 1600, crisis: 0.55, rep: 5, needs: { community: 10, months: 120, all: true }, log: "built senior-friendly 'vertical kampong' hubs" },
       { id: "carers", label: "Import foreign caregivers", pros: ["Quick help"], cons: ["Locals worry about jobs"], crisis: 0.8, angerAll: 0.4, waitlist: 600 },
       { id: "family", label: "Leave it to families", pros: ["Costs nothing"], cons: ["Families stretched"], crisis: 1.2, fert: -0.03, tone: "bad", log: "left elderly care to families" },
     ],

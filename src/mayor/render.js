@@ -693,7 +693,16 @@ export function draw(ctx, R, w, A, cam, view) {
   const hill = hillOf(w);
   if (hill) badges.push({ ch: "⛰️", x: PX(hill.x, hill.y), y: PY(hill.x, hill.y), bg: "#d3f9d8" });
   for (const z of w.fantasy?.zones || []) badges.push({ ch: z.kind === "zombie" ? "🧟" : "☢️", x: PX(z.x, z.y), y: PY(z.x, z.y), bg: z.kind === "zombie" ? "#d0bfff" : "#d8f5a2" });
-  for (const b of badges) badge(ctx, b.ch, b.x, b.y, 13, b.bg);
+  // tunnel works: a marker halfway along each line being dug
+  const jobs = new Set();
+  for (const g of w.segs) {
+    if (!(g.works > w.t) || jobs.has(g.job ?? g.id)) continue;
+    jobs.add(g.job ?? g.id);
+    const p = segPts(w, g);
+    const k = Math.floor(p.length / 4) * 2;
+    badges.push({ label: `🚧 Tunnelling until ${dateAt(w, g.works)}`, x: PX(p[k], p[k + 1]), y: PY(p[k], p[k + 1]) - 14, bg: "#ffd8a8" });
+  }
+  for (const b of badges) b.label ? pill(ctx, b.label, b.x, b.y, b.bg) : badge(ctx, b.ch, b.x, b.y, 13, b.bg);
   if (motion) drawClouds(ctx, R.agents, Math.max(0, Math.min(0.85, 1.2 - cam.zoom * 1.1)));
 
   // town names
@@ -787,7 +796,11 @@ function drawEntry(ctx, R, w, A, e, time, motion, badges, cam) {
       const S = STRUCTS[s.type];
       const cx = PX(s.x, s.y);
       const cy = PY(s.x, s.y) - Math.min(H, 50) - 6;
-      if (STRUCTS[s.type]?.station && A && !(A.liveStations || A.stations).includes(s)) badges.push({ ch: "⚠️", x: cx, y: cy, bg: "#ffe066" });
+      if (STRUCTS[s.type]?.station && A && !(A.liveStations || A.stations).includes(s)) {
+        // say what's wrong: still digging, or no second station on the line
+        const works = w.segs.reduce((m, g) => (g.works > w.t ? Math.max(m, g.works) : m), 0);
+        badges.push(works ? { label: `🚧 Trains from ${dateAt(w, works)}`, x: cx, y: cy, bg: "#ffe066" } : { label: "🚇 No trains: link a 2nd station", x: cx, y: cy, bg: "#ffc9c9" });
+      }
       else if (!S.fixed && cam.zoom >= 0.75) badge(ctx, S.icon, cx, cy, Math.max(11, Math.min(15, 13 / Math.sqrt(cam.zoom))), "#ffffff");
       return;
     }
@@ -876,6 +889,31 @@ function terrainCoastal(w, x, y) {
   }
   return false;
 }
+
+// A short text label in a rounded pill, for warnings that need words.
+function pill(ctx, text, x, y, bg) {
+  ctx.font = `700 12px Fredoka,"Segoe UI Emoji","Apple Color Emoji",sans-serif`;
+  const tw = ctx.measureText(text).width;
+  const w = tw + 16;
+  const h = 20;
+  ctx.beginPath();
+  ctx.roundRect(x - w / 2, y - h / 2, w, h, 10);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  ctx.fillStyle = INK;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x, y + 0.5);
+}
+
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dateAt = (w, t) => {
+  const m = w.month + (t - w.t);
+  return `${MON[((m % 12) + 12) % 12]} ${w.year + Math.floor(m / 12)}`;
+};
 
 function badge(ctx, ch, x, y, size, bg) {
   ctx.beginPath();
