@@ -1379,7 +1379,7 @@ export function applyRenew(w, target, optId) {
     if (optId === "upgrade") {
       l.b.state = "upgrade";
       l.b.until = w.t + opt.months;
-      w.towns[l.town].anger += 0.15;
+      w.towns[l.town].anger += UPGRADE_ANGER;
     } else if (optId === "conserve") {
       l.b.conserved = true;
     } else if (optId === "rebuild") {
@@ -1394,6 +1394,57 @@ export function applyRenew(w, target, optId) {
   const tt = target.kind === "kampong" ? target.k.town : target.l.town;
   noteImpact(w, `you chose "${opt.name}" in ${w.towns[tt].name}`, tt, "housing");
   return { ok: true, cost: opt.cost };
+}
+
+// ---------- town-wide renewal ----------
+// Every old HDB block in a town upgraded, or every old shop and office
+// redeveloped, in one go: oldest first, as many as the budget allows.
+export function bulkRenewPlan(w, town, kind) {
+  const optId = kind === "hdb" ? "upgrade" : "rebuild";
+  const items = [];
+  for (const l of w.lots) {
+    if (l.town !== town || l.zone !== kind || !l.b || l.b.state !== "live") continue;
+    const o = renewOptions(w, { kind: "lot", l }).find((x) => x.id === optId);
+    if (o?.ok) items.push({ l, o });
+  }
+  items.sort((a, b) => (a.l.b.built ?? 0) - (b.l.b.built ?? 0));
+  const sum = (list) => {
+    const s = { n: list.length, cost: 0, months: 0, residents: 0, jobsNow: 0, jobsAfter: 0, homesAfter: 0 };
+    for (const { l, o } of list) {
+      const T = LOT_TYPES[l.b.type];
+      s.cost += o.cost;
+      s.months = Math.max(s.months, o.months);
+      s.residents += residents(l.b);
+      s.jobsNow += T.jobs || 0;
+      if (o.to) s.jobsAfter += LOT_TYPES[o.to].jobs || 0;
+    }
+    return s;
+  };
+  const all = sum(items);
+  // how many of the oldest it can pay for now
+  let afford = 0;
+  let spent = 0;
+  const cash = w.sandbox ? Infinity : Math.max(0, w.cash);
+  for (const it of items) {
+    if (spent + it.o.cost > cash) break;
+    spent += it.o.cost;
+    afford++;
+  }
+  return { kind, optId, items, all, afford, part: afford < items.length ? sum(items.slice(0, afford)) : all };
+}
+// Each upgrade annoys residents a little while the works go on.
+export const UPGRADE_ANGER = 0.15;
+export function applyBulkRenew(w, town, kind, n) {
+  const plan = bulkRenewPlan(w, town, kind);
+  let done = 0;
+  let cost = 0;
+  for (const { l } of plan.items.slice(0, n)) {
+    const r = applyRenew(w, { kind: "lot", l }, plan.optId);
+    if (!r.ok) break;
+    done++;
+    cost += r.cost;
+  }
+  return { done, cost };
 }
 
 // ---------- save / load / undo ----------

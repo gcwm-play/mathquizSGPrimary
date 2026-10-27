@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { Panel } from "../city/panels.jsx";
-import { NEEDS, TERM_YEARS, diffOf } from "./defs.js";
+import { NEEDS, TERM_YEARS, diffOf, LOT_TYPES } from "./defs.js";
 import { fmtMoney, fmtNum, monthlyBudget, REV_LABELS, EXP_LABELS, inSeason, monthsToElection, tToDate, townSupport, makePledge, GOALS, modeOf, pledgeProgress, pledgeCred } from "./sim.js";
 import { housingByTown } from "./housing.js";
 import { METRICS } from "./society.js";
 import { spreadOf } from "./events.js";
 import { ImpactBox, ObjectiveRow, PurposePicker } from "./panels2.jsx";
-import { setPurpose, purposeCost } from "./world.js";
+import { setPurpose, purposeCost, bulkRenewPlan, applyBulkRenew, UPGRADE_ANGER } from "./world.js";
 
 export { Panel };
 
@@ -113,6 +113,7 @@ export function TownsPanel({ world: w, onClose, onShow, onChange, toast }) {
               </ul>
               {t.anger > 0.6 && <div className="mt-1 text-[13px] text-[var(--bad)]">😠 Still upset about recent demolitions and resettlement.</div>}
               <CharacterRow town={t} onChange={onChange} />
+              <TownRenew world={w} index={i} onChange={onChange} toast={toast} />
               {t.needs && (t.pop || 0) > 0 && <NeedsCard town={t} />}
             </div>
           );
@@ -122,6 +123,107 @@ export function TownsPanel({ world: w, onClose, onShow, onChange, toast }) {
         Elections come every {TERM_YEARS} years. {D.voteMin && w.mode !== "sandbox" ? "Win more than half the votes across your towns to stay mayor." : "You can't be voted out, but residents still tell you what they think."} Unhappy towns slowly lose residents to other regions.
       </p>
     </Panel>
+  );
+}
+
+// Town-wide shortcuts: upgrade every old HDB block, or redevelop every old
+// shop and office, after showing what it costs and does.
+const RENEW_KINDS = {
+  hdb: { icon: "🔧", button: "Upgrade old HDB blocks", none: "No HDB blocks due for upgrading", title: "Upgrade all old HDB blocks" },
+  com: { icon: "🏗️", button: "Redevelop old shops & offices", none: "No shops or offices to redevelop", title: "Redevelop old shops & offices" },
+};
+function TownRenew({ world: w, index: i, onChange, toast }) {
+  const [open, setOpen] = useState(null);
+  const plans = { hdb: bulkRenewPlan(w, i, "hdb"), com: bulkRenewPlan(w, i, "com") };
+  if (!plans.hdb.items.length && !plans.com.items.length && w.year < 1989) return null;
+  const P = open ? plans[open] : null;
+  const K = open ? RENEW_KINDS[open] : null;
+  const s = P?.part;
+  const partial = P && P.afford < P.items.length;
+  // anger shows up in votes until it fades: about 3.5 points per unit
+  const angerVotes = P && open === "hdb" ? Math.round(s.n * UPGRADE_ANGER * 3.5) : 0;
+  const types = P ? [...new Set(P.items.slice(0, P.afford || P.items.length).map(({ l }) => LOT_TYPES[l.b.type].name))].slice(0, 3).join(", ") : "";
+  const shophouses = P && open === "com" ? P.items.slice(0, P.afford).filter(({ l }) => l.b.type === "shophouse").length : 0;
+  const to = P && open === "com" ? [...new Set(P.items.map(({ o }) => LOT_TYPES[o.to]?.name))].join(", ") : "";
+  return (
+    <div className="mt-2">
+      <div className="flex flex-wrap gap-1.5">
+        {["hdb", "com"].map((k) => (
+          <button
+            key={k}
+            disabled={!plans[k].items.length}
+            onClick={() => setOpen(open === k ? null : k)}
+            title={plans[k].items.length ? "" : RENEW_KINDS[k].none}
+            className={`city-btn rounded-full px-3 py-1.5 text-[13px] font-bold disabled:opacity-50 ${open === k ? "bg-[var(--brand)] text-white" : "bg-[var(--soft)]"}`}
+          >
+            {RENEW_KINDS[k].icon} {RENEW_KINDS[k].button} ({plans[k].items.length})
+          </button>
+        ))}
+      </div>
+      {P && (
+        <div className="mt-2 rounded-2xl border-2 border-[var(--ink)]/15 bg-[var(--card)] p-3 text-[14px] leading-snug">
+          <div className="font-bold">
+            {K.icon} {K.title} in {w.towns[i].name}?
+          </div>
+          {P.afford === 0 ? (
+            <p className="mt-1 text-[var(--bad)]">
+              Not enough money: even the oldest one costs {fmtMoney(P.items[0].o.cost)}. All {P.items.length} would cost {fmtMoney(P.all.cost)}.
+            </p>
+          ) : (
+            <>
+              {partial && (
+                <p className="mt-1 rounded-xl bg-[var(--warn-bg)] px-2 py-1 text-[13px]">
+                  You can afford the oldest {s.n} of {P.items.length} now ({fmtMoney(s.cost)} of {fmtMoney(P.all.cost)}). The rest can follow later.
+                </p>
+              )}
+              <ul className="mt-1.5 space-y-1">
+                <li>
+                  💰 <b>{fmtMoney(s.cost)}</b> for {s.n} {open === "hdb" ? "block" : "building"}
+                  {s.n === 1 ? "" : "s"} ({types})
+                </li>
+                <li>⏳ Works take about {s.months} months</li>
+                {open === "hdb" ? (
+                  <>
+                    <li>✅ Better housing quality, and the blocks' wear is reset</li>
+                    <li>🏠 {fmtNum(s.residents)} residents stay in their homes during the works</li>
+                    <li className="text-[var(--bad)]">
+                      😠 Some grumbling about the works: about −{angerVotes}% of {w.towns[i].name}'s vote at first, fading over the next few years
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li>✅ Replaced with {to}: {fmtNum(s.jobsAfter)} jobs when done, up from {fmtNum(s.jobsNow)}</li>
+                    <li className="text-[var(--bad)]">💼 {fmtNum(s.jobsNow)} jobs stop while they're rebuilt</li>
+                    {s.residents > 0 && <li className="text-[var(--bad)]">🚚 {fmtNum(s.residents)} people living above the shops must move out</li>}
+                    {shophouses > 0 && (
+                      <li>
+                        🏮 Includes {shophouses} old shophouse{shophouses === 1 ? "" : "s"}. In a heritage area you could conserve them instead (tap one, then 🏗️ Renew): tourists like them.
+                      </li>
+                    )}
+                  </>
+                )}
+              </ul>
+              <div className="mt-2 flex gap-2">
+                <button onClick={() => setOpen(null)} className="city-btn flex-1 rounded-xl bg-[var(--soft)] py-2 font-bold">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const r = applyBulkRenew(w, i, open, P.afford);
+                    toast?.(`${K.icon} ${r.done} ${open === "hdb" ? "block" : "building"}${r.done === 1 ? "" : "s"} in ${w.towns[i].name}: works started for ${fmtMoney(r.cost)}`);
+                    setOpen(null);
+                    onChange?.();
+                  }}
+                  className="city-btn flex-1 rounded-xl bg-[var(--brand)] py-2 font-bold text-white"
+                >
+                  Confirm · {fmtMoney(s.cost)}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
