@@ -146,6 +146,7 @@ export const MALL_NAMES = {
   central: ["Plaza Singapura", "ION Orchard", "Raffles City", "Bugis Junction", "Lucky Plaza", "People's Park Complex"],
   south: ["VivoCity", "HarbourFront Centre", "Alexandra Retail Centre", "Tiong Bahru Plaza", "Queensway Shopping Centre"],
   north: ["Causeway Point", "Sembawang Shopping Centre", "Northpoint", "Sun Plaza", "Woodlands Mart", "Canberra Plaza"],
+  bukit: ["Beauty World Centre", "Bukit Timah Plaza", "The Clementi Mall", "West Mall", "Bukit Panjang Plaza", "Hillion Mall"],
 };
 
 export const ROAD_TYPES = {

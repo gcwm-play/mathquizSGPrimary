@@ -1061,7 +1061,14 @@ export function ProjectPanel({ world: w, toolId, onChoose, onClose }) {
             {variants.map(([k, V]) => {
               const lock = w.year < V.year;
               return (
-                <button key={k} disabled={lock} onClick={() => setType(k)} aria-pressed={type === k} className={`city-btn flex flex-col rounded-2xl border-2 p-2.5 text-left disabled:opacity-50 ${type === k ? "border-[var(--brand)] bg-[var(--bad-bg)]" : "border-[var(--ink)]/10 bg-[var(--card)]"}`}>
+                <button
+                  key={k}
+                  disabled={lock}
+                  onClick={() => {
+                    // a name that was just the type's own name follows the type
+                    if (name === S.name) setName(V.name);
+                    setType(k);
+                  }} aria-pressed={type === k} className={`city-btn flex flex-col rounded-2xl border-2 p-2.5 text-left disabled:opacity-50 ${type === k ? "border-[var(--brand)] bg-[var(--bad-bg)]" : "border-[var(--ink)]/10 bg-[var(--card)]"}`}>
                   <span className="font-bold leading-tight">
                     {V.icon} {V.kind}
                   </span>

@@ -495,7 +495,7 @@ const STRUCT_H = { chineseHigh: 75, ngeeAnn: 40, sPoly: 40, njc: 34, sji: 40, mg
 export const structHeight = (t) => STRUCT_H[t] || 30;
 
 // new landmarks reuse the closest existing drawing
-const ART_ALIAS = { mallHood: "tampinesHub", mallCentre: "causewayPoint", mallLux: "esplanade", secondary: "school", tertiary: "scienceCentre", secondLink: "checkpoint", sentosaBridge: "checkpoint", keppelPort: "tuasPort", sentosaBeach: "eastCoastPark", underwaterWorld: "scienceCentre", vivoCity: "causewayPoint", sentosaExpress: "rtsLink", resortsWorld: "marinaBaySands", fortSiloso: "navalBase", mountFaber: "park" };
+const ART_ALIAS = { mallHood: "tampinesHub", mallCentre: "causewayPoint", secondary: "school", tertiary: "scienceCentre", secondLink: "checkpoint", sentosaBridge: "checkpoint", keppelPort: "tuasPort", sentosaBeach: "eastCoastPark", underwaterWorld: "scienceCentre", vivoCity: "causewayPoint", sentosaExpress: "rtsLink", resortsWorld: "marinaBaySands", fortSiloso: "navalBase", mountFaber: "park" };
 
 // Several buildings on one site: draw the ones further back first, so nearer
 // buildings correctly cover them (otherwise back blocks look like they float).
@@ -889,6 +889,19 @@ export function drawStruct(ctx, q, type, time) {
       ctx.quadraticCurveTo(sx + 18, sy - 26, sx + 24, sy - 4);
       ctx.stroke();
       inkStyle(ctx);
+      break;
+    }
+    case "mallLux": {
+      // a glossy glass mall: stone podium, curved glass front, gold canopy, a tower behind
+      shadowUV(ctx, q, 0.04, 0.08, 0.96, 0.92, 70);
+      const pod = boxUV(ctx, q, 0.04, 0.08, 0.96, 0.92, 26, "#f4ead8", 0, { wall: (f) => shade("#e9dcc2", f) });
+      windows(ctx, pod, { rows: 2, perUnit: 2, color: "#8fd3ff", wf: 0.9, hf: 0.6 });
+      boxUV(ctx, q, 0.04, 0.82, 0.96, 0.92, 3, "#d4a62a", 22);
+      const glass = boxUV(ctx, q, 0.12, 0.18, 0.62, 0.72, 34, "#bfe6ff", 26, { wall: (f) => shade("#6fbdf2", f + 0.1), top: "#e3f4ff" });
+      windows(ctx, glass, { rows: 4, perUnit: 3, color: "rgba(255,255,255,0.45)", wf: 0.85, hf: 0.5 });
+      const tower = boxUV(ctx, q, 0.66, 0.2, 0.9, 0.5, 66, "#2f3b55", 26, { wall: (f) => shade("#3b4a6b", f), top: "#556691" });
+      windows(ctx, tower, { rows: 14, perUnit: 2, color: "rgba(255,214,102,0.7)", wf: 0.7, hf: 0.35 });
+      boxUV(ctx, q, 0.64, 0.18, 0.92, 0.52, 3, "#d4a62a", 92);
       break;
     }
     case "esplanade": {
