@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en-SG">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lion City Mayor · Build Singapore, decide its history</title>
+<meta name="description" content="A free city building game set in Singapore from 1965. Plan one region through a century of growth, crises and elections: zone HDB estates, open hawker centres and MRT lines, balance the budget, and see what Singapore really did at 36 moments in its history. Plays in your browser, on phone or desktop.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Lion City Mayor · Build Singapore, decide its history">
+<meta property="og:description" content="It's 1965 and 3,500 families need a flat. A free city building game about Singapore's towns, history and hard choices.">
+<meta property="og:url" content="https://gcwm-play.github.io/mathquizSGPrimary/lioncity.html">
+<meta property="og:image" content="https://gcwm-play.github.io/mathquizSGPrimary/lioncity-og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#ff5a5f">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦁</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+<style>
+/* Visual system follows the landing-page-design skill (as in HDBapocalypse), with the game's own font and palette. */
+:root{
+  --cream:#fffdf6;--soft:#f2eee3;--sky:#d8f1fd;--line:#e6e0d1;
+  --ink:#2f2b4a;--mute:#625e7c;--brand:#ff5a5f;--brand-ink:#ffffff;--sea:#2a9be0;--good:#1e9e5a;--warn:#f08c00;
+  --f:'Fredoka',system-ui,sans-serif;
+  --ease:cubic-bezier(0.22,1,0.36,1);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--f);font-size:16px;line-height:24px}
+img{display:block;max-width:100%;height:auto}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:4px;border-radius:4px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}
+p{margin:0;text-wrap:pretty}
+.skip{position:absolute;left:16px;top:-48px;z-index:100;background:var(--ink);color:#fff;padding:8px 12px;border-radius:8px;font-weight:600;text-decoration:none;transition:transform .3s var(--ease)}
+.skip:focus{transform:translateY(64px)}
+.wrap{width:min(1120px,100%);margin:0 auto;padding:0 16px}
+@media (min-width:768px){.wrap{padding:0 32px}}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;font:600 16px/24px var(--f);text-decoration:none;border:2px solid transparent;cursor:pointer;transition:transform .3s var(--ease),background-color .3s var(--ease),box-shadow .3s var(--ease)}
+.btn:hover{transform:translateY(-2px)}
+.btn:active{transform:scale(0.98)}
+.btn-main{background:var(--brand);color:var(--brand-ink);border-color:var(--ink);box-shadow:0 4px 0 var(--ink)}
+.btn-main:hover{background:#ff6d71;box-shadow:0 6px 0 var(--ink)}
+.btn-main:active{box-shadow:0 2px 0 var(--ink)}
+.btn-lg{padding:12px 24px;font-size:18px;line-height:28px;border-radius:16px}
+.btn-sm{font-size:14px;line-height:20px;box-shadow:0 2px 0 var(--ink)}
+.btn-sm:hover{box-shadow:0 4px 0 var(--ink)}
+
+/* nav */
+.nav{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:16px;padding:8px 8px 8px 16px;border-radius:16px;background:#fffdf6cc;border:2px solid #2f2b4a1f;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);width:max-content;max-width:calc(100% - 24px)}
+.logo{font-weight:700;font-size:16px;line-height:24px;text-decoration:none;white-space:nowrap}
+.logo span{color:var(--brand)}
+.nav ul{display:none;list-style:none;margin:0;padding:0;gap:4px}
+.nav ul a{display:block;padding:4px 12px;border-radius:8px;font-size:14px;line-height:20px;font-weight:500;text-decoration:none;color:var(--mute);transition:color .3s var(--ease),background-color .3s var(--ease)}
+.nav ul a:hover{color:var(--ink);background:#2f2b4a0d}
+@media (min-width:768px){.nav ul{display:flex}}
+
+/* hero */
+.hero{position:relative;background:var(--sky);display:flex;flex-direction:column;align-items:center;overflow:hidden;isolation:isolate}
+.hero-copy{position:relative;text-align:center;padding:128px 16px 48px;display:flex;flex-direction:column;align-items:center;gap:24px}
+.eyebrow{font-size:14px;line-height:20px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);padding:4px 12px;border-radius:9999px;border:2px solid #2f2b4a26;background:#fffdf699}
+.hero h1{font-size:36px;line-height:40px;font-weight:700;max-width:680px;background:linear-gradient(90deg,#2f2b4a,#6d6890);-webkit-background-clip:text;background-clip:text;color:transparent}
+@media (min-width:640px){.hero h1{font-size:60px;line-height:1}}
+.hero .sub{max-width:680px;font-size:18px;line-height:28px;color:var(--mute)}
+.hero .fine{max-width:600px;font-size:16px;line-height:24px;color:var(--mute)}
+.hero .fine a{text-decoration:none;border-radius:4px}
+.hero .fine a:hover{color:var(--ink)}
+.hero .fine b{color:var(--ink);font-weight:600}
+.shot{position:relative;width:min(1120px,calc(100% - 32px));margin:0 0 -96px}
+.frame{border-radius:24px;padding:8px;background:var(--cream);border:2px solid var(--ink);box-shadow:0 8px 0 var(--ink),0 32px 64px #2f2b4a33}
+.frame-bar{display:flex;align-items:center;gap:8px;padding:4px 8px 12px}
+.frame-bar i{width:12px;height:12px;border-radius:9999px;background:var(--soft);border:2px solid #2f2b4a26}
+.frame-bar span{margin-left:8px;font-size:12px;line-height:16px;color:var(--mute)}
+.frame img{border-radius:16px}
+.shot .phone{display:none}
+@media (max-width:639px){
+  .shot{width:min(300px,calc(100% - 64px))}
+  .shot .desk{display:none}.shot .phone{display:block}
+  .frame{border-radius:32px}.frame img{border-radius:24px}
+  .frame-bar{display:none}
+}
+.after-hero{height:96px}
+
+/* sections */
+section{scroll-margin-top:80px}
+.sec{padding:96px 0}
+.kicker{font-size:14px;line-height:20px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--brand);margin-bottom:12px}
+.h2{font-size:30px;line-height:36px;font-weight:700;max-width:680px}
+@media (min-width:768px){.h2{font-size:36px;line-height:40px}}
+.lead{margin-top:16px;max-width:680px;font-size:18px;line-height:28px;color:var(--mute)}
+
+/* tagline reveal */
+.tagline{padding:96px 0}
+.tagline p{font-size:30px;line-height:36px;font-weight:600;max-width:880px;margin:0 auto;text-align:center}
+@media (min-width:768px){.tagline p{font-size:48px;line-height:1.1}}
+.tagline .w{color:#2f2b4a4d;transition:color .5s var(--ease)}
+.tagline .w.on{color:var(--ink)}
+.tagline .w.hot.on{color:var(--brand)}
+
+/* feature rows */
+.feat{display:grid;gap:96px;margin-top:64px}
+.row{display:grid;gap:32px;align-items:center}
+@media (min-width:900px){.row{grid-template-columns:1fr 1.15fr;gap:64px}.row.flip>:first-child{order:2}}
+.row .tag{display:inline-block;font-size:14px;line-height:20px;font-weight:600;padding:4px 12px;border-radius:9999px;background:var(--soft);margin-bottom:12px}
+.row h3{font-size:30px;line-height:36px;font-weight:700}
+.row p{margin-top:12px;color:var(--mute);font-size:18px;line-height:28px}
+.row ul{margin:24px 0 0;padding:0;list-style:none;display:grid;gap:12px;color:var(--mute)}
+.row li{display:flex;gap:12px}
+.row li svg{flex:none;margin-top:4px;color:var(--good)}
+.row li b{color:var(--ink);font-weight:600}
+.pic{border-radius:24px;padding:8px;background:var(--soft);border:2px solid var(--line)}
+.pic img{border-radius:16px}
+.pic.tall{max-width:520px;justify-self:center;width:100%}
+
+/* regions */
+.regions{display:grid;gap:16px;margin-top:48px}
+@media (min-width:640px){.regions{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:960px){.regions{grid-template-columns:repeat(3,1fr)}}
+.region{border-radius:16px;padding:24px;background:#fff;border:2px solid var(--line);transition:transform .5s var(--ease),border-color .3s var(--ease)}
+.region:hover{transform:translateY(-4px);border-color:#2f2b4a40}
+.region .em{font-size:30px;line-height:36px}
+.region h3{margin-top:12px;font-size:20px;line-height:28px}
+.region p{margin-top:8px;color:var(--mute)}
+
+/* steps */
+.steps{display:grid;gap:16px;margin-top:48px}
+@media (min-width:768px){.steps{grid-template-columns:repeat(3,1fr)}}
+.step{padding:24px;border-radius:16px;border:2px solid var(--line);background:#fff}
+.step .n{font-size:14px;line-height:20px;font-weight:600;color:var(--brand)}
+.step h3{margin-top:8px;font-size:24px;line-height:32px}
+.step p{margin-top:8px;color:var(--mute)}
+
+/* timeline */
+.times{display:grid;gap:12px;margin-top:48px;grid-template-columns:repeat(2,1fr)}
+.times .time:last-child{grid-column:1/-1}
+@media (min-width:640px){.times{grid-template-columns:repeat(4,1fr)}.times .time:last-child{grid-column:auto}}
+@media (min-width:960px){.times{grid-template-columns:repeat(7,1fr)}}
+.time{border-radius:16px;padding:16px;background:#fff;border:2px solid var(--line)}
+.time b{display:block;font-size:24px;line-height:32px;font-weight:700;color:var(--brand)}
+.time span{color:var(--mute);font-size:14px;line-height:20px}
+
+/* classroom */
+.class{border-radius:24px;padding:48px 24px;background:var(--sky);border:2px solid #2f2b4a1a}
+@media (min-width:768px){.class{padding:64px}}
+.class .cards{display:grid;gap:16px;margin-top:32px}
+@media (min-width:768px){.class .cards{grid-template-columns:repeat(3,1fr)}}
+.class .card{border-radius:16px;padding:24px;background:var(--cream);border:2px solid #2f2b4a1a}
+.class .card h3{font-size:20px;line-height:28px}
+.class .card p{margin-top:8px;color:var(--mute)}
+
+/* faq */
+.faq{margin-top:48px;display:grid;gap:8px;max-width:800px}
+.faq details{border-radius:12px;background:#fff;border:2px solid var(--line)}
+.faq summary{cursor:pointer;list-style:none;padding:16px 24px;font-weight:600;font-size:18px;line-height:28px;display:flex;justify-content:space-between;gap:16px;border-radius:12px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary svg{flex:none;margin-top:4px;color:var(--mute);transition:transform .5s var(--ease)}
+.faq details[open] summary svg{transform:rotate(45deg)}
+.faq details p{padding:0 24px 16px;color:var(--mute)}
+
+/* final cta */
+.final{text-align:center;padding:96px 16px;display:flex;flex-direction:column;align-items:center;gap:24px;border-radius:24px;background:var(--brand);border:2px solid var(--ink);box-shadow:0 8px 0 var(--ink);margin:0 auto 96px;color:#fff}
+.final .h2{margin:0 auto}
+.final p{max-width:560px;font-size:18px;line-height:28px;color:#fff}
+.final .btn-main{background:var(--cream);color:var(--ink)}
+.final .btn-main:hover{background:#fff}
+
+footer{border-top:2px solid var(--line);padding:32px 0 48px;color:var(--mute);font-size:14px;line-height:20px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:16px 32px;justify-content:space-between}
+footer nav{display:flex;flex-wrap:wrap;gap:8px 24px}
+footer a{color:var(--mute);text-decoration:none}
+footer a:hover{color:var(--ink)}
+
+/* reveals */
+.rv{opacity:0;transform:translateY(32px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.rv.in{opacity:1;transform:none}
+.hero .rv{transition-duration:.8s}
+.hero .rv:nth-child(2){transition-delay:.06s}.hero .rv:nth-child(3){transition-delay:.12s}.hero .rv:nth-child(4){transition-delay:.18s}.hero .rv:nth-child(5){transition-delay:.24s}
+.shot.rv{transform:translateY(64px)}.shot.rv.in{transform:none;transition-delay:.3s}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .rv,.shot.rv{transform:none!important;transition:opacity .4s linear}
+  .btn:hover,.region:hover{transform:none}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav" aria-label="Site">
+  <a class="logo" href="./lioncity.html" aria-current="page">Lion City <span>Mayor</span></a>
+  <ul>
+    <li><a href="#play">How it plays</a></li>
+    <li><a href="#history">History</a></li>
+    <li><a href="#classroom">Classroom</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <a class="btn btn-main btn-sm" href="mayor.html">Play now</a>
+</header>
+
+<main id="main">
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-copy">
+    <p class="eyebrow rv">A free browser game · Singapore from 1965</p>
+    <h1 id="hero-title" class="rv">It's 1965.<br>Singapore needs homes.<br>You're the mayor.</h1>
+    <p class="sub rv">Plan one region of Singapore through a century of growth, crises and elections. Lay the roads, zone the HDB estates, open hawker centres and MRT lines, balance the budget, and win the vote every six years.</p>
+    <a class="btn btn-main btn-lg rv" href="mayor.html">Play now, it's free
+      <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M221.66 133.66l-72 72a8 8 0 0 1-11.32-11.32L196.69 136H40a8 8 0 0 1 0-16h156.69l-58.35-58.34a8 8 0 0 1 11.32-11.32l72 72a8 8 0 0 1 0 11.32Z"/></svg></a>
+    <p class="fine rv"><a href="#history"><b>36 real moments from Singapore's history,</b> from the British withdrawal in 1968 to COVID-19. Make your call, then find out what Singapore did.</a></p>
+  </div>
+  <figure class="shot rv">
+    <div class="frame">
+      <div class="frame-bar" aria-hidden="true"><i></i><i></i><i></i><span>gcwm-play.github.io/mathquizSGPrimary/mayor.html</span></div>
+      <img class="desk" src="landing/lioncity/game-desktop.webp" width="1800" height="1125" fetchpriority="high" alt="The game in 2005: a coastal region with Chinatown's shophouses, HDB blocks, a polyclinic, an MRT line and a river, with the budget, population and happiness along the top.">
+      <img class="phone" src="landing/lioncity/game-phone.webp" width="585" height="1266" loading="lazy" alt="The game on a phone: Tampines in 1991 with HDB blocks, an MRT line and the build tools along the bottom.">
+    </div>
+  </figure>
+</section>
+<div class="after-hero"></div>
+
+<section class="tagline" aria-label="Tagline">
+  <div class="wrap"><p id="tag">Every flat, every hawker centre and every dollar is a choice. Make yours, then see what Singapore really did.</p></div>
+</section>
+
+<section class="sec" id="play" aria-labelledby="play-title" style="padding-top:0">
+  <div class="wrap">
+    <p class="kicker rv">What you'll do</p>
+    <h2 class="h2 rv" id="play-title">Build it, run it, pay for it, answer for it.</h2>
+    <p class="lead rv">Four jobs, all at once, just like a real town planner, council and treasurer rolled into one.</p>
+
+    <div class="feat">
+      <div class="row">
+        <div class="rv">
+          <span class="tag">🏗️ Build</span>
+          <h3>A city that grows on its own</h3>
+          <p>Draw curved roads and zone the land beside them. Families, shops and factories move in by themselves. Your job is to put the right things in the right places.</p>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>From kampong to skyline.</b> Resettle villages, then watch slab blocks give way to point blocks and BTO towers.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>61 kinds of building.</b> Wet markets, hawker centres, polyclinics, schools, bus interchanges, and MRT lines above ground or under it.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>Old blocks age.</b> Upgrade them, or rebuild them and rehouse the residents first.</span></li>
+          </ul>
+        </div>
+        <div class="pic rv"><img src="landing/lioncity/build.webp" width="1600" height="1000" loading="lazy" alt="Tampines and Bedok in 1991: colourful HDB blocks, factories, a pond, a river and an MRT line weaving between curved roads."></div>
+      </div>
+
+      <div class="row flip" id="history">
+        <div class="rv">
+          <span class="tag">📖 Learn</span>
+          <h3>Live through Singapore's history</h3>
+          <p>Real crises arrive on their real dates, and real policy debates land on your desk. Read the background, make your call, and play on.</p>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>36 history notes</b> written for secondary school readers, from street hawkers and Stop at Two to the haze and MRT breakdowns.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>No peeking.</b> What Singapore actually chose is only revealed at the next moment in history, next to the choice you made.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>And what came after.</b> Each reveal explains how the decision turned out, good and bad.</span></li>
+          </ul>
+        </div>
+        <div class="pic tall rv"><img src="landing/lioncity/history.webp" width="960" height="1091" loading="lazy" alt="A decision about ethnic enclaves in 1991 with its history note open, followed by a reveal: the player licensed street hawkers in 1979, while Singapore moved them into hawker centres, which became UNESCO heritage in 2020."></div>
+      </div>
+
+      <div class="row">
+        <div class="rv">
+          <span class="tag">🏘️ Manage</span>
+          <h3>Run your towns, win their votes</h3>
+          <p>Every town has its own needs and its own voice. Residents tell you what is missing, and every six years they tell you at the ballot box.</p>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>Eleven needs per town,</b> from housing and jobs to food, schools, healthcare, transport and clean air.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>Promises are binding.</b> Pledge a hawker centre to win a swing town, and lose trust everywhere if you don't build it.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>Every place is different.</b> In Bukit Timah, landed estates push back if their streets change too fast.</span></li>
+          </ul>
+        </div>
+        <div class="pic tall rv"><img src="landing/lioncity/election.webp" width="960" height="1000" loading="lazy" alt="The Elections panel three months before polling day: about 55% of the vote overall, support town by town, and pledges for a hawker centre and a new school in Bukit Batok."></div>
+      </div>
+
+      <div class="row flip">
+        <div class="rv">
+          <span class="tag">💰 Balance</span>
+          <h3>Make the money add up</h3>
+          <p>Flats are sold to families, property tax and business tax come in, and the central government sends grants. Every service you open costs money to run, for years.</p>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>See where you're heading.</b> A 24 month projection shows your treasury if you start nothing new.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>16 programmes</b> to fund, from baby bonuses and student bursaries to grants for new businesses and heritage trails.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>Reserves matter.</b> Hit a crisis with an empty treasury and your only choices are borrowing at a premium or doing nothing.</span></li>
+          </ul>
+        </div>
+        <div class="pic tall rv"><img src="landing/lioncity/finance.webp" width="960" height="1000" loading="lazy" alt="The Finances panel for Bukit Timah in 1998: income and running costs since 1988, the treasury falling towards zero over the next two years, and sliders for property tax and services funding."></div>
+      </div>
+
+      <div class="row">
+        <div class="rv">
+          <span class="tag">⚖️ Decide</span>
+          <h3>No right answers, only hard choices</h3>
+          <p>Road pricing clears the jams and earns money, but drivers are furious. Wider roads please everyone until the jams return. Every card shows what each choice is likely to do before you pick.</p>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>39 dilemmas and 34 variations,</b> each one tied to what is actually in your region.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>Results are a range, not a promise.</b> The same choice can turn out a little better or worse, like real policy.</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69 218.34 66.34a8 8 0 0 1 11.32 11.32Z"/></svg><span><b>Choices come back.</b> A quick patch today can mean a bigger breakdown in two years.</span></li>
+          </ul>
+        </div>
+        <div class="pic rv"><img src="landing/lioncity/decision.webp" width="960" height="845" loading="lazy" alt="A Traffic jams decision in Kranji: introduce road pricing for income and better transport but angry drivers, widen the roads for a short term fix, or run more buses."></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="time-title" style="padding-top:0">
+  <div class="wrap">
+    <p class="kicker rv">Real crises, real dates</p>
+    <h2 class="h2 rv" id="time-title">Seven turning points you will have to steer through.</h2>
+    <p class="lead rv">Each one hits your jobs, your budget or your residents' health. How hard depends on what you built before it arrived. Play past today and five imagined crises are waiting in the future.</p>
+    <div class="times">
+      <div class="time rv"><b>1968</b><span>British military withdrawal</span></div>
+      <div class="time rv"><b>1973</b><span>Oil crisis</span></div>
+      <div class="time rv"><b>1985</b><span>Recession</span></div>
+      <div class="time rv"><b>1997</b><span>Asian financial crisis</span></div>
+      <div class="time rv"><b>2003</b><span>SARS</span></div>
+      <div class="time rv"><b>2008</b><span>Global financial crisis</span></div>
+      <div class="time rv"><b>2020</b><span>COVID-19</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="reg-title" style="padding-top:0">
+  <div class="wrap">
+    <p class="kicker rv">Six regions</p>
+    <h2 class="h2 rv" id="reg-title">Every part of the island plays differently.</h2>
+    <div class="regions">
+      <article class="region rv"><div class="em" aria-hidden="true">✈️</div><h3>Tampines / Changi</h3><p>Kampongs and coconut groves by the sea. Build new towns and make room for an airport.</p></article>
+      <article class="region rv"><div class="em" aria-hidden="true">🏭</div><h3>Jurong / Tuas</h3><p>The industrial heartland. Balance jobs against the smoke drifting into homes.</p></article>
+      <article class="region rv"><div class="em" aria-hidden="true">🏙️</div><h3>Central / CBD / Orchard</h3><p>The hardest start: little free land, crowded shophouses and heritage to protect.</p></article>
+      <article class="region rv"><div class="em" aria-hidden="true">🏝️</div><h3>Telok Blangah / Sentosa</h3><p>A tourism region where Sentosa runs its own visitor economy.</p></article>
+      <article class="region rv"><div class="em" aria-hidden="true">🌉</div><h3>Woodlands / Causeway</h3><p>The gateway to Malaysia, with trade flowing across the Causeway.</p></article>
+      <article class="region rv"><div class="em" aria-hidden="true">⛰️</div><h3>Bukit Timah / Clementi</h3><p>A protected hill, famous schools and campuses, and landed estates that want to stay as they are.</p></article>
+    </div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="how-title" style="padding-top:0">
+  <div class="wrap">
+    <p class="kicker rv">How it plays</p>
+    <h2 class="h2 rv" id="how-title">Pick a region and start building.</h2>
+    <div class="steps">
+      <div class="step rv"><p class="n">01</p><h3>Choose your start</h3><p>One of six regions, then a mode: Campaign, Sandbox, or a 100 or 200 year legacy judged decade by decade against rival mayors.</p></div>
+      <div class="step rv"><p class="n">02</p><h3>Build and decide</h3><p>Time runs month by month. Pause whenever you like to plan, build and answer the decisions that arrive.</p></div>
+      <div class="step rv"><p class="n">03</p><h3>Face the voters</h3><p>Every six years your towns vote. On Normal and Hard, lose an election or run too deep into debt and your term is over.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="classroom" aria-labelledby="class-title" style="padding-top:0">
+  <div class="wrap">
+    <div class="class">
+      <p class="kicker rv">For the classroom</p>
+      <h2 class="h2 rv" id="class-title">A real world simulation students can argue about.</h2>
+      <p class="lead rv">Lion City Mayor is written for secondary school readers. It gives a class something concrete to discuss: why Singapore made the choices it did, and what it cost.</p>
+      <div class="cards">
+        <div class="card rv"><h3>Think before the answer</h3><p>History notes give the background but hold back what happened, so students commit to a choice first.</p></div>
+        <div class="card rv"><h3>See what each choice costs</h3><p>Every option shows its likely effects on money, needs, trust and mood, so the debate is about priorities, not guesses.</p></div>
+        <div class="card rv"><h3>Nothing to install</h3><p>It runs in the browser on school laptops and phones. No accounts, no ads, and nothing leaves the device.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="faq" aria-labelledby="faq-title" style="padding-top:0">
+  <div class="wrap">
+    <p class="kicker rv">FAQ</p>
+    <h2 class="h2 rv" id="faq-title">Before you take office</h2>
+    <div class="faq">
+      <details class="rv"><summary>Is it really free?<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"/></svg></summary><p>Yes. It runs in your browser with no download, no account and no ads.</p></details>
+      <details class="rv"><summary>Does it save my game?<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"/></svg></summary><p>Yes, in the browser you are playing on. Each region keeps its own campaign, and you can go back to just after your last election win. Clearing your browser's site data erases the saves.</p></details>
+      <details class="rv"><summary>Can I play on my phone?<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"/></svg></summary><p>Yes. Pinch to zoom, drag to move, and tap to build. A bigger screen helps when you are drawing long roads.</p></details>
+      <details class="rv"><summary>Is the history accurate?<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"/></svg></summary><p>The history notes describe real events and policies and name their sources, such as the National Library's Infopedia. The game itself is a simplified model, and the role of mayor here is fictional: it combines planning, housing and town council powers. Singapore's real mayors lead Community Development Councils.</p></details>
+      <details class="rv"><summary>Which difficulty should I start with?<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"/></svg></summary><p>Easy gives you a bigger budget, and you can't lose an election. Normal asks you to win every election. Hard has a tight budget and more critical voters. Sandbox has no elections and no bankruptcy.</p></details>
+      <details class="rv"><summary>Can I lose?<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"/></svg></summary><p>On Normal and Hard, yes: lose an election, or let the debt run past your limit, and a new mayor takes over. In the legacy modes your final score compares your region with the others, decade by decade.</p></details>
+      <details class="rv"><summary>Who is it for?<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z"/></svg></summary><p>Anyone who likes city builders, and anyone curious about how Singapore was built. The text is written for secondary school students, so it works well in a history or social studies lesson too.</p></details>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <section class="final rv" aria-labelledby="final-title">
+    <h2 class="h2" id="final-title">3,500 families are waiting for a flat.</h2>
+    <p>Pick a region, draw your first road, and see how far your town can go.</p>
+    <a class="btn btn-main btn-lg" href="mayor.html">Play now, it's free
+      <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M221.66 133.66l-72 72a8 8 0 0 1-11.32-11.32L196.69 136H40a8 8 0 0 1 0-16h156.69l-58.35-58.34a8 8 0 0 1 11.32-11.32l72 72a8 8 0 0 1 0 11.32Z"/></svg></a>
+  </section>
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Lion City Mayor. No accounts, no tracking, no cookies. Your saves stay in your browser. Not affiliated with HDB, LTA, URA or MOE.</p>
+    <nav aria-label="Footer">
+      <a href="mayor.html">Play</a>
+      <a href="https://github.com/gcwm-play/mathquizSGPrimary">Source on GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+// Scroll reveals: once each, via IntersectionObserver.
+(function(){
+  const els=document.querySelectorAll('.rv');
+  if(!('IntersectionObserver' in window)){els.forEach(e=>e.classList.add('in'));return}
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{rootMargin:'0px 0px -10% 0px'});
+  els.forEach(e=>io.observe(e));
+})();
+
+// Tagline: each word lights up as it crosses a line 70% down the viewport.
+(function(){
+  const p=document.getElementById('tag');const hot=['flat,','hawker','centre','dollar','Singapore','really','did.'];
+  p.innerHTML=p.textContent.split(' ').map(w=>`<span class="w${hot.includes(w)?' hot':''}">${w}</span>`).join(' ');
+  const ws=[...p.querySelectorAll('.w')];
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){ws.forEach(w=>w.classList.add('on'));return}
+  let ticking=false;
+  const upd=()=>{ticking=false;const line=innerHeight*0.7;let k=0;ws.forEach(w=>{if(!w.classList.contains('on')&&w.getBoundingClientRect().top<line){w.style.transitionDelay=(k++*60)+'ms';w.classList.add('on')}})};
+  addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(upd)}},{passive:true});upd();
+})();
+</script>
+</body>
+</html>

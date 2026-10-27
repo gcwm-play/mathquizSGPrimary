@@ -292,7 +292,7 @@ export function ElectionPanel({ world: w, onClose, onChange, toast, onReport }) 
       <h3 className="mb-1 mt-4 font-bold">📣 Pledges</h3>
       {season ? (
         <>
-          <p className="text-[13px] text-[var(--muted)]">Promise up to 3 things to win votes now. Promises add at most 6% to any one town's vote. Each town's pledges fix what it's shortest of, and the towns least likely to vote for you are at the top. The worse off a town is, the more votes a pledge wins, and the angrier it gets if you break it.</p>
+          <p className="text-[13px] text-[var(--muted)]">Promise up to 3 things to win votes now. Promises add at most 4% to any one town's vote. Each town's pledges fix what it's shortest of, and the towns least likely to vote for you are at the top. The worse off a town is, the more votes a pledge wins, and the angrier it gets if you break it.</p>
           {pledgeCred(w) < 0.99 && (
             <p className="mt-1 rounded-xl bg-[var(--bad-bg)] px-2.5 py-1.5 text-[13px] font-semibold text-[var(--bad)]">
               🤨 Voters doubt your promises after the ones you broke: pledges win {Math.round((1 - pledgeCred(w)) * 100)}% fewer votes. Keep a promise to win their trust back.
