@@ -47,7 +47,7 @@ const ACTIONS = [
   { styles: null, from: 1995, to: 2300, text: "ran a popular lift-upgrading programme for seniors", d: { housing: 3, health: 2, happy: 2 }, tone: "good" },
   { styles: null, from: 2001, to: 2300, text: "introduced a generous baby bonus", d: { fert: 5, finance: -3 }, tone: "good", innov: true },
   { styles: null, from: 1975, to: 2300, text: "suffered a long-running dengue outbreak", d: { health: -4, happy: -2 }, tone: "bad" },
-  { styles: null, from: 2010, to: 2300, text: "built 'kampong admiralty'-style senior hubs", d: { health: 3, rep: 4, finance: -3 }, tone: "good", innov: true },
+  { styles: null, from: 2010, to: 2300, text: "built senior hubs combining homes, clinics and care", d: { health: 3, rep: 4, finance: -3 }, tone: "good", innov: true },
   { styles: null, from: 2030, to: 2300, text: "raised a sea wall around the whole coast", d: { rep: 3, finance: -5, health: 1 }, tone: "good", innov: true },
 ];
 

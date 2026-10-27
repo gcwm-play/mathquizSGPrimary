@@ -1948,7 +1948,9 @@ export function describe(w, A, hit) {
     }
     if (S.cover) lines.push(`Serves homes within ${S.r * 50} m`);
     const stn = STRUCTS[s.type]?.station;
-    if (stn && A && !A.stations.includes(s)) lines.push(w.segs.some((g) => g.works > w.t) ? "🚧 Waiting for the tunnel works to finish" : "⚠️ Not beside an MRT track");
+    const works = stn ? w.segs.reduce((m, g) => (g.works > w.t ? Math.max(m, g.works) : m), 0) : 0;
+    if (stn && A && !A.liveStations.includes(s) && works) lines.push(`🚧 Tunnel works under way: trains can run from about ${tToDate(w, works)}`);
+    else if (stn && A && !A.stations.includes(s)) lines.push("⚠️ Not beside an MRT track");
     else if (stn && A && !A.mrtRunning) lines.push("⚠️ Needs a second station on the line");
     else if (stn && A && !A.liveStations.includes(s)) lines.push("⚠️ No other station on this line: connect the track to another station");
     if (S.upkeep) lines.push(`Upkeep ${fmtMoney(S.upkeep)}/month`);
