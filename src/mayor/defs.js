@@ -45,13 +45,20 @@ export const LOT_TYPES = {
   factory: { zone: "ind", name: "Light factory", era: "1960s", from: 1965, jobs: 120, poll: 34, build: 6, need: 0, cost: 60 },
   jtc: { zone: "ind", name: "JTC flatted factory", era: "1970s", from: 1972, jobs: 240, poll: 28, build: 10, need: 10, cost: 140 },
   hitech: { zone: "ind", name: "Hi-tech business park", era: "1990s", from: 1995, jobs: 340, poll: 8, build: 16, need: 35, cost: 260 },
+  // like Biopolis and one-north
+  biomed: { zone: "ind", name: "Biomedical & R&D campus", era: "2000s", from: 2003, jobs: 400, poll: 4, build: 18, need: 42, cost: 340 },
+  // stacked factories that lorries drive up to, like JTC Defu or Woodlands Spectrum
+  rampup: { zone: "ind", name: "Ramp-up industrial tower", era: "2000s", from: 2008, jobs: 480, poll: 12, build: 20, need: 46, cost: 400 },
+  smart: { zone: "ind", name: "Smart factory (Industry 4.0)", era: "2010s", from: 2018, jobs: 540, poll: 3, build: 20, need: 52, cost: 460 },
+  // circular, carbon-neutral industry, like the plans for Tuas and Jurong Island
+  eco: { zone: "ind", name: "Eco-industrial park", era: "2030s", from: 2035, jobs: 600, poll: 0, build: 22, need: 58, cost: 520 },
 };
 
 export const ZONE_LINE = {
   hdb: ["emergency", "slab", "point", "ng", "modern", "bto"],
   pte: ["terrace", "condo", "luxury"],
   com: ["shophouse", "ncentre", "mall", "office", "mixed"],
-  ind: ["farm", "factory", "jtc", "hitech"],
+  ind: ["farm", "factory", "jtc", "hitech", "biomed", "rampup", "smart", "eco"],
 };
 
 export const KAMPONG = { name: "Kampong", housePop: 28, q: 22 };

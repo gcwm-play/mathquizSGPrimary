@@ -40,7 +40,7 @@ const hitechShare = (w) => {
     const T = LOT_TYPES[l.b.type];
     if (!T.jobs) continue;
     all += T.jobs;
-    if (["hitech", "office", "mixed", "mall"].includes(l.b.type)) hi += T.jobs;
+    if (["hitech", "biomed", "smart", "eco", "office", "mixed", "mall"].includes(l.b.type)) hi += T.jobs;
   }
   return all ? hi / all : 0;
 };
