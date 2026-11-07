@@ -16,6 +16,7 @@ export default defineConfig({
         lioncity: fileURLToPath(new URL("./lioncity.html", import.meta.url)),
         dicegrid: fileURLToPath(new URL("./dicegrid.html", import.meta.url)),
         dicetactics: fileURLToPath(new URL("./dicetactics.html", import.meta.url)),
+        dinodash: fileURLToPath(new URL("./dinodash.html", import.meta.url)),
       },
     },
   },

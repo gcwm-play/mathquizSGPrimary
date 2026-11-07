@@ -69,6 +69,17 @@ A follow-on prototype at `dicetactics.html` (`/mathquizSGPrimary/dicetactics.htm
 
 Source: `src/dicetactics/` (`engine.js` rules, `ai.js` computer player, `sprites.js` pixel art, `TacticsApp.jsx`).
 
+## Dino Dash Party (2–4 player running game)
+
+A party game at `dinodash.html` (`/mathquizSGPrimary/dinodash.html` on Pages): an endless-runner for 2 to 4 players on one device, each in their own lane on the same course.
+
+- Game room: players join by pressing a jump key (W, ↑, I or Num 8 picks that keyboard set), pressing a button on a game controller (up to 4), or tapping "Touch buttons". Empty seats can be filled with computer dinos (Easy / Normal / Hard). Everyone picks a name, colour and hat, and a room scoreboard counts wins across rounds (saved on the device).
+- Controls: ▶ faster and ◀ slower move your dino forward and back (going fast uses a ⚡ boost bar that refills), jump (hold for a big jump, tap for a hop) and duck (under bats, or to drop faster in the air).
+- Modes: 🏁 Race (500 / 1000 / 1600 m; crashing makes you stumble), ❤️ Survival (the world keeps speeding up and you lose a life for each crash or for falling off the back of the screen; last dino running wins; 1, 3 or 5 lives) and 🪙 Coin Rush (most coins in 45 / 60 / 90 s; crashing drops 3 coins). Speed setting: Chill, Normal or Turbo.
+- See-through "ghost" dinos and edge arrows show where the others are; a 3-2-1 countdown, pause (Esc / P), sound effects and full-screen.
+
+Source: `src/dinodash/` (`engine.js` rules and computer players, `render.js` canvas drawing, `input.js` keyboards / controllers / touch, `sfx.js` sounds).
+
 ## Development
 
 ```bash

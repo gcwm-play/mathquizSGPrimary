@@ -1,0 +1,548 @@
+.dd-app {
+  --ink: #24304a;
+  --paper: #fff8ec;
+  --sand: #f3e2c2;
+  --accent: #ff8a3d;
+  font-family: "Fredoka", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+  background: linear-gradient(180deg, #bfe8ff 0%, #e6f6ff 45%, #f7e7c4 100%);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.dd-app button {
+  font: inherit;
+  cursor: pointer;
+}
+.dd-app button:disabled {
+  cursor: not-allowed;
+}
+
+/* ------------ room ------------ */
+.dd-room {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+.dd-head {
+  text-align: center;
+  margin: 6px 0 16px;
+}
+.dd-head h1 {
+  font-size: clamp(28px, 6vw, 44px);
+  font-weight: 700;
+  line-height: 1.1;
+}
+.dd-head p {
+  margin-top: 4px;
+  opacity: 0.8;
+}
+.dd-slots {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .dd-slots {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 420px) {
+  .dd-slots {
+    grid-template-columns: 1fr;
+  }
+}
+.dd-slot {
+  position: relative;
+  border-radius: 18px;
+  padding: 12px;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.dd-empty {
+  border: 3px dashed rgba(36, 48, 74, 0.3);
+  background: rgba(255, 255, 255, 0.45);
+  justify-content: center;
+  text-align: center;
+}
+.dd-filled {
+  background: #fff;
+  border: 4px solid var(--pc);
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--pc) 60%, #000);
+}
+.dd-slot-top {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dd-pnum {
+  font-weight: 700;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 14px;
+}
+.dd-empty .dd-pnum {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  opacity: 0.6;
+}
+.dd-x {
+  border: none;
+  background: #f1f1f1;
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+}
+.dd-x:hover {
+  background: #ffd9d9;
+}
+.dd-preview {
+  position: relative;
+  background: color-mix(in srgb, var(--pc) 18%, #fff);
+  border-radius: 14px;
+  padding: 2px 16px;
+}
+.dd-wins {
+  position: absolute;
+  top: 4px;
+  right: -6px;
+  background: #ffd23f;
+  border-radius: 999px;
+  padding: 0 7px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.dd-name {
+  width: 100%;
+  text-align: center;
+  font: inherit;
+  font-weight: 600;
+  font-size: 18px;
+  border: 2px solid #e4e4e4;
+  border-radius: 10px;
+  padding: 4px;
+}
+.dd-name:focus {
+  outline: none;
+  border-color: var(--pc);
+}
+.dd-swatches,
+.dd-hats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+}
+.dd-sw {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px #ccc;
+}
+.dd-sw.on {
+  box-shadow: 0 0 0 3px var(--ink);
+}
+.dd-sw:disabled {
+  opacity: 0.2;
+}
+.dd-hat {
+  border: 2px solid #eee;
+  background: #fafafa;
+  border-radius: 8px;
+  width: 32px;
+  height: 30px;
+  font-size: 16px;
+  line-height: 1;
+}
+.dd-hat.on {
+  border-color: var(--pc);
+  background: color-mix(in srgb, var(--pc) 22%, #fff);
+}
+.dd-ctrl {
+  margin-top: auto;
+  text-align: center;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+.dd-ctrl b {
+  font-size: 15px;
+}
+.dd-join {
+  font-size: 22px;
+  font-weight: 700;
+}
+.dd-join-help {
+  font-size: 14px;
+  line-height: 1.9;
+}
+kbd {
+  display: inline-block;
+  min-width: 26px;
+  padding: 0 6px;
+  margin: 0 2px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #c9c9c9;
+  box-shadow: 0 2px 0 #c9c9c9;
+  font-family: inherit;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.dd-join-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.dd-join-btns button,
+.dd-btn2 {
+  border: 2px solid var(--ink);
+  background: #fff;
+  border-radius: 12px;
+  padding: 6px 12px;
+  font-weight: 600;
+}
+.dd-join-btns button:hover,
+.dd-btn2:hover {
+  background: #fff3d6;
+}
+
+.dd-panel {
+  margin-top: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  padding: 16px;
+}
+.dd-panel h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.dd-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 640px) {
+  .dd-modes {
+    grid-template-columns: 1fr;
+  }
+}
+.dd-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+  border: 3px solid #e3e3e3;
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px;
+}
+.dd-mode b {
+  font-size: 19px;
+}
+.dd-mode span:last-child {
+  font-size: 14px;
+  opacity: 0.8;
+}
+.dd-mode-icon {
+  font-size: 30px;
+}
+.dd-mode.on {
+  border-color: var(--accent);
+  background: #fff3e6;
+  box-shadow: 0 4px 0 #e06a1c;
+}
+.dd-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 14px 0;
+}
+.dd-opts label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+}
+.dd-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid var(--ink);
+}
+.dd-seg button {
+  border: none;
+  background: #fff;
+  padding: 6px 12px;
+  font-weight: 500;
+}
+.dd-seg button + button {
+  border-left: 2px solid var(--ink);
+}
+.dd-seg button.on {
+  background: var(--ink);
+  color: #fff;
+}
+.dd-seg.small button {
+  padding: 2px 8px;
+  font-size: 13px;
+}
+.dd-start {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 16px;
+  padding: 14px;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 5px 0 #c85712;
+}
+.dd-start:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #c85712;
+}
+.dd-start:disabled {
+  background: #c9c9c9;
+  box-shadow: 0 5px 0 #a8a8a8;
+}
+.dd-hint {
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.7;
+  margin-top: 8px;
+}
+.dd-board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dd-board li {
+  background: #fff;
+  border: 2px solid var(--pc);
+  border-radius: 999px;
+  padding: 3px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dd-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--pc);
+  display: inline-block;
+}
+.dd-link {
+  border: none;
+  background: none;
+  text-decoration: underline;
+  opacity: 0.7;
+  padding: 0;
+}
+.dd-how ul {
+  list-style: disc;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ------------ game ------------ */
+.dd-screen-game,
+.dd-screen-results {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+.dd-game {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--ink);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.dd-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.dd-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+.dd-game-btns {
+  position: absolute;
+  top: 3px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+}
+.dd-game-btns button {
+  width: 30px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 15px;
+}
+.dd-pads {
+  display: grid;
+  gap: 6px;
+  padding: 6px 6px max(6px, env(safe-area-inset-bottom));
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+}
+.dd-pads.n2 {
+  --cols: 2;
+}
+.dd-pads.n3,
+.dd-pads.n4 {
+  --cols: 2;
+}
+@media (min-width: 900px) {
+  .dd-pads.n3 {
+    --cols: 3;
+  }
+  .dd-pads.n4 {
+    --cols: 4;
+  }
+}
+.dd-pad {
+  border: 3px solid var(--pc);
+  border-radius: 14px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--pc) 25%, #24304a);
+  touch-action: none;
+}
+.dd-pad-name {
+  color: #fff;
+  font-weight: 600;
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.2;
+}
+.dd-pad-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.4fr;
+  gap: 4px;
+}
+.dd-pad button {
+  height: 54px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 700;
+  touch-action: none;
+}
+.dd-pad button.down {
+  background: var(--pc);
+  color: #fff;
+  transform: scale(0.95);
+}
+.dd-pad .dd-jump {
+  background: #ffd23f;
+}
+
+.dd-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 28, 46, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 5;
+}
+.dd-results {
+  position: fixed;
+  overflow-y: auto;
+}
+.dd-card {
+  background: var(--paper);
+  border-radius: 22px;
+  padding: 20px;
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  margin: auto;
+}
+.dd-card.wide {
+  width: min(560px, 100%);
+}
+.dd-card h2 {
+  font-size: 30px;
+  font-weight: 700;
+}
+.dd-res-mode {
+  font-weight: 600;
+  opacity: 0.7;
+}
+.dd-winner-pics {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+.dd-res-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dd-res-list li {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  grid-template-areas: "medal name main" "medal extra extra";
+  align-items: center;
+  text-align: left;
+  background: #fff;
+  border-left: 8px solid var(--pc);
+  border-radius: 12px;
+  padding: 6px 10px;
+}
+.dd-medal {
+  grid-area: medal;
+  font-size: 26px;
+}
+.dd-res-name {
+  grid-area: name;
+  font-weight: 700;
+  font-size: 18px;
+}
+.dd-res-main {
+  grid-area: main;
+  font-weight: 600;
+}
+.dd-res-extra {
+  grid-area: extra;
+  font-size: 12px;
+  opacity: 0.65;
+}
+.dd-res-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
