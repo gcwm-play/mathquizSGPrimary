@@ -1,30 +1,33 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { MODES, COLORS, HATS, RACE_LENGTHS, createGame, step } from "./engine.js";
-import { drawGame, drawDino } from "./render.js";
-import { createInput, schemeForCode, schemeLabel, schemeHelp, KEY_SCHEMES, SCHEMES } from "./input.js";
+import { drawView, drawDino } from "./render.js";
+import { createInput, schemeForCode, schemeLabel, schemeRows, SEAT_SCHEME, SCHEMES } from "./input.js";
 import { playEvents, unlockAudio, setMuted } from "./sfx.js";
 
-const STORE = "dinodash-room-v1";
-const MAX = 4;
-const DEFAULT_SETTINGS = { mode: "race", raceLength: "short", lives: 3, coinTime: 60, pace: "normal" };
-const BOT_NAMES = ["Rexy", "Spike", "Dotty", "Zoom", "Pebbles", "Chomp"];
+const STORE = "dinodash-room-v2";
+const SEATS = 2;
+const DEFAULT_SETTINGS = { mode: "race", raceLength: "short", coinTime: 60, pace: "normal", layout: "auto" };
+const BOT_NAMES = ["Rexy", "Spike"];
 
 function loadRoom() {
   try {
     const r = JSON.parse(localStorage.getItem(STORE));
-    if (r && Array.isArray(r.players)) {
+    if (r && Array.isArray(r.seats)) {
+      const settings = { ...DEFAULT_SETTINGS, ...r.settings };
+      if (!MODES[settings.mode]) settings.mode = "race";
       return {
-        players: r.players.slice(0, MAX),
-        settings: { ...DEFAULT_SETTINGS, ...r.settings },
+        seats: [r.seats[0] || null, r.seats[1] || null],
+        settings,
         wins: r.wins || {},
         rounds: r.rounds || 0,
         muted: !!r.muted,
+        record: r.record || null,
       };
     }
   } catch {
     /* ignore */
   }
-  return { players: [], settings: DEFAULT_SETTINGS, wins: {}, rounds: 0, muted: false };
+  return { seats: [null, null], settings: DEFAULT_SETTINGS, wins: {}, rounds: 0, muted: false, record: null };
 }
 
 function saveRoom(room) {
@@ -37,13 +40,11 @@ function saveRoom(room) {
 
 const colorHex = (id) => (COLORS.find((c) => c.id === id) || COLORS[0]).body;
 const newId = () => Math.random().toString(36).slice(2, 9);
-
-function freeColor(players) {
-  return (COLORS.find((c) => !players.some((p) => p.color === c.id)) || COLORS[0]).id;
-}
+const isTouchDevice = () => typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+const minPlayers = (mode) => (mode === "endless" ? 1 : 2);
 
 // ---------------------------------------------------------------- dino picture
-function DinoPreview({ color, hat, size = 96, running = true }) {
+function DinoPreview({ color, hat, size = 96 }) {
   const ref = useRef(null);
   useEffect(() => {
     const cv = ref.current;
@@ -59,24 +60,23 @@ function DinoPreview({ color, hat, size = 96, running = true }) {
       ctx.clearRect(0, 0, cv.width, cv.height);
       const s = (size / 80) * dpr;
       ctx.setTransform(s, 0, 0, s, 0, 0);
-      // drawDino draws relative to GROUND (138) — move it into view
-      ctx.translate(14, 72 - 138);
-      const hop = running ? Math.max(0, Math.sin(t * 3)) * 8 : 0;
-      drawDino(ctx, 0, 138 - hop, colorHex(color), hat, { phase: running ? t * 12 : 0, air: hop > 1, height: hop });
+      ctx.translate(14, 72 - 138); // drawDino draws on the lane's ground line (138)
+      const hop = Math.max(0, Math.sin(t * 3)) * 8;
+      drawDino(ctx, 0, 138 - hop, colorHex(color), hat, { phase: t * 12, air: hop > 1, height: hop });
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [color, hat, size, running]);
+  }, [color, hat, size]);
   return <canvas ref={ref} style={{ width: size, height: size }} aria-hidden="true" />;
 }
 
 // ---------------------------------------------------------------- room (lobby)
-function PlayerCard({ p, i, players, wins, onChange, onRemove }) {
+function PlayerCard({ p, i, other, wins, onChange, onRemove }) {
   return (
     <div className="dd-slot dd-filled" style={{ "--pc": colorHex(p.color) }}>
       <div className="dd-slot-top">
-        <span className="dd-pnum">P{i + 1}</span>
+        <span className="dd-pnum">Player {i + 1}</span>
         <button className="dd-x" onClick={onRemove} aria-label={`Remove ${p.name}`}>
           ✕
         </button>
@@ -88,14 +88,14 @@ function PlayerCard({ p, i, players, wins, onChange, onRemove }) {
       <input
         className="dd-name"
         value={p.name}
-        maxLength={12}
+        maxLength={10}
         onChange={(e) => onChange({ name: e.target.value })}
         onBlur={(e) => !e.target.value.trim() && onChange({ name: `Player ${i + 1}` })}
         aria-label="Name"
       />
       <div className="dd-swatches" role="group" aria-label="Colour">
         {COLORS.map((c) => {
-          const taken = players.some((q) => q !== p && q.color === c.id);
+          const taken = other?.color === c.id;
           return (
             <button
               key={c.id}
@@ -116,15 +116,32 @@ function PlayerCard({ p, i, players, wins, onChange, onRemove }) {
           </button>
         ))}
       </div>
+      <div className="dd-lives">
+        <span>❤️ Lives</span>
+        <div className="dd-seg small">
+          {[1, 2, 3].map((n) => (
+            <button key={n} className={p.lives === n ? "on" : ""} onClick={() => onChange({ lives: n })} aria-label={`${n} lives`}>
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="dd-ctrl">
         <b>{schemeLabel(p)}</b>
-        <span>{schemeHelp(p)}</span>
-        {p.scheme === "bot" && (
+        {p.scheme === "bot" ? (
           <div className="dd-seg small">
             {["easy", "normal", "hard"].map((s) => (
               <button key={s} className={p.botSkill === s ? "on" : ""} onClick={() => onChange({ botSkill: s })}>
                 {s[0].toUpperCase() + s.slice(1)}
               </button>
+            ))}
+          </div>
+        ) : (
+          <div className="dd-keys">
+            {schemeRows(p).map(([k, what]) => (
+              <span key={what}>
+                <kbd>{k}</kbd> {what}
+              </span>
             ))}
           </div>
         )}
@@ -133,21 +150,29 @@ function PlayerCard({ p, i, players, wins, onChange, onRemove }) {
   );
 }
 
-function EmptySlot({ i, freeKeys, onTouch, onBot }) {
+function EmptySlot({ i, touch, onKeys, onTouch, onBot }) {
+  const key = SCHEMES[SEAT_SCHEME[i]].jumpKey;
   return (
     <div className="dd-slot dd-empty">
-      <span className="dd-pnum">P{i + 1}</span>
-      <div className="dd-join">Join the room!</div>
-      <p className="dd-join-help">
-        Press a jump key:{" "}
-        {freeKeys.map((k) => (
-          <kbd key={k}>{{ wasd: "W", arrows: "↑", ijkl: "I", numpad: "Num 8" }[k]}</kbd>
-        ))}
-        <br />
-        or press <kbd>A</kbd> on a game controller
-      </p>
+      <span className="dd-pnum">Player {i + 1}</span>
+      <div className="dd-join">Join!</div>
+      {touch ? (
+        <button className="dd-join-big" onClick={onTouch}>
+          👆 Tap to join
+        </button>
+      ) : (
+        <p className="dd-join-help">
+          Press <kbd className="big">{key}</kbd> to join
+          <br />
+          <span>or press a button on a game controller</span>
+        </p>
+      )}
       <div className="dd-join-btns">
-        <button onClick={onTouch}>👆 Touch buttons</button>
+        {touch ? (
+          <button onClick={onKeys}>⌨️ Keyboard ({key})</button>
+        ) : (
+          <button onClick={onTouch}>👆 Touch buttons</button>
+        )}
         <button onClick={onBot}>🤖 Computer</button>
       </div>
     </div>
@@ -155,36 +180,44 @@ function EmptySlot({ i, freeKeys, onTouch, onBot }) {
 }
 
 function Room({ room, setRoom, onStart }) {
-  const { players, settings } = room;
+  const { seats, settings } = room;
   const roomRef = useRef(room);
   roomRef.current = room;
+  const touch = isTouchDevice();
+  const count = seats.filter(Boolean).length;
+  const need = minPlayers(settings.mode);
+  const canStart = count >= need;
 
-  const addPlayer = useCallback(
-    (extra) => {
+  const join = useCallback(
+    (seat, extra) => {
       setRoom((r) => {
-        if (r.players.length >= MAX) return r;
-        const n = r.players.length + 1;
+        if (r.seats[seat]) return r;
+        const other = r.seats[1 - seat];
         const isBot = extra.scheme === "bot";
-        const botName = BOT_NAMES.find((b) => !r.players.some((p) => p.name === b)) || `Bot ${n}`;
+        const color = (COLORS.find((c) => c.id !== other?.color && c.id === COLORS[seat].id) || COLORS.find((c) => c.id !== other?.color)).id;
         const p = {
           id: newId(),
-          name: isBot ? botName : `Player ${n}`,
-          color: freeColor(r.players),
-          hat: HATS[r.players.length % HATS.length].id,
+          name: isBot ? BOT_NAMES[seat] : `Player ${seat + 1}`,
+          color,
+          hat: seat === 0 ? "cap" : "bow",
           botSkill: "normal",
+          lives: 3,
           ...extra,
         };
-        return { ...r, players: [...r.players, p] };
+        const next = [...r.seats];
+        next[seat] = p;
+        return { ...r, seats: next };
       });
     },
     [setRoom],
   );
 
-  // join by pressing a key / controller button
+  // join by pressing your jump key (Z or /) or a controller button
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.tagName === "INPUT") return;
-      if (e.code === "Enter" && roomRef.current.players.length >= 2) {
+      const r = roomRef.current;
+      if (e.code === "Enter" && r.seats.filter(Boolean).length >= minPlayers(r.settings.mode)) {
         e.preventDefault();
         onStart();
         return;
@@ -192,9 +225,10 @@ function Room({ room, setRoom, onStart }) {
       const s = schemeForCode(e.code);
       if (!s) return;
       e.preventDefault();
-      if (roomRef.current.players.some((p) => p.scheme === s)) return;
+      const seat = SEAT_SCHEME.indexOf(s);
+      if (r.seats[seat]) return;
       unlockAudio();
-      addPlayer({ scheme: s });
+      join(seat, { scheme: s });
     };
     window.addEventListener("keydown", onKey);
     let raf;
@@ -205,8 +239,11 @@ function Room({ room, setRoom, onStart }) {
         if (!gp) continue;
         const pressed = gp.buttons.some((b) => b.pressed);
         if (pressed && !held.has(gp.index)) {
-          if (!roomRef.current.players.some((p) => p.scheme === "pad" && p.pad === gp.index)) addPlayer({ scheme: "pad", pad: gp.index });
-          else if (gp.buttons[9]?.pressed && roomRef.current.players.length >= 2) onStart();
+          const r = roomRef.current;
+          const mine = r.seats.some((p) => p?.scheme === "pad" && p.pad === gp.index);
+          const free = r.seats.findIndex((p) => !p);
+          if (!mine && free >= 0) join(free, { scheme: "pad", pad: gp.index });
+          else if (mine && gp.buttons[9]?.pressed && r.seats.filter(Boolean).length >= minPlayers(r.settings.mode)) onStart();
         }
         if (pressed) held.add(gp.index);
         else held.delete(gp.index);
@@ -218,47 +255,46 @@ function Room({ room, setRoom, onStart }) {
       window.removeEventListener("keydown", onKey);
       cancelAnimationFrame(raf);
     };
-  }, [addPlayer, onStart]);
+  }, [join, onStart]);
 
-  const update = (id, patch) => setRoom((r) => ({ ...r, players: r.players.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-  const remove = (id) => setRoom((r) => ({ ...r, players: r.players.filter((p) => p.id !== id) }));
+  const update = (seat, patch) => setRoom((r) => ({ ...r, seats: r.seats.map((p, i) => (i === seat ? { ...p, ...patch } : p)) }));
+  const remove = (seat) => setRoom((r) => ({ ...r, seats: r.seats.map((p, i) => (i === seat ? null : p)) }));
   const setS = (patch) => setRoom((r) => ({ ...r, settings: { ...r.settings, ...patch } }));
-  const freeKeys = KEY_SCHEMES.filter((k) => !players.some((p) => p.scheme === k));
-  const slots = [];
-  for (let i = 0; i < MAX; i++) slots.push(players[i]);
-  const ranked = [...players].filter((p) => room.wins[p.id]).sort((a, b) => room.wins[b.id] - room.wins[a.id]);
+  const players = seats.filter(Boolean);
+  const ranked = players.filter((p) => room.wins[p.id]).sort((a, b) => room.wins[b.id] - room.wins[a.id]);
 
   return (
     <div className="dd-room">
       <header className="dd-head">
         <h1>
-          <span aria-hidden="true">🦖</span> Dino Dash Party
+          <span aria-hidden="true">🦖</span> Dino Dash Duel
         </h1>
-        <p>A running game for 2 to 4 players. Join the game room, pick your dino, choose a mode and go!</p>
+        <p>A running game for 1 or 2 players. Join, pick your dino, choose a mode and go!</p>
       </header>
 
       <section className="dd-slots" aria-label="Players">
-        {slots.map((p, i) =>
+        {seats.map((p, i) =>
           p ? (
             <PlayerCard
               key={p.id}
               p={p}
               i={i}
-              players={players}
+              other={seats[1 - i]}
               wins={room.wins[p.id] || 0}
-              onChange={(patch) => update(p.id, patch)}
-              onRemove={() => remove(p.id)}
+              onChange={(patch) => update(i, patch)}
+              onRemove={() => remove(i)}
             />
           ) : (
             <EmptySlot
               key={`e${i}`}
               i={i}
-              freeKeys={freeKeys}
+              touch={touch}
+              onKeys={() => join(i, { scheme: SEAT_SCHEME[i] })}
               onTouch={() => {
                 unlockAudio();
-                addPlayer({ scheme: "touch" });
+                join(i, { scheme: "touch" });
               }}
-              onBot={() => addPlayer({ scheme: "bot" })}
+              onBot={() => join(i, { scheme: "bot" })}
             />
           ),
         )}
@@ -288,19 +324,6 @@ function Room({ room, setRoom, onStart }) {
               </div>
             </label>
           )}
-          {settings.mode === "survival" && (
-            <label>
-              Lives
-              <div className="dd-seg">
-                {[1, 3, 5].map((n) => (
-                  <button key={n} className={Number(settings.lives) === n ? "on" : ""} onClick={() => setS({ lives: n })}>
-                    {"❤️".repeat(n === 5 ? 1 : n)}
-                    {n === 5 ? " ×5" : ""}
-                  </button>
-                ))}
-              </div>
-            </label>
-          )}
           {settings.mode === "coins" && (
             <label>
               Time
@@ -314,7 +337,7 @@ function Room({ room, setRoom, onStart }) {
             </label>
           )}
           <label>
-            Speed
+            {settings.mode === "endless" ? "Starting speed" : "Speed"}
             <div className="dd-seg">
               {[
                 ["chill", "🐢 Chill"],
@@ -327,16 +350,39 @@ function Room({ room, setRoom, onStart }) {
               ))}
             </div>
           </label>
+          {count === 2 && (
+            <label>
+              Screen
+              <div className="dd-seg">
+                {[
+                  ["auto", "Auto"],
+                  ["table", "📱 Face to face"],
+                  ["stack", "🖥️ Top & bottom"],
+                ].map(([k, l]) => (
+                  <button key={k} className={settings.layout === k ? "on" : ""} onClick={() => setS({ layout: k })}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </label>
+          )}
         </div>
-        <button className="dd-start" disabled={players.length < 2} onClick={onStart}>
-          {players.length < 2 ? `Need ${2 - players.length} more player${players.length === 1 ? "" : "s"}` : `▶ Start ${MODES[settings.mode].name}!`}
+        {settings.mode === "endless" && room.record && (
+          <p className="dd-record">
+            🏅 Best ever: <b>{room.record.m} m</b> by {room.record.name}
+          </p>
+        )}
+        <button className="dd-start" disabled={!canStart} onClick={onStart}>
+          {canStart ? `▶ Start ${MODES[settings.mode].name}!` : need === 2 ? "Need 2 players (or add the computer)" : "Join to play"}
         </button>
-        {players.length >= 2 && <p className="dd-hint">or press Enter (Start on a controller)</p>}
+        {canStart && <p className="dd-hint">or press Enter</p>}
       </section>
 
       {room.rounds > 0 && (
         <section className="dd-panel">
-          <h2>Room scoreboard · {room.rounds} round{room.rounds === 1 ? "" : "s"} played</h2>
+          <h2>
+            Scoreboard · {room.rounds} round{room.rounds === 1 ? "" : "s"} played
+          </h2>
           {ranked.length ? (
             <ol className="dd-board">
               {ranked.map((p) => (
@@ -346,12 +392,9 @@ function Room({ room, setRoom, onStart }) {
               ))}
             </ol>
           ) : (
-            <p>No wins yet for the players in the room.</p>
+            <p>No wins yet.</p>
           )}
-          <button
-            className="dd-link"
-            onClick={() => setRoom((r) => ({ ...r, wins: {}, rounds: 0 }))}
-          >
+          <button className="dd-link" onClick={() => setRoom((r) => ({ ...r, wins: {}, rounds: 0 }))}>
             Reset scoreboard
           </button>
         </section>
@@ -361,8 +404,8 @@ function Room({ room, setRoom, onStart }) {
         <h2>How to play</h2>
         <ul>
           <li>
-            <b>▶ Faster / ◀ Slower</b> — move your dino forward and back. Going fast uses your ⚡ boost bar (it refills when you stop
-            boosting).
+            <b>▶ Faster / ◀ Slower</b> — move your dino forward and back. Going fast uses your ⚡ boost bar, which refills when you
+            stop boosting.
           </li>
           <li>
             <b>Jump</b> over rocks, stumps and spiky bushes. Hold jump for a big jump, tap it for a small hop.
@@ -370,10 +413,14 @@ function Room({ room, setRoom, onStart }) {
           <li>
             <b>Duck</b> under bats flying at head height (or jump over them). Duck in the air to land faster.
           </li>
-          <li>Everyone gets the same course, so it's fair. See-through dinos show where the others are.</li>
+          <li>Every crash costs a life ❤️. Each dino can have 1, 2 or 3 lives — give a younger player more!</li>
           <li>
-            Keyboard sets: {KEY_SCHEMES.map((k) => SCHEMES[k].label).join(", ")}. Up to 4 game controllers work too. On a phone or
-            tablet, choose Touch buttons (turn it sideways for more room).
+            <b>On a computer:</b> Player 1 jumps with <kbd>Z</kbd> (A / D slower and faster, S duck). Player 2 jumps with{" "}
+            <kbd>/</kbd> (K / ; or ← / → slower and faster, L or ↓ duck). Player 1 is on the top screen, Player 2 on the bottom.
+          </li>
+          <li>
+            <b>On a phone or tablet:</b> lay it flat between you and sit on opposite sides. The screen splits in two and the top half is
+            turned around for the player sitting across, each with their own buttons.
           </li>
           <li>Pause with Esc or P.</li>
         </ul>
@@ -383,7 +430,7 @@ function Room({ room, setRoom, onStart }) {
 }
 
 // ---------------------------------------------------------------- touch buttons
-function TouchPad({ p, idx, input }) {
+function TouchPad({ idx, input }) {
   const bind = (action) => ({
     onPointerDown: (e) => {
       e.preventDefault();
@@ -402,20 +449,21 @@ function TouchPad({ p, idx, input }) {
     onContextMenu: (e) => e.preventDefault(),
   });
   return (
-    <div className="dd-pad" style={{ "--pc": colorHex(p.color) }}>
-      <div className="dd-pad-name">{p.name}</div>
-      <div className="dd-pad-row">
+    <div className="dd-pad">
+      <div className="dd-pad-group">
         <button {...bind("back")} aria-label="Slower">
           ◀
         </button>
         <button {...bind("fwd")} aria-label="Faster">
           ▶
         </button>
+      </div>
+      <div className="dd-pad-group">
         <button {...bind("duck")} aria-label="Duck">
           ▼
         </button>
         <button className="dd-jump" {...bind("jump")} aria-label="Jump">
-          ⤒
+          ⤒ Jump
         </button>
       </div>
     </div>
@@ -423,49 +471,59 @@ function TouchPad({ p, idx, input }) {
 }
 
 // ---------------------------------------------------------------- game
-function Game({ room, onDone, onQuit, muted, setMutedState }) {
+function pickLayout(players, layout) {
+  if (players.length < 2) return "single";
+  if (layout === "table" || layout === "stack") return layout;
+  return players.some((p) => p.scheme === "touch") ? "table" : "stack";
+}
+
+function Game({ players, settings, onDone, onQuit, muted, setMutedState }) {
   const wrapRef = useRef(null);
-  const canvasRef = useRef(null);
+  const canvasRefs = useRef([]);
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   pausedRef.current = paused;
   const inputRef = useRef(null);
   if (!inputRef.current) inputRef.current = createInput();
   const input = inputRef.current;
+  const layout = pickLayout(players, settings.layout);
 
   useEffect(() => () => input.destroy(), [input]);
 
   useEffect(() => {
-    const state = createGame(room);
-    const cv = canvasRef.current;
-    const ctx = cv.getContext("2d");
-    let raf;
-    let last = performance.now();
-    let doneSent = false;
-    let size = { w: 0, h: 0 };
-
+    const state = createGame({ players, settings });
+    const views = players.map((_, i) => {
+      const cv = canvasRefs.current[i];
+      return { cv, ctx: cv.getContext("2d"), w: 0, h: 0, dpr: 1 };
+    });
     const resize = () => {
-      const r = cv.getBoundingClientRect();
       const dpr = Math.min(2, window.devicePixelRatio || 1);
-      cv.width = Math.round(r.width * dpr);
-      cv.height = Math.round(r.height * dpr);
-      size = { w: r.width, h: r.height, dpr };
+      for (const v of views) {
+        // clientWidth/Height ignore the 180° turn of the top view
+        v.w = v.cv.clientWidth;
+        v.h = v.cv.clientHeight;
+        v.dpr = dpr;
+        v.cv.width = Math.round(v.w * dpr);
+        v.cv.height = Math.round(v.h * dpr);
+      }
     };
     resize();
     const ro = new ResizeObserver(resize);
-    ro.observe(cv);
+    views.forEach((v) => ro.observe(v.cv));
 
     const onKey = (e) => {
       if (e.code === "Escape" || e.code === "KeyP") setPaused((v) => !v);
     };
     window.addEventListener("keydown", onKey);
 
+    let raf;
+    let last = performance.now();
+    let doneSent = false;
     const frame = (now) => {
       let dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       if (!pausedRef.current) {
-        const inputs = room.players.map((p, i) => input.read(p, i));
-        // small fixed steps keep jumps the same on every screen
+        const inputs = players.map((p, i) => input.read(p, i));
         while (dt > 0) {
           const h = Math.min(dt, 1 / 120);
           step(state, h, inputs);
@@ -473,11 +531,16 @@ function Game({ room, onDone, onQuit, muted, setMutedState }) {
           dt -= h;
         }
       }
-      ctx.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
-      drawGame(ctx, state, size.w, size.h, now / 1000);
+      let viewW = Infinity;
+      views.forEach((v, i) => {
+        if (!v.w || !v.h) return;
+        v.ctx.setTransform(v.dpr, 0, 0, v.dpr, 0, 0);
+        viewW = Math.min(viewW, drawView(v.ctx, state, state.players[i], v.w, v.h, now / 1000));
+      });
+      if (viewW < Infinity) state.viewW = viewW;
       if (state.phase === "done" && !doneSent) {
         doneSent = true;
-        setTimeout(() => onDone(state.results), 400);
+        setTimeout(() => onDone(state.results), 1400);
       }
       raf = requestAnimationFrame(frame);
     };
@@ -487,58 +550,68 @@ function Game({ room, onDone, onQuit, muted, setMutedState }) {
       ro.disconnect();
       window.removeEventListener("keydown", onKey);
     };
-    // the game is created once per mount
+    // one game per mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const touchers = room.players.map((p, i) => ({ p, i })).filter((x) => x.p.scheme === "touch");
   const fullscreen = () => {
-    const el = wrapRef.current;
     if (document.fullscreenElement) document.exitFullscreen?.();
-    else el?.requestFullscreen?.().catch(() => {});
+    else wrapRef.current?.requestFullscreen?.().catch(() => {});
   };
 
-  return (
-    <div className="dd-game" ref={wrapRef}>
-      <div className="dd-canvas-wrap">
-        <canvas ref={canvasRef} className="dd-canvas" />
-        <div className="dd-game-btns">
-          <button onClick={() => setPaused(true)} aria-label="Pause">
-            ⏸
-          </button>
-          <button
-            onClick={() => {
-              setMutedState(!muted);
-            }}
-            aria-label={muted ? "Sound on" : "Sound off"}
-          >
-            {muted ? "🔇" : "🔊"}
-          </button>
-          {document.fullscreenEnabled && (
-            <button onClick={fullscreen} aria-label="Full screen">
-              ⛶
-            </button>
-          )}
-        </div>
-        {paused && (
-          <div className="dd-overlay">
-            <div className="dd-card">
-              <h2>Paused</h2>
-              <button className="dd-start" onClick={() => setPaused(false)}>
-                ▶ Keep playing
-              </button>
-              <button className="dd-btn2" onClick={onQuit}>
-                🚪 Back to the room
-              </button>
-            </div>
-          </div>
-        )}
+  // top-to-bottom order of the views
+  const order = layout === "table" ? [1, 0] : players.map((_, i) => i);
+  const view = (i, pos) => {
+    const p = players[i];
+    const flipped = layout === "table" && pos === 0 && p.scheme !== "bot";
+    return (
+      <div key={p.id} className={`dd-view ${flipped ? "flipped" : ""}`} style={{ "--pc": colorHex(p.color) }}>
+        <canvas ref={(el) => (canvasRefs.current[i] = el)} className="dd-canvas" />
+        {p.scheme === "touch" && <TouchPad idx={i} input={input} />}
       </div>
-      {touchers.length > 0 && (
-        <div className={`dd-pads n${touchers.length}`}>
-          {touchers.map(({ p, i }) => (
-            <TouchPad key={p.id} p={p} idx={i} input={input} />
-          ))}
+    );
+  };
+  const bar = (
+    <div className="dd-midbar">
+      <button onClick={() => setPaused(true)} aria-label="Pause">
+        ⏸
+      </button>
+      <button onClick={() => setMutedState(!muted)} aria-label={muted ? "Sound on" : "Sound off"}>
+        {muted ? "🔇" : "🔊"}
+      </button>
+      {document.fullscreenEnabled && (
+        <button onClick={fullscreen} aria-label="Full screen">
+          ⛶
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={`dd-game dd-layout-${layout}`} ref={wrapRef}>
+      {order.length === 1 ? (
+        <>
+          {bar}
+          {view(order[0], 0)}
+        </>
+      ) : (
+        <>
+          {view(order[0], 0)}
+          {bar}
+          {view(order[1], 1)}
+        </>
+      )}
+      {paused && (
+        <div className="dd-overlay">
+          <div className="dd-card">
+            <h2>Paused</h2>
+            <button className="dd-start" onClick={() => setPaused(false)}>
+              ▶ Keep playing
+            </button>
+            <button className="dd-btn2" onClick={onQuit}>
+              🏠 Back to the room
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -546,9 +619,9 @@ function Game({ room, onDone, onQuit, muted, setMutedState }) {
 }
 
 // ---------------------------------------------------------------- results
-const MEDAL = ["🥇", "🥈", "🥉", "4️⃣"];
+const MEDAL = ["🥇", "🥈"];
 
-function Results({ results, mode, onAgain, onRoom }) {
+function Results({ results, mode, newRecord, onAgain, onRoom }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.code === "Enter" || e.code === "Space") {
@@ -556,7 +629,7 @@ function Results({ results, mode, onAgain, onRoom }) {
         onAgain();
       } else if (e.code === "Escape") onRoom();
     };
-    // wait a moment so a held jump key doesn't skip this screen
+    // wait a moment so a held key doesn't skip this screen
     const t = setTimeout(() => window.addEventListener("keydown", onKey), 700);
     return () => {
       clearTimeout(t);
@@ -564,13 +637,16 @@ function Results({ results, mode, onAgain, onRoom }) {
     };
   }, [onAgain, onRoom]);
   const winners = results.filter((r) => r.place === 1);
+  const solo = results.length === 1;
+  const title = solo ? `${results[0].best} m!` : winners.length > 1 ? "It's a tie!" : `${winners[0]?.name} wins!`;
   return (
     <div className="dd-overlay dd-results">
       <div className="dd-card wide">
         <div className="dd-res-mode">
           {MODES[mode].icon} {MODES[mode].name}
         </div>
-        <h2>{winners.length > 1 ? "It's a tie!" : `${winners[0]?.name} wins!`}</h2>
+        <h2>{title}</h2>
+        {newRecord && <div className="dd-newrec">🏅 New best ever!</div>}
         <div className="dd-winner-pics">
           {winners.map((w) => (
             <DinoPreview key={w.id} color={w.color} hat={w.hat === "none" ? "crown" : w.hat} size={110} />
@@ -579,7 +655,7 @@ function Results({ results, mode, onAgain, onRoom }) {
         <ol className="dd-res-list">
           {results.map((r) => (
             <li key={r.id} style={{ "--pc": colorHex(r.color) }}>
-              <span className="dd-medal">{MEDAL[r.place - 1]}</span>
+              <span className="dd-medal">{solo ? "🦖" : MEDAL[r.place - 1]}</span>
               <span className="dd-res-name">{r.name}</span>
               <span className="dd-res-main">{r.main}</span>
               <span className="dd-res-extra">{r.extra}</span>
@@ -605,22 +681,42 @@ export default function DinoDashApp() {
   const [screen, setScreen] = useState("room"); // room | game | results
   const [round, setRound] = useState(0);
   const [results, setResults] = useState(null);
+  const [newRecord, setNewRecord] = useState(false);
+  const [playing, setPlaying] = useState(null); // players + settings frozen for the round
 
   useEffect(() => saveRoom(room), [room]);
   useEffect(() => setMuted(room.muted), [room.muted]);
 
+  const roomRef = useRef(room);
+  roomRef.current = room;
+
   const start = useCallback(() => {
+    const r = roomRef.current;
+    const players = r.seats.filter(Boolean);
+    if (players.length < minPlayers(r.settings.mode)) return;
     unlockAudio();
-    setRound((r) => r + 1);
+    setPlaying({ players, settings: r.settings });
+    setRound((n) => n + 1);
     setScreen("game");
   }, []);
 
   const done = useCallback((res) => {
     setResults(res);
-    setRoom((r) => {
-      const wins = { ...r.wins };
-      for (const x of res) if (x.place === 1) wins[x.id] = (wins[x.id] || 0) + 1;
-      return { ...r, wins, rounds: r.rounds + 1 };
+    const r = roomRef.current;
+    let rec = false;
+    let record = r.record;
+    if (r.settings.mode === "endless") {
+      const top = [...res].sort((a, b) => b.best - a.best)[0];
+      if (top && top.best > (record?.m || 0)) {
+        record = { m: top.best, name: top.name };
+        rec = true;
+      }
+    }
+    setNewRecord(rec);
+    setRoom((x) => {
+      const wins = { ...x.wins };
+      if (res.length > 1) for (const it of res) if (it.place === 1) wins[it.id] = (wins[it.id] || 0) + 1;
+      return { ...x, wins, record, rounds: x.rounds + (res.length > 1 ? 1 : 0) };
     });
     setScreen("results");
   }, []);
@@ -630,17 +726,20 @@ export default function DinoDashApp() {
   return (
     <div className={`dd-app dd-screen-${screen}`}>
       {screen === "room" && <Room room={room} setRoom={setRoom} onStart={start} />}
-      {screen !== "room" && (
+      {screen !== "room" && playing && (
         <Game
           key={round}
-          room={room}
+          players={playing.players}
+          settings={playing.settings}
           onDone={done}
           onQuit={toRoom}
           muted={room.muted}
           setMutedState={(m) => setRoom((r) => ({ ...r, muted: m }))}
         />
       )}
-      {screen === "results" && results && <Results results={results} mode={room.settings.mode} onAgain={start} onRoom={toRoom} />}
+      {screen === "results" && results && (
+        <Results results={results} mode={playing.settings.mode} newRecord={newRecord} onAgain={start} onRoom={toRoom} />
+      )}
     </div>
   );
 }

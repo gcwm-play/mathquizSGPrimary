@@ -69,16 +69,16 @@ A follow-on prototype at `dicetactics.html` (`/mathquizSGPrimary/dicetactics.htm
 
 Source: `src/dicetactics/` (`engine.js` rules, `ai.js` computer player, `sprites.js` pixel art, `TacticsApp.jsx`).
 
-## Dino Dash Party (2–4 player running game)
+## Dino Dash Duel (1–2 player running game)
 
-A party game at `dinodash.html` (`/mathquizSGPrimary/dinodash.html` on Pages): an endless-runner for 2 to 4 players on one device, each in their own lane on the same course.
+A running game at `dinodash.html` (`/mathquizSGPrimary/dinodash.html` on Pages) for one or two players on one device. Each player has their own view of the same course.
 
-- Game room: players join by pressing a jump key (W, ↑, I or Num 8 picks that keyboard set), pressing a button on a game controller (up to 4), or tapping "Touch buttons". Empty seats can be filled with computer dinos (Easy / Normal / Hard). Everyone picks a name, colour and hat, and a room scoreboard counts wins across rounds (saved on the device).
-- Controls: ▶ faster and ◀ slower move your dino forward and back (going fast uses a ⚡ boost bar that refills), jump (hold for a big jump, tap for a hop) and duck (under bats, or to drop faster in the air).
-- Modes: 🏁 Race (500 / 1000 / 1600 m; crashing makes you stumble), ❤️ Survival (the world keeps speeding up and you lose a life for each crash or for falling off the back of the screen; last dino running wins; 1, 3 or 5 lives) and 🪙 Coin Rush (most coins in 45 / 60 / 90 s; crashing drops 3 coins). Speed setting: Chill, Normal or Turbo.
-- See-through "ghost" dinos and edge arrows show where the others are; a 3-2-1 countdown, pause (Esc / P), sound effects and full-screen.
+- Joining: on a computer, Player 1 presses **Z** and Player 2 presses **/**. On a phone or tablet, tap "Tap to join". A game controller or a computer player (Easy / Normal / Hard) can also fill a seat. Each player picks a name, colour, hat and **1, 2 or 3 lives**. Every crash costs a life; with none left you're out.
+- Screens: on a computer the two views are stacked top (Player 1) and bottom (Player 2). On a phone or tablet laid flat, the screen is split face to face: the top half is turned around for the player sitting across, and each half has its own ◀ ▶ ▼ Jump buttons. The "Screen" setting can force either layout.
+- Keys: Player 1: Z jump, A slower, D faster, S duck. Player 2: / jump, K or ← slower, ; or → faster, L or ↓ duck. Hold jump for a big jump; going faster uses a ⚡ boost bar.
+- Modes: 🏁 Race (500 / 1000 / 1600 m), ♾️ Endless (keeps getting faster, with closer obstacles and more bats every 250 m level; whoever runs furthest wins; can be played solo, and the best distance is saved) and 🪙 Coin Rush (45 / 60 / 90 s). Speed: Chill, Normal or Turbo.
 
-Source: `src/dinodash/` (`engine.js` rules and computer players, `render.js` canvas drawing, `input.js` keyboards / controllers / touch, `sfx.js` sounds).
+Source: `src/dinodash/` (`engine.js` rules and computer players, `render.js` canvas drawing, `input.js` keyboard / controller / touch, `sfx.js` sounds).
 
 ## Development
 

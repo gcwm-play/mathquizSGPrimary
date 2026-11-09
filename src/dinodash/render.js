@@ -1,7 +1,11 @@
 // Dino Dash Party — canvas drawing. One horizontal lane per player.
-import { LANE_H, GROUND, COLORS, metres, standings, timeLeft, MODES } from "./engine.js";
+import { LANE_H, GROUND, COLORS, metres, standings, timeLeft, MODES, level } from "./engine.js";
 
-export const TOP_H = 34; // css px strip at the top for the round info
+export const TOP_H = 36; // css px strip at the top of each player's view
+// how much of the course a view shows: at least 480 units on a narrow phone, up to 1000 on a wide screen
+function viewWidthFor(cssW) {
+  return Math.max(480, Math.min(1000, cssW * 0.8));
+}
 
 const colorOf = (id) => (COLORS.find((c) => c.id === id) || COLORS[0]).body;
 
@@ -485,9 +489,9 @@ function heart(ctx, x, y, s, full) {
 
 // ---------------- one lane ----------------
 function drawLane(ctx, state, p, W, time, places) {
-  const camX = state.mode === "survival" ? state.camX : p.camX;
+  const camX = state.mode === "endless" ? state.camX : p.camX;
   const color = colorOf(p.color);
-  const night = state.mode === "survival" && Math.floor(state.t / 40) % 2 === 1;
+  const night = state.mode === "endless" && level(state) % 2 === 0;
   drawBackdrop(ctx, W, camX, color, night);
 
   if (state.mode === "race") {
@@ -516,7 +520,7 @@ function drawLane(ctx, state, p, W, time, places) {
   }
 
   // other dinos as see-through ghosts (race & coins) so you can see who is near
-  if (state.mode !== "survival") {
+  if (state.mode !== "endless") {
     for (const q of state.players) {
       if (q === p) continue;
       const sx = q.x - camX;
@@ -598,39 +602,9 @@ function drawLane(ctx, state, p, W, time, places) {
     }
   }
 
-  // HUD
-  let hx = 8;
-  hx += chip(ctx, hx, 8, `${p.name}${p.bot ? " 🤖" : ""}`, shade(color, -0.25)) + 6;
-  if (state.mode === "survival") {
-    for (let k = 0; k < state.lives; k++) heart(ctx, hx + 8 + k * 18, 11, 14, k < p.lives);
-    hx += state.lives * 18 + 8;
-    chip(ctx, hx, 8, `${metres(p.best)} m`, "rgba(0,0,0,0.35)");
-  } else if (state.mode === "race") {
-    hx += chip(ctx, hx, 8, `${ORD[places.get(p)] || ""}`, places.get(p) === 1 ? "#e6a700" : "rgba(0,0,0,0.35)") + 6;
-    chip(ctx, hx, 8, `${Math.min(metres(p.x), metres(state.finishX))} / ${metres(state.finishX)} m`, "rgba(0,0,0,0.35)");
-  } else {
-    hx += chip(ctx, hx, 8, `🪙 ${p.coins}`, "#c98a00") + 6;
-    chip(ctx, hx, 8, ORD[places.get(p)] || "", places.get(p) === 1 ? "#e6a700" : "rgba(0,0,0,0.35)");
-  }
-  if (state.mode !== "survival") {
-    // stamina (boost) bar
-    const bw = 70;
-    const bx = 10;
-    const by = 32;
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
-    roundRect(ctx, bx, by, bw, 7, 3.5);
-    ctx.fill();
-    ctx.fillStyle = p.stamina > 0.25 ? "#ffd23f" : "#ef8040";
-    roundRect(ctx, bx, by, Math.max(4, bw * p.stamina), 7, 3.5);
-    ctx.fill();
-    ctx.font = "600 10px Fredoka, ui-rounded, system-ui, sans-serif";
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillText("⚡ boost", bx + bw + 5, by + 4);
-  }
-
   // big status messages
   let msg = null;
-  if (!p.alive) msg = `OUT! ${ORD[places.get(p)] || ""}`;
+  if (!p.alive) msg = state.mode === "endless" ? `OUT · ${metres(p.best)} m` : "OUT!";
   else if (state.mode === "race" && p.finished) msg = `${ORD[p.place]} place!`;
   if (msg) {
     ctx.fillStyle = "rgba(255,255,255,0.55)";
@@ -645,81 +619,134 @@ function drawLane(ctx, state, p, W, time, places) {
 }
 
 // ---------------- whole frame ----------------
-export function drawGame(ctx, state, cssW, cssH, time) {
-  const n = state.players.length;
-  const laneHpx = (cssH - TOP_H) / n;
-  const scale = laneHpx / LANE_H;
-  const W = cssW / scale;
-  state.viewW = W;
+function skyTop(state, p) {
+  const night = state.mode === "endless" && level(state) % 2 === 0;
+  return night ? "#1f2a55" : shade(colorOf(p.color), 0.72);
+}
 
-  const order = standings(state);
-  const places = new Map(order.map((p, i) => [p, i + 1]));
-
-  // top strip
+// the strip at the top of a player's view: name, lives, score, boost and progress
+function drawHeader(ctx, state, p, w, places) {
+  const color = colorOf(p.color);
   ctx.fillStyle = "#24304a";
-  ctx.fillRect(0, 0, cssW, TOP_H);
-  ctx.font = "700 15px Fredoka, ui-rounded, system-ui, sans-serif";
+  ctx.fillRect(0, 0, w, TOP_H);
+  const y = (TOP_H - 20) / 2;
+  let x = 8;
+  x += chip(ctx, x, y, `${p.name.slice(0, 10)}${p.bot ? " 🤖" : ""}`, color) + 8;
+  for (let k = 0; k < p.maxLives; k++) heart(ctx, x + 7 + k * 17, y + 3, 14, k < p.lives);
+  x += p.maxLives * 17 + 6;
+  const place = places.get(p);
+  const two = state.players.length > 1;
+  if (state.mode === "endless") {
+    x += chip(ctx, x, y, `${metres(p.best)} m`, "rgba(255,255,255,0.18)") + 6;
+  } else if (state.mode === "coins") {
+    x += chip(ctx, x, y, `🪙 ${p.coins}`, "#c98a00") + 6;
+  }
+  if (two && state.mode !== "endless") x += chip(ctx, x, y, ORD[place], place === 1 ? "#e6a700" : "rgba(255,255,255,0.18)") + 6;
+
+  // boost bar (race & coins)
+  if (state.mode !== "endless" && w - x > 120) {
+    const bw = 46;
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    roundRect(ctx, x + 14, TOP_H / 2 - 4, bw, 8, 4);
+    ctx.fill();
+    ctx.fillStyle = p.stamina > 0.25 ? "#ffd23f" : "#ef8040";
+    roundRect(ctx, x + 14, TOP_H / 2 - 4, Math.max(5, bw * p.stamina), 8, 4);
+    ctx.fill();
+    ctx.font = "12px sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.fillText("⚡", x, TOP_H / 2 + 1);
+    x += bw + 24;
+  }
+
+  // right side: progress / level / clock
+  ctx.font = "600 13px Fredoka, ui-rounded, system-ui, sans-serif";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#fff";
-  const m = MODES[state.mode];
-  let info = `${m.icon} ${m.name}`;
-  if (state.mode === "coins") info += `  ·  ⏱ ${Math.ceil(timeLeft(state))}s`;
-  if (state.mode === "survival") info += `  ·  ⏱ ${state.t.toFixed(1)}s  ·  speed ${Math.round(state.scroll / 38)}`;
-  ctx.fillText(info, 12, TOP_H / 2 + 1);
-  const infoW = ctx.measureText(info).width;
-
+  ctx.textAlign = "right";
+  const right = w - 8;
   if (state.mode === "race") {
-    // progress track with a dot for every dino
-    const x0 = Math.min(cssW * 0.45, 24 + infoW + 20);
-    const x1 = cssW - 150;
-    if (x1 - x0 > 60) {
+    const label = `${Math.min(metres(p.x), metres(state.finishX))}/${metres(state.finishX)} m`;
+    ctx.fillText(label, right, TOP_H / 2 + 1);
+    const x1 = right - ctx.measureText(label).width - 26;
+    const x0 = x + 6;
+    ctx.textAlign = "left";
+    if (x1 - x0 > 40) {
       ctx.fillStyle = "rgba(255,255,255,0.25)";
       roundRect(ctx, x0, TOP_H / 2 - 3, x1 - x0, 6, 3);
       ctx.fill();
-      ctx.font = "13px sans-serif";
-      ctx.fillText("🏁", x1 + 4, TOP_H / 2 + 1);
-      for (const p of state.players) {
-        const f = Math.min(1, Math.max(0, p.x / state.finishX));
-        ctx.fillStyle = colorOf(p.color);
-        ctx.strokeStyle = "#fff";
+      ctx.font = "12px sans-serif";
+      ctx.fillText("🏁", x1 + 2, TOP_H / 2 + 1);
+      // draw the other dino first so this player's dot is on top
+      for (const q of [...state.players].sort((a) => (a === p ? 1 : -1))) {
+        const f = Math.min(1, Math.max(0, q.x / state.finishX));
+        ctx.fillStyle = colorOf(q.color);
+        ctx.strokeStyle = q === p ? "#fff" : "rgba(255,255,255,0.5)";
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(x0 + f * (x1 - x0), TOP_H / 2, 7, 0, Math.PI * 2);
+        ctx.arc(x0 + f * (x1 - x0), TOP_H / 2, q === p ? 7 : 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
     }
+  } else if (state.mode === "endless") {
+    ctx.fillText(`Level ${level(state)} · ⏱ ${Math.floor(state.t)}s`, right, TOP_H / 2 + 1);
+  } else {
+    ctx.fillText(`⏱ ${Math.ceil(timeLeft(state))}s`, right, TOP_H / 2 + 1);
   }
+  ctx.textAlign = "left";
+}
 
-  for (let i = 0; i < n; i++) {
-    const p = state.players[i];
-    ctx.save();
-    ctx.translate(0, TOP_H + i * laneHpx);
-    ctx.beginPath();
-    ctx.rect(0, 0, cssW, laneHpx);
-    ctx.clip();
-    ctx.scale(scale, scale);
-    drawLane(ctx, state, p, W, time, places);
-    ctx.restore();
-    ctx.fillStyle = "#24304a";
-    ctx.fillRect(0, TOP_H + (i + 1) * laneHpx - 1.5, cssW, 3);
+// one player's whole view (header + their lane). The caller may rotate it.
+export function drawView(ctx, state, p, cssW, cssH, time) {
+  const order = standings(state);
+  const places = new Map(order.map((q, i) => [q, i + 1]));
+  const areaH = Math.max(10, cssH - TOP_H);
+  const scale = Math.max(0.25, Math.min(areaH / LANE_H, cssW / viewWidthFor(cssW)));
+  const W = cssW / scale;
+  const extra = areaH / scale - LANE_H; // extra sky above the lane on tall screens
+
+  ctx.save();
+  ctx.translate(0, TOP_H);
+  ctx.beginPath();
+  ctx.rect(0, 0, cssW, areaH);
+  ctx.clip();
+  ctx.scale(scale, scale);
+  if (extra > 0) {
+    ctx.fillStyle = skyTop(state, p);
+    ctx.fillRect(0, 0, W, extra + 1);
+    ctx.translate(0, extra);
   }
+  drawLane(ctx, state, p, W, time, places);
+  ctx.restore();
 
-  // countdown
+  drawHeader(ctx, state, p, cssW, places);
+
+  const cx = cssW / 2;
+  const cy = TOP_H + areaH / 2;
+  const big = (f) => `700 ${Math.round(Math.min(cssW, areaH) * f)}px Fredoka, ui-rounded, system-ui, sans-serif`;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
   if (state.phase === "countdown") {
-    const nNum = Math.ceil(state.countdown - 0.5);
-    const txt = nNum > 0 ? String(nNum) : "GO!";
+    const n = Math.ceil(state.countdown - 0.5);
+    const txt = n > 0 ? String(n) : "GO!";
     const frac = state.countdown - 0.5 - Math.floor(state.countdown - 0.5);
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.font = `700 ${Math.round(Math.min(cssW, cssH) * (0.18 + frac * 0.06))}px Fredoka, ui-rounded, system-ui, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    ctx.font = big(0.35 + frac * 0.1);
     ctx.lineWidth = 8;
     ctx.strokeStyle = "#24304a";
-    ctx.strokeText(txt, cssW / 2, cssH / 2);
+    ctx.strokeText(txt, cx, cy);
     ctx.fillStyle = "#ffd23f";
-    ctx.fillText(txt, cssW / 2, cssH / 2);
-    ctx.restore();
+    ctx.fillText(txt, cx, cy);
+  } else if (state.phase === "done" && state.players.length > 1) {
+    const won = places.get(p) === 1;
+    ctx.font = big(0.2);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#24304a";
+    const txt = won ? "🏆 YOU WIN!" : "So close!";
+    ctx.strokeText(txt, cx, cy);
+    ctx.fillStyle = won ? "#ffd23f" : "#fff";
+    ctx.fillText(txt, cx, cy);
   }
+  ctx.restore();
+  return W;
 }

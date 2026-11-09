@@ -16,19 +16,19 @@ export const MODES = {
     id: "race",
     icon: "🏁",
     name: "Race",
-    blurb: "First dino to the finish flag wins. Bumping into things makes you stumble.",
+    blurb: "First dino to the finish flag wins. Every crash costs a life — lose them all and you're out.",
   },
-  survival: {
-    id: "survival",
-    icon: "❤️",
-    name: "Survival",
-    blurb: "The world keeps getting faster. Last dino running wins!",
+  endless: {
+    id: "endless",
+    icon: "♾️",
+    name: "Endless",
+    blurb: "It never ends — it just keeps getting faster and harder. Whoever runs the furthest wins.",
   },
   coins: {
     id: "coins",
     icon: "🪙",
     name: "Coin Rush",
-    blurb: "Grab the most coins before time runs out. Crashing drops 3 coins.",
+    blurb: "Grab the most coins before time runs out. A crash costs a life and 3 coins.",
   },
 };
 
@@ -82,7 +82,7 @@ function mulberry32(a) {
 // ---------- speeds ----------
 function baseSpeed(state, t) {
   const p = state.pace;
-  if (state.mode === "survival") return Math.min(380 * p + 9 * t, 980 * p);
+  if (state.mode === "endless") return Math.min(380 * p + 8 * t, 1500 * p);
   if (state.mode === "race") return Math.min(420 * p + 2 * t, 560 * p);
   return Math.min(400 * p + 3 * t, 560 * p);
 }
@@ -90,22 +90,31 @@ function baseSpeed(state, t) {
 // speed a dino is likely to have at distance x (used to space obstacles fairly)
 function expectedSpeedAt(state, x) {
   const p = state.pace;
-  if (state.mode === "survival") {
+  if (state.mode === "endless") {
     const s0 = 380 * p;
-    const a = 9;
+    const a = 8;
     const t = (-s0 + Math.sqrt(s0 * s0 + 2 * a * x)) / a;
-    return Math.min(s0 + a * t, 980 * p);
+    return Math.min(s0 + a * t, 1500 * p);
   }
   return 560 * p * 1.25;
 }
 
 // ---------- course ----------
-function pickObstacle(rng, x) {
+// Endless gets one level harder every 250 m
+export const LEVEL_M = 250;
+function levelAt(x) {
+  return 1 + Math.floor(x / UNITS_PER_M / LEVEL_M);
+}
+export function level(state) {
+  return levelAt(Math.max(0, ...state.players.map((p) => p.best)));
+}
+
+function pickObstacle(rng, x, lvl) {
   const m = x / UNITS_PER_M;
-  const opts = [["rock", 3]];
+  const opts = [["rock", Math.max(1, 4 - lvl)]];
   if (m > 40) opts.push(["stump", 3]);
   if (m > 90) opts.push(["rocks", 2], ["spiky", 2]);
-  if (m > 140) opts.push(["batLow", 2], ["batMid", 2]);
+  if (m > 140) opts.push(["batLow", 1 + lvl * 0.5], ["batMid", 1 + lvl * 0.5]);
   const total = opts.reduce((s, o) => s + o[1], 0);
   let r = rng() * total;
   for (const [type, w] of opts) {
@@ -120,14 +129,15 @@ function extendCourse(state, upto) {
   const end = state.finishX ? state.finishX - 400 : Infinity;
   while (c.genX < upto) {
     const sp = expectedSpeedAt(state, c.genX);
-    const gap = Math.max(420, sp * 0.8) + c.rng() * sp * 0.9;
+    const squeeze = state.mode === "endless" ? Math.max(0.25, 1 - 0.1 * (levelAt(c.genX) - 1)) : 1;
+    const gap = Math.max(420, sp * 0.8) + c.rng() * sp * 0.9 * squeeze;
     const prevX = c.genX;
     c.genX += gap;
     if (c.genX > end) {
       c.genX = Infinity;
       break;
     }
-    const type = pickObstacle(c.rng, c.genX);
+    const type = pickObstacle(c.rng, c.genX, state.mode === "endless" ? levelAt(c.genX) : 1);
     const spec = OBSTACLES[type];
     c.obstacles.push({ id: c.nextId++, type, x: c.genX, ...spec });
 
@@ -173,7 +183,6 @@ export function createGame(room) {
   const state = {
     mode: s.mode,
     pace: PACES[s.pace] ?? 1,
-    lives: s.mode === "survival" ? Number(s.lives) || 3 : 0,
     duration: s.mode === "coins" ? Number(s.coinTime) || 60 : 0,
     finishX: s.mode === "race" ? (RACE_LENGTHS[s.raceLength] ?? 300) * UNITS_PER_M : 0,
     phase: "countdown",
@@ -203,7 +212,8 @@ export function createGame(room) {
       ducking: false,
       stamina: 1,
       boosting: false,
-      lives: s.mode === "survival" ? Number(s.lives) || 3 : 0,
+      lives: Math.min(3, Math.max(1, Number(rp.lives) || 3)),
+      maxLives: Math.min(3, Math.max(1, Number(rp.lives) || 3)),
       alive: true,
       outT: -1,
       stun: 0,
@@ -221,7 +231,7 @@ export function createGame(room) {
       jumps: 0,
     })),
   };
-  if (state.mode === "survival") {
+  if (state.mode === "endless") {
     state.camX = -150;
   }
   extendCourse(state, 3000);
@@ -263,7 +273,7 @@ function botInput(state, p) {
       if (!p.onGround && p.vy > 0) inp.jump = true; // hold for full height
     }
     const clearAhead = tReach > 0.7;
-    if (state.mode === "survival") {
+    if (state.mode === "endless") {
       const target = state.viewW * 0.4;
       if (p.screenX < target - 40) inp.fwd = true;
       else if (p.screenX > target + 40) inp.back = true;
@@ -307,27 +317,26 @@ function hit(state, p) {
   p.hits++;
   state.events.push({ type: "hit", lane: p.idx });
   burst(state, p, "star", 6, p.x + 30, p.y + 30);
-  if (state.mode === "survival") {
-    p.lives--;
+  p.lives--;
+  if (state.mode === "endless") {
     p.inv = 1.8;
     p.stun = 0.35;
-    if (p.lives <= 0) {
-      p.alive = false;
-      p.outT = state.t;
-      p.vx = 0;
-      state.events.push({ type: "out", lane: p.idx });
-    }
-  } else if (state.mode === "race") {
-    p.stun = 0.8;
-    p.inv = 1.4;
-    p.vx *= 0.35;
   } else {
+    p.stun = 0.8;
+    p.inv = 1.6;
+    p.vx *= 0.35;
+  }
+  if (state.mode === "coins") {
     const lost = Math.min(3, p.coins);
     p.coins -= lost;
     if (lost) burst(state, p, "coin", lost, p.x + 30, p.y + 30);
-    p.stun = 0.8;
-    p.inv = 1.4;
-    p.vx *= 0.35;
+  }
+  if (p.lives <= 0) {
+    p.alive = false;
+    p.outT = state.t;
+    p.vx = 0;
+    p.stun = 0;
+    state.events.push({ type: "out", lane: p.idx });
   }
 }
 
@@ -348,7 +357,7 @@ function updatePlayer(state, p, inp, dt, base) {
     target = base * BOOST;
     p.boosting = true;
   }
-  if (state.mode === "survival") {
+  if (state.mode === "endless") {
     // no stamina limit in survival — position on screen is what matters
     p.stamina = 1;
   } else if (p.boosting) {
@@ -385,7 +394,7 @@ function updatePlayer(state, p, inp, dt, base) {
   p.inv = Math.max(0, p.inv - dt);
 
   // survival: stay inside the screen
-  if (state.mode === "survival") {
+  if (state.mode === "endless") {
     const maxX = state.camX + Math.max(200, state.viewW - 140);
     if (p.x > maxX) {
       p.x = maxX;
@@ -441,7 +450,7 @@ function updatePlayer(state, p, inp, dt, base) {
   }
 
   // camera for this lane (race & coins): the dino slides forward when fast, back when slow
-  if (state.mode !== "survival") {
+  if (state.mode !== "endless") {
     const rel = Math.max(-0.5, Math.min(0.5, (p.vx - base) / base));
     const want = Math.min(state.viewW * 0.25, 180) + rel * Math.min(state.viewW * 0.5, 320);
     p.screenX += (want - p.screenX) * Math.min(1, dt * 2.5);
@@ -470,7 +479,7 @@ export function step(state, dt, inputs) {
         p.y = Math.max(0, p.y + p.vy * dt);
         if (p.y === 0) p.onGround = true;
       }
-      if (state.mode !== "survival") p.camX = p.x - p.screenX;
+      if (state.mode !== "endless") p.camX = p.x - p.screenX;
       else p.screenX = p.x - state.camX;
     }
     return;
@@ -483,12 +492,12 @@ export function step(state, dt, inputs) {
   state.t += dt;
   const base = baseSpeed(state, state.t);
   state.scroll = base;
-  if (state.mode === "survival") state.camX += base * dt;
+  if (state.mode === "endless") state.camX += base * dt;
 
   for (const p of state.players) {
     const inp = p.bot ? botInput(state, p) : inputs[p.idx] || {};
     updatePlayer(state, p, inp, dt, base);
-    if (state.mode === "survival") p.screenX = p.x - state.camX;
+    if (state.mode === "endless") p.screenX = p.x - state.camX;
   }
   const lead = Math.max(...state.players.map((p) => p.x), state.camX);
   extendCourse(state, lead + 2600);
@@ -497,14 +506,14 @@ export function step(state, dt, inputs) {
   // end of round?
   if (state.endTimer < 0) {
     let over = false;
-    if (state.mode === "survival") {
-      const alive = state.players.filter((p) => p.alive).length;
-      over = alive <= (state.players.length > 1 ? 1 : 0);
+    const allOut = state.players.every((p) => !p.alive);
+    if (state.mode === "endless") {
+      over = allOut;
     } else if (state.mode === "race") {
-      const done = state.players.every((p) => p.finished);
+      const done = state.players.every((p) => p.finished || !p.alive);
       over = done || (state.firstFinishT >= 0 && state.t - state.firstFinishT > 20);
     } else {
-      over = state.t >= state.duration;
+      over = allOut || state.t >= state.duration;
     }
     if (over) state.endTimer = 1.6;
   } else {
@@ -542,14 +551,13 @@ export function standings(state) {
     ps.sort((a, b) => {
       if (a.finished && b.finished) return a.finishT - b.finishT;
       if (a.finished !== b.finished) return a.finished ? -1 : 1;
+      if (a.alive !== b.alive) return a.alive ? -1 : 1;
       return b.x - a.x;
     });
-  } else if (state.mode === "survival") {
+  } else if (state.mode === "endless") {
     ps.sort((a, b) => {
       if (a.alive !== b.alive) return a.alive ? -1 : 1;
-      if (!a.alive && a.outT !== b.outT) return b.outT - a.outT;
-      if (a.lives !== b.lives) return b.lives - a.lives;
-      return b.x - a.x;
+      return b.best - a.best;
     });
   } else {
     ps.sort((a, b) => b.coins - a.coins || b.x - a.x);
@@ -573,13 +581,13 @@ function results(state) {
     if (prev) {
       const same =
         (state.mode === "coins" && prev.p.coins === p.coins) ||
-        (state.mode === "survival" && !p.alive && !prev.p.alive && prev.p.outT === p.outT);
+        (state.mode === "endless" && metres(prev.p.best) === metres(p.best));
       if (same) place = prev.place;
     }
     let main;
-    if (state.mode === "race") main = p.finished ? `Finished in ${fmtTime(p.finishT)}` : `Reached ${metres(p.x)} m`;
-    else if (state.mode === "survival")
-      main = p.alive ? `Survived! ${fmtTime(state.t)}` : `Lasted ${fmtTime(p.outT)}`;
+    if (state.mode === "race")
+      main = p.finished ? `Finished in ${fmtTime(p.finishT)}` : p.alive ? `Reached ${metres(p.x)} m` : `Out at ${metres(p.x)} m`;
+    else if (state.mode === "endless") main = `${metres(p.best)} m · level ${levelAt(p.best)}`;
     else main = `${p.coins} coins`;
     out.push({
       p,
@@ -589,7 +597,11 @@ function results(state) {
       hat: p.hat,
       place,
       main,
-      extra: `${metres(p.best)} m · ${p.jumps} jumps · ${p.hits} bumps`,
+      best: metres(p.best),
+      extra:
+        state.mode === "endless"
+          ? `Lasted ${fmtTime(p.alive ? state.t : p.outT)} · ${p.jumps} jumps · ${p.hits} crashes`
+          : `${metres(p.best)} m · ${p.jumps} jumps · ${p.hits} crashes`,
     });
   });
   return out;

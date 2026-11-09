@@ -1,52 +1,63 @@
 // Keyboards, game controllers and on-screen touch buttons → {back, fwd, jump, duck}
+// Seat 1 (left hand): Z jump, A ◀ slower, D ▶ faster, S duck
+// Seat 2 (right hand): / jump, K ◀ slower, ; ▶ faster, L duck (arrow keys also work)
 
 export const SCHEMES = {
-  wasd: { label: "W A S D", keys: { back: ["KeyA"], fwd: ["KeyD"], jump: ["KeyW"], duck: ["KeyS"] }, help: "A ◀  D ▶  W jump  S duck" },
-  arrows: {
-    label: "Arrow keys",
-    keys: { back: ["ArrowLeft"], fwd: ["ArrowRight"], jump: ["ArrowUp"], duck: ["ArrowDown"] },
-    help: "← ◀  → ▶  ↑ jump  ↓ duck",
+  k1: {
+    label: "Keyboard (left)",
+    jumpKey: "Z",
+    keys: { back: ["KeyA"], fwd: ["KeyD"], jump: ["KeyZ"], duck: ["KeyS"] },
+    rows: [
+      ["Z", "jump"],
+      ["A", "◀ slower"],
+      ["D", "▶ faster"],
+      ["S", "duck"],
+    ],
   },
-  ijkl: { label: "I J K L", keys: { back: ["KeyJ"], fwd: ["KeyL"], jump: ["KeyI"], duck: ["KeyK"] }, help: "J ◀  L ▶  I jump  K duck" },
-  numpad: {
-    label: "Number pad",
-    keys: { back: ["Numpad4"], fwd: ["Numpad6"], jump: ["Numpad8"], duck: ["Numpad5", "Numpad2"] },
-    help: "4 ◀  6 ▶  8 jump  5 duck",
+  k2: {
+    label: "Keyboard (right)",
+    jumpKey: "/",
+    keys: { back: ["KeyK", "ArrowLeft"], fwd: ["Semicolon", "ArrowRight"], jump: ["Slash"], duck: ["KeyL", "ArrowDown"] },
+    rows: [
+      ["/", "jump"],
+      ["K or ←", "◀ slower"],
+      ["; or →", "▶ faster"],
+      ["L or ↓", "duck"],
+    ],
   },
 };
 
-export const KEY_SCHEMES = Object.keys(SCHEMES);
+// each seat has its own keyboard keys
+export const SEAT_SCHEME = ["k1", "k2"];
 
 export function schemeLabel(p) {
-  if (p.scheme === "bot") return `Computer (${p.botSkill || "normal"})`;
+  if (p.scheme === "bot") return "Computer";
   if (p.scheme === "touch") return "Touch buttons";
   if (p.scheme === "pad") return `Controller ${p.pad + 1}`;
   return SCHEMES[p.scheme]?.label || p.scheme;
 }
 
-export function schemeHelp(p) {
-  if (p.scheme === "bot") return "Plays by itself";
-  if (p.scheme === "touch") return "Buttons appear on screen";
-  if (p.scheme === "pad") return "Stick/D-pad ◀ ▶  A jump  B duck";
-  return SCHEMES[p.scheme]?.help || "";
+export function schemeRows(p) {
+  if (p.scheme === "touch") return [["◀ ▶", "slower / faster"], ["▼ ⤒", "duck / jump"]];
+  if (p.scheme === "pad") return [["A", "jump"], ["Stick", "◀ ▶"], ["B", "duck"]];
+  return SCHEMES[p.scheme]?.rows || [];
 }
 
-// which key scheme a key code belongs to
 export function schemeForCode(code) {
-  for (const id of KEY_SCHEMES) {
+  for (const id of Object.keys(SCHEMES)) {
     for (const list of Object.values(SCHEMES[id].keys)) if (list.includes(code)) return id;
   }
   return null;
 }
 
-const ALL_CODES = new Set(KEY_SCHEMES.flatMap((id) => Object.values(SCHEMES[id].keys).flat()));
+const ALL_CODES = new Set(Object.values(SCHEMES).flatMap((s) => Object.values(s.keys).flat()));
 
 export function createInput() {
   const down = new Set();
   const touch = new Map(); // player index → {back,fwd,jump,duck}
   const onDown = (e) => {
     if (ALL_CODES.has(e.code)) {
-      e.preventDefault();
+      e.preventDefault(); // stops "/" opening quick-find and arrows scrolling
       down.add(e.code);
     }
   };
@@ -85,6 +96,9 @@ export function createInput() {
       const t = touch.get(idx) || { back: false, fwd: false, jump: false, duck: false };
       t[action] = on;
       touch.set(idx, t);
+    },
+    clearTouch(idx) {
+      touch.delete(idx);
     },
     destroy() {
       window.removeEventListener("keydown", onDown);
