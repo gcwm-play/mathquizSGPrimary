@@ -413,27 +413,40 @@ kbd {
   color: #fff;
   font-size: 14px;
 }
-.dd-pad {
-  flex: none;
+/* touch buttons: a row under the game on an upright phone … */
+.dd-view.has-pad {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "canvas canvas" "left right";
+}
+.dd-view.has-pad .dd-canvas {
+  grid-area: canvas;
+  height: 100%;
+}
+.dd-side {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 6px;
   padding: 6px 8px max(6px, env(safe-area-inset-bottom));
   background: color-mix(in srgb, var(--pc) 30%, #24304a);
   touch-action: none;
 }
-.dd-view.flipped .dd-pad {
+.dd-view.flipped .dd-side {
   padding-bottom: 6px;
 }
-.dd-pad-group {
-  display: flex;
-  gap: 6px;
-  flex: 1;
-  max-width: 260px;
+.dd-side.left {
+  grid-area: left;
+  padding-right: 4px;
 }
-.dd-pad button {
+.dd-side.right {
+  grid-area: right;
+  justify-content: flex-end;
+  padding-left: 4px;
+}
+.dd-side button {
   flex: 1;
   height: 58px;
+  max-width: 130px;
   border: none;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.9);
@@ -442,19 +455,70 @@ kbd {
   font-weight: 700;
   touch-action: none;
 }
-.dd-pad .dd-jump {
+.dd-side .dd-jump {
   flex: 1.6;
+  max-width: 200px;
   background: #ffd23f;
   font-size: 19px;
 }
-.dd-pad button.down {
+.dd-side button.down {
   background: var(--pc);
   color: #fff;
   transform: scale(0.95);
 }
-@media (max-height: 520px) {
-  .dd-pad button {
-    height: 46px;
+/* jump only, upright: one wide JUMP button */
+.dd-side.left.simple {
+  display: none;
+}
+.dd-side.right.simple {
+  grid-column: 1 / -1;
+  padding-left: 8px;
+}
+.dd-side.simple .dd-jump {
+  max-width: none;
+  height: 64px;
+  font-size: 24px;
+  letter-spacing: 1px;
+}
+
+/* … and on a phone turned sideways, columns on the left and right of the game */
+@media (orientation: landscape) and (max-height: 600px) {
+  .dd-view.has-pad {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "left canvas right";
+  }
+  .dd-side {
+    flex-direction: column;
+    width: clamp(78px, 11vw, 120px);
+    padding: 6px;
+  }
+  .dd-side.left {
+    padding-left: max(6px, env(safe-area-inset-left));
+  }
+  .dd-side.right {
+    padding-right: max(6px, env(safe-area-inset-right));
+  }
+  .dd-side button,
+  .dd-side .dd-jump {
+    height: auto;
+    max-width: none;
+    font-size: 18px;
+  }
+  .dd-side.left.simple {
+    display: flex;
+  }
+  .dd-side.right.simple {
+    grid-column: auto;
+    padding-left: 6px;
+  }
+  .dd-side.simple .dd-jump {
+    height: auto;
+    font-size: 18px;
+    letter-spacing: 0;
+  }
+  .dd-midbar {
+    height: 26px;
   }
 }
 
@@ -601,12 +665,6 @@ kbd.big {
   font-weight: 600;
 }
 
-.dd-pad.simple .dd-jump {
-  flex: 1;
-  height: 64px;
-  font-size: 24px;
-  letter-spacing: 1px;
-}
 .dd-robot {
   margin-top: 6px;
   display: flex;
