@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { MODES, COLORS, HATS, RACE_LENGTHS, INFINITE_LIVES, createGame, step, finishNow } from "./engine.js";
 import { drawView, drawDino } from "./render.js";
-import { createInput, schemeForCode, schemeLabel, schemeRows, SEAT_SCHEME, SCHEMES } from "./input.js";
+import { createInput, schemeForCode, schemeLabel, schemeRows, SEAT_SCHEME, SCHEMES, keyLabel, jumpKeyProblem } from "./input.js";
 import { playEvents, unlockAudio, setMuted } from "./sfx.js";
 import { SPECIES } from "./sprites.js";
 
@@ -72,6 +72,77 @@ function DinoPreview({ species, color, hat, size = 96 }) {
 }
 
 // ---------------------------------------------------------------- room (lobby)
+// "Change jump key": the next key pressed becomes this player's jump key
+function JumpKeyPicker({ p, seat, other, onChange }) {
+  const [listening, setListening] = useState(false);
+  const [msg, setMsg] = useState("");
+  const defaultKey = SCHEMES[p.scheme].jumpKey;
+
+  useEffect(() => {
+    if (!listening) return undefined;
+    const onKey = (e) => {
+      // capture phase + stop: the room must not treat this press as "join" or "start"
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.repeat) return;
+      if (e.code === "Escape") {
+        setListening(false);
+        setMsg("");
+        return;
+      }
+      const label = keyLabel(e);
+      const seats = seat === 0 ? [p, other] : [other, p];
+      const problem = jumpKeyProblem(e.code, label, p, seat, seats);
+      if (problem) {
+        setMsg(`✋ ${problem}`);
+        return;
+      }
+      const isDefault = SCHEMES[p.scheme].keys.jump.includes(e.code);
+      onChange(isDefault ? { jumpCode: null, jumpLabel: null } : { jumpCode: e.code, jumpLabel: label });
+      setMsg(`✅ Jump is now ${label}`);
+      setListening(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [listening, p, seat, other, onChange]);
+
+  return (
+    <div className="dd-mapkey">
+      {listening ? (
+        <div className="dd-mapkey-listen" role="status">
+          ⌨️ Press the key you want for <b>jump</b>…
+          <button onClick={() => setListening(false)}>Cancel</button>
+        </div>
+      ) : (
+        <div className="dd-mapkey-row">
+          <button
+            className="dd-mapkey-btn"
+            onClick={(e) => {
+              e.currentTarget.blur(); // so Space / Enter don't press this button again
+              setMsg("");
+              setListening(true);
+            }}
+          >
+            🎯 Change jump key
+          </button>
+          {p.jumpCode && (
+            <button
+              className="dd-link"
+              onClick={() => {
+                onChange({ jumpCode: null, jumpLabel: null });
+                setMsg(`Jump is back to ${defaultKey}`);
+              }}
+            >
+              back to {defaultKey}
+            </button>
+          )}
+        </div>
+      )}
+      {msg && <div className="dd-mapkey-msg">{msg}</div>}
+    </div>
+  );
+}
+
 function PlayerCard({ p, i, other, wins, controls, onChange, onRemove }) {
   return (
     <div className="dd-slot dd-filled" style={{ "--pc": colorHex(p.color) }}>
@@ -158,6 +229,7 @@ function PlayerCard({ p, i, other, wins, controls, onChange, onRemove }) {
             ))}
           </div>
         )}
+        {SCHEMES[p.scheme] && <JumpKeyPicker p={p} seat={i} other={other} onChange={onChange} />}
       </div>
     </div>
   );
@@ -448,7 +520,8 @@ function Room({ room, setRoom, onStart }) {
             race always goes on to the finish). With ∞ in Endless, pause and press "Finish now" to end.
           </li>
           <li>
-            <b>On a computer:</b> Player 1 (top screen) jumps with <kbd>Z</kbd>, and with full controls uses <kbd>A</kbd> slower,{" "}
+            <b>On a computer:</b> Player 1 (top screen) jumps with <kbd>Z</kbd> (or press 🎯 Change jump key on your card to
+            pick any key), and with full controls uses <kbd>A</kbd> slower,{" "}
             <kbd>D</kbd> faster, <kbd>S</kbd> duck. Player 2 (bottom screen) jumps with <kbd>/</kbd>, and uses <kbd>K</kbd> or{" "}
             <kbd>←</kbd> slower, <kbd>;</kbd> or <kbd>→</kbd> faster, <kbd>L</kbd> or <kbd>↓</kbd> duck.
           </li>
@@ -530,7 +603,7 @@ function Game({ players, settings, onDone, onQuit, muted, setMutedState }) {
   pausedRef.current = paused;
   const stateRef = useRef(null);
   const inputRef = useRef(null);
-  if (!inputRef.current) inputRef.current = createInput();
+  if (!inputRef.current) inputRef.current = createInput(players);
   const input = inputRef.current;
   const layout = pickLayout(players, settings.layout);
 
@@ -571,6 +644,7 @@ function Game({ players, settings, onDone, onQuit, muted, setMutedState }) {
       last = now;
       if (!pausedRef.current) {
         const inputs = players.map((p, i) => input.read(p, i));
+        input.endFrame();
         while (dt > 0) {
           const h = Math.min(dt, 1 / 120);
           step(state, h, inputs);
