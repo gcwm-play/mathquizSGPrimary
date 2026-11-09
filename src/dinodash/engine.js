@@ -10,6 +10,8 @@ const JUMP_V = 740;
 const JUMP_CUT = 280; // letting go of jump early caps upward speed → short hop
 const BOOST = 1.45; // ▶ forward multiplier
 const BRAKE = 0.55; // ◀ back multiplier
+const HOME_X = 150; // Endless: where the dino runs on the screen
+const MIN_X = 24; // Endless: ◀ can't push the dino further left than this
 
 export const MODES = {
   race: {
@@ -373,7 +375,9 @@ function updatePlayer(state, p, inp, dt, base) {
   p.boosting = false;
   if (racingDone) {
     target = base * 0.5;
-  } else if (p.stun > 0) {
+  } else if (p.stun > 0 && state.mode !== "endless") {
+    // in Race / Coin Rush a crash slows you down; in Endless the screen scrolls on its own,
+    // so slowing down would push the dino off the left edge — it just flashes instead
     target = base * 0.3;
   } else if (inp.back && !inp.fwd) {
     target = base * BRAKE;
@@ -419,16 +423,21 @@ function updatePlayer(state, p, inp, dt, base) {
 
   // survival: stay inside the screen
   if (state.mode === "endless") {
-    const maxX = state.camX + Math.max(200, state.viewW - 140);
-    if (p.x > maxX) {
-      p.x = maxX;
-      p.vx = Math.min(p.vx, state.scroll);
-    }
-    if (p.x < state.camX - 20) {
-      // fell off the back
-      if (p.inv <= 0) hit(state, p);
-      p.x = state.camX + 160;
+    if (state.controls !== "full") {
+      // Jump only: the dino keeps its spot on the screen
+      p.x = state.camX + HOME_X;
       p.vx = state.scroll;
+    } else {
+      // full controls: ◀ ▶ move the dino around the screen, but never off either side
+      const maxX = state.camX + Math.max(200, state.viewW - 140);
+      const minX = state.camX + MIN_X;
+      if (p.x > maxX) {
+        p.x = maxX;
+        p.vx = Math.min(p.vx, state.scroll);
+      } else if (p.x < minX) {
+        p.x = minX;
+        p.vx = Math.max(p.vx, state.scroll);
+      }
     }
   }
 
@@ -490,7 +499,11 @@ export function step(state, dt, inputs) {
     state.countdown -= dt;
     const after = Math.ceil(state.countdown - 0.5);
     if (after !== before) state.events.push({ type: after > 0 ? "count" : "go", n: after });
-    if (state.countdown <= 0.5) state.phase = "play";
+    if (state.countdown <= 0.5) {
+      state.phase = "play";
+      // Endless: the screen starts scrolling at full speed, so the dinos do too
+      if (state.mode === "endless") for (const p of state.players) p.vx = baseSpeed(state, 0);
+    }
     // dinos can hop while waiting
     for (const p of state.players) {
       const inp = p.bot ? {} : inputs[p.idx] || {};
