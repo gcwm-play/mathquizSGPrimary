@@ -1,29 +1,18 @@
 // Keyboards, game controllers and on-screen touch buttons → {back, fwd, jump, duck}
-// Seat 1 (left hand): Z jump, A ◀ slower, D ▶ faster, S duck
-// Seat 2 (right hand): / jump, K ◀ slower, ; ▶ faster, L duck (arrow keys also work)
+// Jump is the only control: Player 1 = Z, Player 2 = /
 
 export const SCHEMES = {
   k1: {
     label: "Keyboard (left)",
     jumpKey: "Z",
-    keys: { back: ["KeyA"], fwd: ["KeyD"], jump: ["KeyZ"], duck: ["KeyS"] },
-    rows: [
-      ["Z", "jump"],
-      ["A", "◀ slower"],
-      ["D", "▶ faster"],
-      ["S", "duck"],
-    ],
+    keys: { back: [], fwd: [], jump: ["KeyZ"], duck: [] },
+    rows: [["Z", "jump"]],
   },
   k2: {
     label: "Keyboard (right)",
     jumpKey: "/",
-    keys: { back: ["KeyK", "ArrowLeft"], fwd: ["Semicolon", "ArrowRight"], jump: ["Slash"], duck: ["KeyL", "ArrowDown"] },
-    rows: [
-      ["/", "jump"],
-      ["K or ←", "◀ slower"],
-      ["; or →", "▶ faster"],
-      ["L or ↓", "duck"],
-    ],
+    keys: { back: [], fwd: [], jump: ["Slash"], duck: [] },
+    rows: [["/", "jump"]],
   },
 };
 
@@ -31,15 +20,15 @@ export const SCHEMES = {
 export const SEAT_SCHEME = ["k1", "k2"];
 
 export function schemeLabel(p) {
-  if (p.scheme === "bot") return "Computer";
+  if (p.scheme === "bot") return "🤖 Robot player (plays by itself)";
   if (p.scheme === "touch") return "Touch buttons";
   if (p.scheme === "pad") return `Controller ${p.pad + 1}`;
   return SCHEMES[p.scheme]?.label || p.scheme;
 }
 
 export function schemeRows(p) {
-  if (p.scheme === "touch") return [["◀ ▶", "slower / faster"], ["▼ ⤒", "duck / jump"]];
-  if (p.scheme === "pad") return [["A", "jump"], ["Stick", "◀ ▶"], ["B", "duck"]];
+  if (p.scheme === "touch") return [["⤒ Jump", "button on your side"]];
+  if (p.scheme === "pad") return [["A", "jump"]];
   return SCHEMES[p.scheme]?.rows || [];
 }
 
