@@ -1,5 +1,6 @@
 // Dino Dash Party — canvas drawing. One horizontal lane per player.
 import { LANE_H, GROUND, COLORS, metres, standings, timeLeft, MODES, level } from "./engine.js";
+import { SPECIES, RUN, skin } from "./sprites.js";
 
 export const TOP_H = 36; // css px strip at the top of each player's view
 // how much of the course a view shows: at least 480 units on a narrow phone, up to 1000 on a wide screen
@@ -24,7 +25,51 @@ function shade(hex, amt) {
 const ORD = ["", "1st", "2nd", "3rd", "4th"];
 
 // ---------------- dino ----------------
-export function drawDino(ctx, x, yb, color, hat, pose = {}) {
+// look = { species: "trex" | "raptor", color: colour id, hat }
+// x = the dino's left edge in the world (its hitbox is x+8 … x+40), yb = feet
+export function drawDino(ctx, x, yb, look, pose = {}) {
+  const col = COLORS.find((c) => c.id === look.color) || COLORS[0];
+  const sp = SPECIES[look.species] || SPECIES.trex;
+  const sheet = skin(sp.id, col.hue);
+  if (!sheet) return drawCartoonDino(ctx, x, yb, col.body, look.hat, pose); // PNG still loading
+
+  const [fw, fh] = sp.frame;
+  const n = RUN.frames.length;
+  const step = Math.floor(Math.max(0, pose.phase || 0) * 0.55);
+  const f = pose.air ? RUN.air : pose.duck ? RUN.duck : RUN.frames[((step % n) + n) % n];
+  const sx = sp.scale * (pose.duck ? 1.12 : 1);
+  const sy = sp.scale * (pose.duck ? 0.56 : 1);
+  ctx.save();
+  if (pose.alpha != null) ctx.globalAlpha = pose.alpha;
+
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  const sh = Math.max(0.3, 1 - (pose.height || 0) / 120);
+  ctx.beginPath();
+  ctx.ellipse(x + 28, GROUND + 2, 26 * sh, 4 * sh, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // snout at the front of the hitbox, feet on the ground
+  const left = x + (pose.duck ? 62 : 54) - fw * sx;
+  const top = yb - fh * sy;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(sheet, f * fw, 0, fw, fh, left, top, fw * sx, fh * sy);
+
+  const [hx0, hy0] = sp.heads[f];
+  const hx = left + hx0 * sx;
+  const hy = top + hy0 * sy;
+  if (look.hat !== "shades") drawHat(ctx, look.hat, hx - 2, hy + 9, 9);
+  if (pose.stun) {
+    ctx.fillStyle = "#ffd23f";
+    for (let k = 0; k < 3; k++) {
+      const a = (pose.time || 0) * 6 + (k * Math.PI * 2) / 3;
+      star(ctx, hx + Math.cos(a) * 15, hy - 8 + Math.sin(a) * 4, 3.5);
+    }
+  }
+  ctx.restore();
+}
+
+function drawCartoonDino(ctx, x, yb, color, hat, pose = {}) {
   const body = color;
   const dark = shade(color, -0.35);
   const belly = shade(color, 0.55);
@@ -526,7 +571,7 @@ function drawLane(ctx, state, p, W, time, places) {
       const sx = q.x - camX;
       const qc = colorOf(q.color);
       if (sx > -60 && sx < W) {
-        drawDino(ctx, sx, GROUND - q.y, qc, q.hat, {
+        drawDino(ctx, sx, GROUND - q.y, q, {
           phase: q.runPhase,
           duck: q.ducking,
           air: !q.onGround,
@@ -579,7 +624,7 @@ function drawLane(ctx, state, p, W, time, places) {
   const sx = p.x - camX;
   const blink = p.inv > 0 && Math.floor(time * 12) % 2 === 0;
   if (p.alive) {
-    drawDino(ctx, sx, GROUND - p.y, color, p.hat, {
+    drawDino(ctx, sx, GROUND - p.y, p, {
       phase: p.runPhase,
       duck: p.ducking,
       air: !p.onGround,

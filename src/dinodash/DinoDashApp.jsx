@@ -3,6 +3,7 @@ import { MODES, COLORS, HATS, RACE_LENGTHS, createGame, step } from "./engine.js
 import { drawView, drawDino } from "./render.js";
 import { createInput, schemeForCode, schemeLabel, schemeRows, SEAT_SCHEME, SCHEMES } from "./input.js";
 import { playEvents, unlockAudio, setMuted } from "./sfx.js";
+import { SPECIES } from "./sprites.js";
 
 const STORE = "dinodash-room-v2";
 const SEATS = 2;
@@ -44,7 +45,7 @@ const isTouchDevice = () => typeof window !== "undefined" && window.matchMedia?.
 const minPlayers = (mode) => (mode === "endless" ? 1 : 2);
 
 // ---------------------------------------------------------------- dino picture
-function DinoPreview({ color, hat, size = 96 }) {
+function DinoPreview({ species, color, hat, size = 96 }) {
   const ref = useRef(null);
   useEffect(() => {
     const cv = ref.current;
@@ -58,16 +59,15 @@ function DinoPreview({ color, hat, size = 96 }) {
       const t = (now - t0) / 1000;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, cv.width, cv.height);
-      const s = (size / 80) * dpr;
+      const s = (size / 92) * dpr;
       ctx.setTransform(s, 0, 0, s, 0, 0);
-      ctx.translate(14, 72 - 138); // drawDino draws on the lane's ground line (138)
-      const hop = Math.max(0, Math.sin(t * 3)) * 8;
-      drawDino(ctx, 0, 138 - hop, colorHex(color), hat, { phase: t * 12, air: hop > 1, height: hop });
+      ctx.translate(30, 80 - 138); // drawDino draws on the lane's ground line (138)
+      drawDino(ctx, 0, 138, { species, color, hat }, { phase: t * 14 });
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [color, hat, size]);
+  }, [species, color, hat, size]);
   return <canvas ref={ref} style={{ width: size, height: size }} aria-hidden="true" />;
 }
 
@@ -82,7 +82,7 @@ function PlayerCard({ p, i, other, wins, onChange, onRemove }) {
         </button>
       </div>
       <div className="dd-preview">
-        <DinoPreview color={p.color} hat={p.hat} />
+        <DinoPreview species={p.species} color={p.color} hat={p.hat} />
         {wins > 0 && <span className="dd-wins">🏆 {wins}</span>}
       </div>
       <input
@@ -93,7 +93,14 @@ function PlayerCard({ p, i, other, wins, onChange, onRemove }) {
         onBlur={(e) => !e.target.value.trim() && onChange({ name: `Player ${i + 1}` })}
         aria-label="Name"
       />
-      <div className="dd-swatches" role="group" aria-label="Colour">
+      <div className="dd-seg dd-species" role="group" aria-label="Dinosaur">
+        {Object.values(SPECIES).map((sp) => (
+          <button key={sp.id} className={(p.species || "trex") === sp.id ? "on" : ""} onClick={() => onChange({ species: sp.id })}>
+            {sp.id === "trex" ? "T-rex" : "Raptor"}
+          </button>
+        ))}
+      </div>
+      <div className="dd-swatches" role="group" aria-label="Skin colour">
         {COLORS.map((c) => {
           const taken = other?.color === c.id;
           return (
@@ -194,12 +201,14 @@ function Room({ room, setRoom, onStart }) {
         if (r.seats[seat]) return r;
         const other = r.seats[1 - seat];
         const isBot = extra.scheme === "bot";
-        const color = (COLORS.find((c) => c.id !== other?.color && c.id === COLORS[seat].id) || COLORS.find((c) => c.id !== other?.color)).id;
+        const want = seat === 0 ? "green" : "orange"; // each dino's natural skin
+        const color = (COLORS.find((c) => c.id !== other?.color && c.id === want) || COLORS.find((c) => c.id !== other?.color)).id;
         const p = {
           id: newId(),
           name: isBot ? BOT_NAMES[seat] : `Player ${seat + 1}`,
           color,
-          hat: seat === 0 ? "cap" : "bow",
+          hat: "none",
+          species: seat === 0 ? "trex" : "raptor",
           botSkill: "normal",
           lives: 3,
           ...extra,
@@ -649,7 +658,7 @@ function Results({ results, mode, newRecord, onAgain, onRoom }) {
         {newRecord && <div className="dd-newrec">🏅 New best ever!</div>}
         <div className="dd-winner-pics">
           {winners.map((w) => (
-            <DinoPreview key={w.id} color={w.color} hat={w.hat === "none" ? "crown" : w.hat} size={110} />
+            <DinoPreview key={w.id} species={w.species} color={w.color} hat={w.hat === "none" ? "crown" : w.hat} size={110} />
           ))}
         </div>
         <ol className="dd-res-list">

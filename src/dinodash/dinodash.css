@@ -595,3 +595,8 @@ kbd.big {
   color: #c47f00;
   font-size: 18px;
 }
+
+.dd-species button {
+  padding: 4px 14px;
+  font-weight: 600;
+}

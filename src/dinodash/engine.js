@@ -36,14 +36,14 @@ export const RACE_LENGTHS = { short: 500, medium: 1000, long: 1600 }; // metres
 export const PACES = { chill: 0.8, normal: 1, turbo: 1.25 };
 
 export const COLORS = [
-  { id: "green", name: "Green", body: "#4cbb5e" },
-  { id: "orange", name: "Orange", body: "#f2933a" },
-  { id: "blue", name: "Blue", body: "#3d8ee8" },
-  { id: "pink", name: "Pink", body: "#ec6fb0" },
-  { id: "purple", name: "Purple", body: "#9b6be0" },
-  { id: "yellow", name: "Yellow", body: "#e8c331" },
-  { id: "red", name: "Red", body: "#e5544b" },
-  { id: "teal", name: "Teal", body: "#2fb5a8" },
+  { id: "green", name: "Green", body: "#4cbb5e", hue: 95 },
+  { id: "orange", name: "Orange", body: "#f2933a", hue: 30 },
+  { id: "blue", name: "Blue", body: "#3d8ee8", hue: 212 },
+  { id: "pink", name: "Pink", body: "#ec6fb0", hue: 322 },
+  { id: "purple", name: "Purple", body: "#9b6be0", hue: 272 },
+  { id: "yellow", name: "Yellow", body: "#e8c331", hue: 50 },
+  { id: "red", name: "Red", body: "#e5544b", hue: 4 },
+  { id: "teal", name: "Teal", body: "#2fb5a8", hue: 172 },
 ];
 
 export const HATS = [
@@ -52,7 +52,6 @@ export const HATS = [
   { id: "crown", name: "Crown", icon: "👑" },
   { id: "bow", name: "Bow", icon: "🎀" },
   { id: "party", name: "Party hat", icon: "🥳" },
-  { id: "shades", name: "Sunglasses", icon: "🕶️" },
 ];
 
 // hitboxes relative to the dino's world x (left edge) and height above ground
@@ -203,6 +202,7 @@ export function createGame(room) {
       name: rp.name,
       color: rp.color,
       hat: rp.hat,
+      species: rp.species === "raptor" ? "raptor" : "trex",
       bot: rp.scheme === "bot" ? { skill: rp.botSkill || "normal", plan: null, rng: mulberry32(seed + i * 99) } : null,
       x: 0,
       y: 0,
@@ -595,6 +595,7 @@ function results(state) {
       name: p.name,
       color: p.color,
       hat: p.hat,
+      species: p.species,
       place,
       main,
       best: metres(p.best),
