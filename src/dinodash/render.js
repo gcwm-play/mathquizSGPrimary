@@ -698,8 +698,7 @@ function drawHeader(ctx, state, p, w, places) {
   if (two && state.mode !== "endless") x += chip(ctx, x, y, ORD[place], place === 1 ? "#e6a700" : "rgba(255,255,255,0.18)") + 6;
 
   // boost bar (race & coins)
-  if (false) {
-    // boost bar — hidden while jump is the only control
+  if (state.controls === "full" && state.mode !== "endless" && w - x > 120) {
     const bw = 46;
     ctx.fillStyle = "rgba(255,255,255,0.2)";
     roundRect(ctx, x + 14, TOP_H / 2 - 4, bw, 8, 4);

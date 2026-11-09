@@ -601,7 +601,7 @@ kbd.big {
   font-weight: 600;
 }
 
-.dd-pad .dd-jump {
+.dd-pad.simple .dd-jump {
   flex: 1;
   height: 64px;
   font-size: 24px;

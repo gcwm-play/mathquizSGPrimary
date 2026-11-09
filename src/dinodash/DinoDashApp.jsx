@@ -7,7 +7,7 @@ import { SPECIES } from "./sprites.js";
 
 const STORE = "dinodash-room-v2";
 const SEATS = 2;
-const DEFAULT_SETTINGS = { mode: "race", raceLength: "short", coinTime: 60, pace: "normal", layout: "auto" };
+const DEFAULT_SETTINGS = { mode: "race", raceLength: "short", coinTime: 60, pace: "normal", layout: "auto", controls: "simple" };
 const BOT_NAMES = ["Rexy", "Spike"];
 
 function loadRoom() {
@@ -72,7 +72,7 @@ function DinoPreview({ species, color, hat, size = 96 }) {
 }
 
 // ---------------------------------------------------------------- room (lobby)
-function PlayerCard({ p, i, other, wins, onChange, onRemove }) {
+function PlayerCard({ p, i, other, wins, controls, onChange, onRemove }) {
   return (
     <div className="dd-slot dd-filled" style={{ "--pc": colorHex(p.color) }}>
       <div className="dd-slot-top">
@@ -151,7 +151,7 @@ function PlayerCard({ p, i, other, wins, onChange, onRemove }) {
           </div>
         ) : (
           <div className="dd-keys">
-            {schemeRows(p).map(([k, what]) => (
+            {schemeRows(p, controls).map(([k, what]) => (
               <span key={what}>
                 <kbd>{k}</kbd> {what}
               </span>
@@ -294,6 +294,7 @@ function Room({ room, setRoom, onStart }) {
           p ? (
             <PlayerCard
               key={p.id}
+              controls={settings.controls}
               p={p}
               i={i}
               other={seats[1 - i]}
@@ -353,6 +354,19 @@ function Room({ room, setRoom, onStart }) {
               </div>
             </label>
           )}
+          <label>
+            Controls
+            <div className="dd-seg">
+              {[
+                ["simple", "⤒ Jump only"],
+                ["full", "🎮 Jump + faster / slower + duck"],
+              ].map(([k, l]) => (
+                <button key={k} className={(settings.controls || "simple") === k ? "on" : ""} onClick={() => setS({ controls: k })}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </label>
           <label>
             {settings.mode === "endless" ? "Starting speed" : "Speed"}
             <div className="dd-seg">
@@ -421,15 +435,22 @@ function Room({ room, setRoom, onStart }) {
         <h2>How to play</h2>
         <ul>
           <li>
-            <b>Jump</b> is the only button: jump over rocks, stumps, spiky bushes and bats. Hold it for a big jump, tap it for a small
-            hop. Your dino runs by itself.
+            <b>Jump</b> over rocks, stumps, spiky bushes and bats. Hold it for a big jump, tap it for a small hop. Your dino runs by
+            itself.
+          </li>
+          <li>
+            <b>Controls</b>: "Jump only" is the standard race. "Jump + faster / slower + duck" adds <b>▶ faster</b> and{" "}
+            <b>◀ slower</b> (going fast uses your ⚡ boost bar, which refills when you stop) and <b>▼ duck</b> (under bats at head
+            height, or to drop faster in the air).
           </li>
           <li>
             Every crash makes you stumble and costs a life ❤️. Each dino can have 1, 2 or 3 lives, or <b>∞</b> to never run out (the
             race always goes on to the finish). With ∞ in Endless, pause and press "Finish now" to end.
           </li>
           <li>
-            <b>On a computer:</b> Player 1 jumps with <kbd>Z</kbd> (top screen), Player 2 with <kbd>/</kbd> (bottom screen).
+            <b>On a computer:</b> Player 1 (top screen) jumps with <kbd>Z</kbd>, and with full controls uses <kbd>A</kbd> slower,{" "}
+            <kbd>D</kbd> faster, <kbd>S</kbd> duck. Player 2 (bottom screen) jumps with <kbd>/</kbd>, and uses <kbd>K</kbd> or{" "}
+            <kbd>←</kbd> slower, <kbd>;</kbd> or <kbd>→</kbd> faster, <kbd>L</kbd> or <kbd>↓</kbd> duck.
           </li>
           <li>
             🤖 <b>Robot player</b> means the computer plays that dino for you — only add one if you want to play against the computer.
@@ -446,7 +467,7 @@ function Room({ room, setRoom, onStart }) {
 }
 
 // ---------------------------------------------------------------- touch buttons
-function TouchPad({ idx, input }) {
+function TouchPad({ idx, input, full }) {
   const bind = (action) => ({
     onPointerDown: (e) => {
       e.preventDefault();
@@ -465,11 +486,32 @@ function TouchPad({ idx, input }) {
     onContextMenu: (e) => e.preventDefault(),
   });
   return (
-    <div className="dd-pad">
-      <button className="dd-jump" {...bind("jump")} aria-label="Jump">
-        ⤒ JUMP
-      </button>
-    </div>
+    full ? (
+      <div className="dd-pad">
+        <div className="dd-pad-group">
+          <button {...bind("back")} aria-label="Slower">
+            ◀
+          </button>
+          <button {...bind("fwd")} aria-label="Faster">
+            ▶
+          </button>
+        </div>
+        <div className="dd-pad-group">
+          <button {...bind("duck")} aria-label="Duck">
+            ▼
+          </button>
+          <button className="dd-jump" {...bind("jump")} aria-label="Jump">
+            ⤒ Jump
+          </button>
+        </div>
+      </div>
+    ) : (
+      <div className="dd-pad simple">
+        <button className="dd-jump" {...bind("jump")} aria-label="Jump">
+          ⤒ JUMP
+        </button>
+      </div>
+    )
   );
 }
 
@@ -572,7 +614,7 @@ function Game({ players, settings, onDone, onQuit, muted, setMutedState }) {
     return (
       <div key={p.id} className={`dd-view ${flipped ? "flipped" : ""}`} style={{ "--pc": colorHex(p.color) }}>
         <canvas ref={(el) => (canvasRefs.current[i] = el)} className="dd-canvas" />
-        {p.scheme === "touch" && <TouchPad idx={i} input={input} />}
+        {p.scheme === "touch" && <TouchPad idx={i} input={input} full={settings.controls === "full"} />}
       </div>
     );
   };

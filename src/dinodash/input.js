@@ -1,18 +1,30 @@
 // Keyboards, game controllers and on-screen touch buttons → {back, fwd, jump, duck}
-// Jump is the only control: Player 1 = Z, Player 2 = /
+// Player 1 (left hand): Z jump, A ◀ slower, D ▶ faster, S duck
+// Player 2 (right hand): / jump, K ◀ slower, ; ▶ faster, L duck (arrow keys also work)
+// With the "Jump only" controls setting, only Z and / do anything.
 
 export const SCHEMES = {
   k1: {
     label: "Keyboard (left)",
     jumpKey: "Z",
-    keys: { back: [], fwd: [], jump: ["KeyZ"], duck: [] },
-    rows: [["Z", "jump"]],
+    keys: { back: ["KeyA"], fwd: ["KeyD"], jump: ["KeyZ"], duck: ["KeyS"] },
+    rows: [
+      ["Z", "jump"],
+      ["A", "◀ slower"],
+      ["D", "▶ faster"],
+      ["S", "duck"],
+    ],
   },
   k2: {
     label: "Keyboard (right)",
     jumpKey: "/",
-    keys: { back: [], fwd: [], jump: ["Slash"], duck: [] },
-    rows: [["/", "jump"]],
+    keys: { back: ["KeyK", "ArrowLeft"], fwd: ["Semicolon", "ArrowRight"], jump: ["Slash"], duck: ["KeyL", "ArrowDown"] },
+    rows: [
+      ["/", "jump"],
+      ["K or ←", "◀ slower"],
+      ["; or →", "▶ faster"],
+      ["L or ↓", "duck"],
+    ],
   },
 };
 
@@ -26,10 +38,12 @@ export function schemeLabel(p) {
   return SCHEMES[p.scheme]?.label || p.scheme;
 }
 
-export function schemeRows(p) {
-  if (p.scheme === "touch") return [["⤒ Jump", "button on your side"]];
-  if (p.scheme === "pad") return [["A", "jump"]];
-  return SCHEMES[p.scheme]?.rows || [];
+export function schemeRows(p, controls = "simple") {
+  const full = controls === "full";
+  if (p.scheme === "touch") return full ? [["◀ ▶", "slower / faster"], ["▼ ⤒", "duck / jump"]] : [["⤒ Jump", "button on your side"]];
+  if (p.scheme === "pad") return full ? [["A", "jump"], ["Stick", "◀ ▶"], ["B", "duck"]] : [["A", "jump"]];
+  const rows = SCHEMES[p.scheme]?.rows || [];
+  return full ? rows : rows.slice(0, 1);
 }
 
 export function schemeForCode(code) {
