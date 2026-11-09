@@ -182,7 +182,7 @@ function livesFor(rp) {
   return Math.min(3, Math.max(1, Number(rp.lives) || 3));
 }
 
-// for now the only control is jump (no faster / slower / duck)
+// the "Jump only" controls setting ignores faster / slower / duck
 function jumpOnly(inp) {
   return { jump: !!inp.jump, fwd: false, back: false, duck: false };
 }
@@ -203,6 +203,8 @@ export function createGame(room) {
   const s = room.settings;
   const state = {
     mode: s.mode,
+    // "simple": jump is the only control; "full": jump, faster, slower and duck
+    controls: s.controls === "full" ? "full" : "simple",
     pace: PACES[s.pace] ?? 1,
     duration: s.mode === "coins" ? Number(s.coinTime) || 60 : 0,
     finishX: s.mode === "race" ? (RACE_LENGTHS[s.raceLength] ?? 300) * UNITS_PER_M : 0,
@@ -281,7 +283,7 @@ function botInput(state, p) {
         id: next.id,
         fail: r() < sk.mistake,
         lead: sk.leadMin + r() * (sk.leadMax - sk.leadMin),
-        duck: false, // ducking is switched off for now — everyone jumps bats
+        duck: state.controls === "full" && next.type === "batMid" && r() < 0.6,
       };
     }
     const plan = p.bot.plan;
@@ -517,7 +519,8 @@ export function step(state, dt, inputs) {
   if (state.mode === "endless") state.camX += base * dt;
 
   for (const p of state.players) {
-    const inp = jumpOnly(p.bot ? botInput(state, p) : inputs[p.idx] || {});
+    const raw = p.bot ? botInput(state, p) : inputs[p.idx] || {};
+    const inp = state.controls === "full" ? raw : jumpOnly(raw);
     updatePlayer(state, p, inp, dt, base);
     if (state.mode === "endless") p.screenX = p.x - state.camX;
   }
