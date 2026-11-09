@@ -112,6 +112,7 @@ export function createInput(players = []) {
   // keys pressed since the last frame, so a tap quicker than one frame still counts
   const tapped = new Set();
   const touch = new Map(); // player index → {back,fwd,jump,duck}
+  const touchTapped = new Map(); // player index → actions pressed since the last frame
   const used = new Set([...ALL_CODES, ...players.flatMap((p) => (p.jumpCode ? [p.jumpCode] : []))]);
   const onDown = (e) => {
     if (used.has(e.code)) {
@@ -131,6 +132,7 @@ export function createInput(players = []) {
     if (p.scheme === "touch") {
       const t = touch.get(idx);
       if (t) Object.assign(out, t);
+      for (const a of touchTapped.get(idx) || []) out[a] = true;
     } else if (p.scheme === "pad") {
       const gp = navigator.getGamepads?.()[p.pad];
       if (gp) {
@@ -155,11 +157,16 @@ export function createInput(players = []) {
     // call once per frame after reading every player
     endFrame() {
       tapped.clear();
+      touchTapped.clear();
     },
     setTouch(idx, action, on) {
       const t = touch.get(idx) || { back: false, fwd: false, jump: false, duck: false };
       t[action] = on;
       touch.set(idx, t);
+      if (on) {
+        if (!touchTapped.has(idx)) touchTapped.set(idx, new Set());
+        touchTapped.get(idx).add(action);
+      }
     },
     clearTouch(idx) {
       touch.delete(idx);

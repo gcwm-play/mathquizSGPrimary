@@ -541,50 +541,64 @@ function Room({ room, setRoom, onStart }) {
 
 // ---------------------------------------------------------------- touch buttons
 function TouchPad({ idx, input, full }) {
-  const bind = (action) => ({
-    onPointerDown: (e) => {
-      e.preventDefault();
-      e.currentTarget.setPointerCapture?.(e.pointerId);
-      e.currentTarget.classList.add("down");
-      input.setTouch(idx, action, true);
-    },
-    onPointerUp: (e) => {
+  // which buttons are held for each action (both JUMP buttons can be held at once)
+  const held = useRef({});
+  const bind = (action, id) => {
+    const release = (e) => {
       e.currentTarget.classList.remove("down");
-      input.setTouch(idx, action, false);
-    },
-    onPointerCancel: (e) => {
-      e.currentTarget.classList.remove("down");
-      input.setTouch(idx, action, false);
-    },
-    onContextMenu: (e) => e.preventDefault(),
-  });
-  return (
-    full ? (
-      <div className="dd-pad">
-        <div className="dd-pad-group">
-          <button {...bind("back")} aria-label="Slower">
+      held.current[action]?.delete(id);
+      input.setTouch(idx, action, (held.current[action]?.size || 0) > 0);
+    };
+    return {
+      onPointerDown: (e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        e.currentTarget.classList.add("down");
+        (held.current[action] ||= new Set()).add(id);
+        input.setTouch(idx, action, true);
+      },
+      onPointerUp: release,
+      onPointerCancel: release,
+      onContextMenu: (e) => e.preventDefault(),
+    };
+  };
+  // Upright phone: buttons sit in a row under the game. Sideways phone: they move to the
+  // left and right of the game (see .dd-side in the CSS), so the game keeps its height.
+  if (full) {
+    return (
+      <>
+        <div className="dd-side left">
+          <button {...bind("back", "back")} aria-label="Slower">
             ◀
           </button>
-          <button {...bind("fwd")} aria-label="Faster">
+          <button {...bind("fwd", "fwd")} aria-label="Faster">
             ▶
           </button>
         </div>
-        <div className="dd-pad-group">
-          <button {...bind("duck")} aria-label="Duck">
+        <div className="dd-side right">
+          <button {...bind("duck", "duck")} aria-label="Duck">
             ▼
           </button>
-          <button className="dd-jump" {...bind("jump")} aria-label="Jump">
+          <button className="dd-jump" {...bind("jump", "jump")} aria-label="Jump">
             ⤒ Jump
           </button>
         </div>
-      </div>
-    ) : (
-      <div className="dd-pad simple">
-        <button className="dd-jump" {...bind("jump")} aria-label="Jump">
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="dd-side left simple">
+        <button className="dd-jump" {...bind("jump", "left")} aria-label="Jump">
           ⤒ JUMP
         </button>
       </div>
-    )
+      <div className="dd-side right simple">
+        <button className="dd-jump" {...bind("jump", "right")} aria-label="Jump">
+          ⤒ JUMP
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -686,7 +700,11 @@ function Game({ players, settings, onDone, onQuit, muted, setMutedState }) {
     const p = players[i];
     const flipped = layout === "table" && pos === 0 && p.scheme !== "bot";
     return (
-      <div key={p.id} className={`dd-view ${flipped ? "flipped" : ""}`} style={{ "--pc": colorHex(p.color) }}>
+      <div
+        key={p.id}
+        className={`dd-view ${flipped ? "flipped" : ""} ${p.scheme === "touch" ? "has-pad" : ""}`}
+        style={{ "--pc": colorHex(p.color) }}
+      >
         <canvas ref={(el) => (canvasRefs.current[i] = el)} className="dd-canvas" />
         {p.scheme === "touch" && <TouchPad idx={i} input={input} full={settings.controls === "full"} />}
       </div>
