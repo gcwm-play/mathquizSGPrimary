@@ -24,6 +24,10 @@ function shade(hex, amt) {
 
 const ORD = ["", "1st", "2nd", "3rd", "4th"];
 
+// the other player's see-through dino runs on a "back track": raised and a bit smaller
+const GHOST_LIFT = 16;
+const GHOST_SCALE = 0.82;
+
 // ---------------- dino ----------------
 // look = { species: "trex" | "raptor", color: colour id, hat }
 // x = the dino's left edge in the world (its hitbox is x+8 … x+40), yb = feet
@@ -571,13 +575,36 @@ function drawLane(ctx, state, p, W, time, places) {
       const sx = q.x - camX;
       const qc = colorOf(q.color);
       if (sx > -60 && sx < W) {
+        // drawn on a "back track" (a bit higher and smaller, like the next lane over) so it
+        // never hides behind your own dino when you are level with each other
+        const cx = sx + 28;
+        ctx.save();
+        ctx.translate(cx, GROUND - GHOST_LIFT);
+        ctx.scale(GHOST_SCALE, GHOST_SCALE);
+        ctx.translate(-cx, -GROUND);
         drawDino(ctx, sx, GROUND - q.y, q, {
           phase: q.runPhase,
           duck: q.ducking,
           air: !q.onGround,
-          alpha: 0.28,
+          alpha: 0.4,
           height: q.y,
         });
+        ctx.restore();
+        // name tag over the ghost
+        const label = q.name.slice(0, 10);
+        ctx.font = "600 11px Fredoka, ui-rounded, system-ui, sans-serif";
+        const tw = ctx.measureText(label).width + 12;
+        const ty = GROUND - GHOST_LIFT - q.y * GHOST_SCALE - 62 * GHOST_SCALE - 16;
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = qc;
+        roundRect(ctx, cx - tw / 2, ty, tw, 15, 7.5);
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "center";
+        ctx.fillText(label, cx, ty + 8);
+        ctx.textAlign = "left";
+        ctx.globalAlpha = 1;
       } else {
         // arrow at the edge
         const ahead = sx >= W;
