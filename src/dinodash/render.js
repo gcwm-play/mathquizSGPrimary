@@ -677,8 +677,17 @@ function drawHeader(ctx, state, p, w, places) {
   const y = (TOP_H - 20) / 2;
   let x = 8;
   x += chip(ctx, x, y, `${p.name.slice(0, 10)}${p.bot ? " 🤖" : ""}`, color) + 8;
-  for (let k = 0; k < p.maxLives; k++) heart(ctx, x + 7 + k * 17, y + 3, 14, k < p.lives);
-  x += p.maxLives * 17 + 6;
+  if (Number.isFinite(p.maxLives)) {
+    for (let k = 0; k < p.maxLives; k++) heart(ctx, x + 7 + k * 17, y + 3, 14, k < p.lives);
+    x += p.maxLives * 17 + 6;
+  } else {
+    heart(ctx, x + 7, y + 3, 14, true);
+    ctx.font = "700 16px Fredoka, ui-rounded, system-ui, sans-serif";
+    ctx.fillStyle = "#fff";
+    ctx.textBaseline = "middle";
+    ctx.fillText("∞", x + 17, TOP_H / 2 + 1);
+    x += 36;
+  }
   const place = places.get(p);
   const two = state.players.length > 1;
   if (state.mode === "endless") {
@@ -689,7 +698,8 @@ function drawHeader(ctx, state, p, w, places) {
   if (two && state.mode !== "endless") x += chip(ctx, x, y, ORD[place], place === 1 ? "#e6a700" : "rgba(255,255,255,0.18)") + 6;
 
   // boost bar (race & coins)
-  if (state.mode !== "endless" && w - x > 120) {
+  if (false) {
+    // boost bar — hidden while jump is the only control
     const bw = 46;
     ctx.fillStyle = "rgba(255,255,255,0.2)";
     roundRect(ctx, x + 14, TOP_H / 2 - 4, bw, 8, 4);

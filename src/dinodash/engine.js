@@ -175,6 +175,28 @@ function extendCourse(state, upto) {
   while (c.pickups.length && c.pickups[0].x + 100 < minX) c.pickups.shift();
 }
 
+// lives: 1–3, or 0 / "inf" for never running out
+export const INFINITE_LIVES = 0;
+function livesFor(rp) {
+  if (rp.lives === INFINITE_LIVES || rp.lives === "inf") return Infinity;
+  return Math.min(3, Math.max(1, Number(rp.lives) || 3));
+}
+
+// for now the only control is jump (no faster / slower / duck)
+function jumpOnly(inp) {
+  return { jump: !!inp.jump, fwd: false, back: false, duck: false };
+}
+
+// end the round right away (used by "Finish now" when nobody can run out of lives)
+export function finishNow(state) {
+  if (state.phase === "done") return;
+  if (state.phase === "countdown") state.phase = "play";
+  state.endTimer = -1;
+  state.phase = "done";
+  state.results = results(state);
+  state.events.push({ type: "end" });
+}
+
 // ---------- create ----------
 export function createGame(room) {
   const seed = (Math.random() * 2 ** 31) | 0;
@@ -212,8 +234,8 @@ export function createGame(room) {
       ducking: false,
       stamina: 1,
       boosting: false,
-      lives: Math.min(3, Math.max(1, Number(rp.lives) || 3)),
-      maxLives: Math.min(3, Math.max(1, Number(rp.lives) || 3)),
+      lives: livesFor(rp),
+      maxLives: livesFor(rp),
       alive: true,
       outT: -1,
       stun: 0,
@@ -259,7 +281,7 @@ function botInput(state, p) {
         id: next.id,
         fail: r() < sk.mistake,
         lead: sk.leadMin + r() * (sk.leadMax - sk.leadMin),
-        duck: next.type === "batMid" && r() < 0.6,
+        duck: false, // ducking is switched off for now — everyone jumps bats
       };
     }
     const plan = p.bot.plan;
@@ -317,7 +339,7 @@ function hit(state, p) {
   p.hits++;
   state.events.push({ type: "hit", lane: p.idx });
   burst(state, p, "star", 6, p.x + 30, p.y + 30);
-  p.lives--;
+  if (Number.isFinite(p.lives)) p.lives--;
   if (state.mode === "endless") {
     p.inv = 1.8;
     p.stun = 0.35;
@@ -495,7 +517,7 @@ export function step(state, dt, inputs) {
   if (state.mode === "endless") state.camX += base * dt;
 
   for (const p of state.players) {
-    const inp = p.bot ? botInput(state, p) : inputs[p.idx] || {};
+    const inp = jumpOnly(p.bot ? botInput(state, p) : inputs[p.idx] || {});
     updatePlayer(state, p, inp, dt, base);
     if (state.mode === "endless") p.screenX = p.x - state.camX;
   }

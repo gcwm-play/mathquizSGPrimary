@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { MODES, COLORS, HATS, RACE_LENGTHS, createGame, step } from "./engine.js";
+import { MODES, COLORS, HATS, RACE_LENGTHS, INFINITE_LIVES, createGame, step, finishNow } from "./engine.js";
 import { drawView, drawDino } from "./render.js";
 import { createInput, schemeForCode, schemeLabel, schemeRows, SEAT_SCHEME, SCHEMES } from "./input.js";
 import { playEvents, unlockAudio, setMuted } from "./sfx.js";
@@ -126,9 +126,15 @@ function PlayerCard({ p, i, other, wins, onChange, onRemove }) {
       <div className="dd-lives">
         <span>❤️ Lives</span>
         <div className="dd-seg small">
-          {[1, 2, 3].map((n) => (
-            <button key={n} className={p.lives === n ? "on" : ""} onClick={() => onChange({ lives: n })} aria-label={`${n} lives`}>
-              {n}
+          {[1, 2, 3, INFINITE_LIVES].map((n) => (
+            <button
+              key={n}
+              className={p.lives === n ? "on" : ""}
+              onClick={() => onChange({ lives: n })}
+              aria-label={n === INFINITE_LIVES ? "Never run out of lives" : `${n} lives`}
+              title={n === INFINITE_LIVES ? "Never run out of lives" : `${n} lives`}
+            >
+              {n === INFINITE_LIVES ? "∞" : n}
             </button>
           ))}
         </div>
@@ -168,19 +174,21 @@ function EmptySlot({ i, touch, onKeys, onTouch, onBot }) {
           👆 Tap to join
         </button>
       ) : (
-        <p className="dd-join-help">
-          Press <kbd className="big">{key}</kbd> to join
-          <br />
-          <span>or press a button on a game controller</span>
-        </p>
+        <>
+          <button className="dd-join-big" onClick={onKeys}>
+            ⌨️ Join — jump with {key}
+          </button>
+          <p className="dd-join-help">
+            or just press <kbd className="big">{key}</kbd>
+          </p>
+        </>
       )}
       <div className="dd-join-btns">
-        {touch ? (
-          <button onClick={onKeys}>⌨️ Keyboard ({key})</button>
-        ) : (
-          <button onClick={onTouch}>👆 Touch buttons</button>
-        )}
-        <button onClick={onBot}>🤖 Computer</button>
+        {touch ? <button onClick={onKeys}>⌨️ Use keyboard ({key})</button> : <button onClick={onTouch}>👆 Use touch screen</button>}
+      </div>
+      <div className="dd-robot">
+        <span>No one to play with?</span>
+        <button onClick={onBot}>🤖 Add a robot player</button>
       </div>
     </div>
   );
@@ -382,7 +390,7 @@ function Room({ room, setRoom, onStart }) {
           </p>
         )}
         <button className="dd-start" disabled={!canStart} onClick={onStart}>
-          {canStart ? `▶ Start ${MODES[settings.mode].name}!` : need === 2 ? "Need 2 players (or add the computer)" : "Join to play"}
+          {canStart ? `▶ Start ${MODES[settings.mode].name}!` : need === 2 ? "Need 2 players (or add a robot player)" : "Join to play"}
         </button>
         {canStart && <p className="dd-hint">or press Enter</p>}
       </section>
@@ -413,19 +421,18 @@ function Room({ room, setRoom, onStart }) {
         <h2>How to play</h2>
         <ul>
           <li>
-            <b>▶ Faster / ◀ Slower</b> — move your dino forward and back. Going fast uses your ⚡ boost bar, which refills when you
-            stop boosting.
+            <b>Jump</b> is the only button: jump over rocks, stumps, spiky bushes and bats. Hold it for a big jump, tap it for a small
+            hop. Your dino runs by itself.
           </li>
           <li>
-            <b>Jump</b> over rocks, stumps and spiky bushes. Hold jump for a big jump, tap it for a small hop.
+            Every crash makes you stumble and costs a life ❤️. Each dino can have 1, 2 or 3 lives, or <b>∞</b> to never run out (the
+            race always goes on to the finish). With ∞ in Endless, pause and press "Finish now" to end.
           </li>
           <li>
-            <b>Duck</b> under bats flying at head height (or jump over them). Duck in the air to land faster.
+            <b>On a computer:</b> Player 1 jumps with <kbd>Z</kbd> (top screen), Player 2 with <kbd>/</kbd> (bottom screen).
           </li>
-          <li>Every crash costs a life ❤️. Each dino can have 1, 2 or 3 lives — give a younger player more!</li>
           <li>
-            <b>On a computer:</b> Player 1 jumps with <kbd>Z</kbd> (A / D slower and faster, S duck). Player 2 jumps with{" "}
-            <kbd>/</kbd> (K / ; or ← / → slower and faster, L or ↓ duck). Player 1 is on the top screen, Player 2 on the bottom.
+            🤖 <b>Robot player</b> means the computer plays that dino for you — only add one if you want to play against the computer.
           </li>
           <li>
             <b>On a phone or tablet:</b> lay it flat between you and sit on opposite sides. The screen splits in two and the top half is
@@ -459,22 +466,9 @@ function TouchPad({ idx, input }) {
   });
   return (
     <div className="dd-pad">
-      <div className="dd-pad-group">
-        <button {...bind("back")} aria-label="Slower">
-          ◀
-        </button>
-        <button {...bind("fwd")} aria-label="Faster">
-          ▶
-        </button>
-      </div>
-      <div className="dd-pad-group">
-        <button {...bind("duck")} aria-label="Duck">
-          ▼
-        </button>
-        <button className="dd-jump" {...bind("jump")} aria-label="Jump">
-          ⤒ Jump
-        </button>
-      </div>
+      <button className="dd-jump" {...bind("jump")} aria-label="Jump">
+        ⤒ JUMP
+      </button>
     </div>
   );
 }
@@ -492,6 +486,7 @@ function Game({ players, settings, onDone, onQuit, muted, setMutedState }) {
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   pausedRef.current = paused;
+  const stateRef = useRef(null);
   const inputRef = useRef(null);
   if (!inputRef.current) inputRef.current = createInput();
   const input = inputRef.current;
@@ -501,6 +496,7 @@ function Game({ players, settings, onDone, onQuit, muted, setMutedState }) {
 
   useEffect(() => {
     const state = createGame({ players, settings });
+    stateRef.current = state;
     const views = players.map((_, i) => {
       const cv = canvasRefs.current[i];
       return { cv, ctx: cv.getContext("2d"), w: 0, h: 0, dpr: 1 };
@@ -616,6 +612,15 @@ function Game({ players, settings, onDone, onQuit, muted, setMutedState }) {
             <h2>Paused</h2>
             <button className="dd-start" onClick={() => setPaused(false)}>
               ▶ Keep playing
+            </button>
+            <button
+              className="dd-btn2"
+              onClick={() => {
+                if (stateRef.current) finishNow(stateRef.current);
+                setPaused(false);
+              }}
+            >
+              🏁 Finish now (see who won)
             </button>
             <button className="dd-btn2" onClick={onQuit}>
               🏠 Back to the room
