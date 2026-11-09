@@ -69,6 +69,17 @@ A follow-on prototype at `dicetactics.html` (`/mathquizSGPrimary/dicetactics.htm
 
 Source: `src/dicetactics/` (`engine.js` rules, `ai.js` computer player, `sprites.js` pixel art, `TacticsApp.jsx`).
 
+## Dino Dash Duel (1–2 player running game)
+
+A running game at `dinorace.html` (`/mathquizSGPrimary/dinorace.html` on Pages) for one or two players on one device. Each player has their own view of the same course.
+
+- Joining: on a computer, Player 1 presses **Z** and Player 2 presses **/**. On a phone or tablet, tap "Tap to join". A game controller or a computer player (Easy / Normal / Hard) can also fill a seat. Each player picks a name, a dinosaur (**T-rex or velociraptor**, pixel-art running sprites), a skin colour (the art is recoloured in the browser, keeping its eyes, belly and outline), a hat and **1, 2 or 3 lives**. Every crash costs a life; with none left you're out.
+- Screens: on a computer the two views are stacked top (Player 1) and bottom (Player 2). On a phone or tablet laid flat, the screen is split face to face: the top half is turned around for the player sitting across, and each half has its own ◀ ▶ ▼ Jump buttons. The "Screen" setting can force either layout.
+- Keys: Player 1: Z jump, A slower, D faster, S duck. Player 2: / jump, K or ← slower, ; or → faster, L or ↓ duck. Hold jump for a big jump; going faster uses a ⚡ boost bar.
+- Modes: 🏁 Race (500 / 1000 / 1600 m), ♾️ Endless (keeps getting faster, with closer obstacles and more bats every 250 m level; whoever runs furthest wins; can be played solo, and the best distance is saved) and 🪙 Coin Rush (45 / 60 / 90 s). Speed: Chill, Normal or Turbo.
+
+Source: `src/dinodash/` (`engine.js` rules and computer players, `render.js` canvas drawing, `sprites.js` dino sprites and skin recolouring, `input.js` keyboard / controller / touch, `sfx.js` sounds). The sprite strips in `src/dinodash/sprites/` are made from the magenta-background sheets in `sprites/source/` with `python3 src/dinodash/sprites/slice.py` (needs Pillow and numpy), which removes the background and ground line, lines up the 4 frames on the feet and snout, and checks the result.
+
 ## Development
 
 ```bash
