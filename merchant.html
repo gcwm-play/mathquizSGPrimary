@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏮</text></svg>" />
+<title>Monsoon Merchants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a trading-desk screen. Ticker header, sea-chart map on the left, the selected store's shelves in the middle, the bank / rivals / newswire on the right. */
+:root{
+  --bg:#EDF2EF; --surface:#FFFFFF; --sunk:#E2EAE6; --ink:#10282B; --muted:#56696A; --line:#C9D6D1;
+  --accent:#C2372B; --accent-ink:#FFFFFF; --gold:#A87508; --jade:#1D7657; --warn:#B4540A; --sea:#DCE8E6; --grid:#BFD2CF;
+  --c1:#C2372B; --c2:#A87508; --c3:#2563A8; --c4:#7A3E9D;
+  --display:"Unbounded","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0C1618; --surface:#132225; --sunk:#0F1C1F; --ink:#E4EEEB; --muted:#8CA3A1; --line:#26393C;
+  --accent:#FF6A56; --accent-ink:#1A0B08; --gold:#E2B342; --jade:#4BC498; --warn:#F09A4A; --sea:#10272B; --grid:#1F3A3E;
+  --c1:#FF6A56; --c2:#E2B342; --c3:#6AA7EE; --c4:#C58AE6; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0C1618; --surface:#132225; --sunk:#0F1C1F; --ink:#E4EEEB; --muted:#8CA3A1; --line:#26393C;
+  --accent:#FF6A56; --accent-ink:#1A0B08; --gold:#E2B342; --jade:#4BC498; --warn:#F09A4A; --sea:#10272B; --grid:#1F3A3E;
+  --c1:#FF6A56; --c2:#E2B342; --c3:#6AA7EE; --c4:#C58AE6; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+button{font:inherit;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1480px;margin:0 auto}
+
+/* ticker header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ink);color:var(--bg)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--ink)}
+.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;padding-block:10px}
+.brand{font-family:var(--display);font-weight:800;font-size:17px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.brand i{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--accent)}
+.stats{display:flex;flex-wrap:wrap;gap:6px 20px;flex:1}
+.stat{display:flex;flex-direction:column;min-width:0}
+.stat .label{color:color-mix(in srgb,var(--bg) 60%,transparent)}
+.stat b{font-family:var(--mono);font-weight:600;font-size:15px}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:7px 12px;font-weight:500}
+.btn:hover{border-color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn.small{padding:4px 8px;font-size:12px}
+.top .btn.ghost{background:transparent;color:var(--bg);border-color:color-mix(in srgb,var(--bg) 35%,transparent)}
+.endbtn{font-family:var(--display);font-size:13px;padding:10px 16px;letter-spacing:.01em}
+
+/* main grid */
+.grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(0,1.35fr) minmax(280px,.9fr);gap:18px;padding-block:18px 40px}
+.grid>*{min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.col{display:flex;flex-direction:column;gap:18px}
+.panel h2{font-size:14px;margin-bottom:10px}
+
+/* map */
+.map svg{width:100%;height:auto;display:block;border-radius:8px;background:var(--sea)}
+.map .gl{stroke:var(--grid);stroke-width:1;stroke-dasharray:2 4}
+.map .gt{fill:var(--muted);font:10px var(--mono)}
+.map .lane{stroke:var(--grid);stroke-width:1.5;fill:none}
+.pin{cursor:pointer}
+.pin .dot{fill:var(--surface);stroke:var(--ink);stroke-width:2}
+.pin.sel .dot{fill:var(--accent);stroke:var(--accent)}
+.pin .ring{fill:none;stroke:var(--accent);stroke-width:2;opacity:0}
+.pin.sel .ring{opacity:.5}
+.pin text{fill:var(--ink);font:600 12px var(--body)}
+.pin .evt{fill:var(--warn);font:700 11px var(--mono)}
+.citylist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:12px}
+.cityb{display:flex;justify-content:space-between;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:6px 8px;text-align:left;font-size:13px}
+.cityb.sel{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.owners{display:flex;gap:3px}
+.owners span{width:8px;height:8px;border-radius:50%}
+
+/* store */
+.cityhead{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:flex-start}
+.cityhead h2{font-size:22px;margin:0}
+.facts{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px;color:var(--muted);font-size:13px}
+.facts b{color:var(--ink);font-family:var(--mono);font-weight:500}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:12px;border-radius:999px;padding:2px 9px;border:1px solid var(--line);background:var(--sunk)}
+.chip.good{color:var(--jade);border-color:color-mix(in srgb,var(--jade) 45%,transparent)}
+.chip.bad{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.storebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:16px 0 12px;padding:10px 12px;background:var(--sunk);border-radius:8px}
+.storebar .lvl{font-family:var(--display);font-size:14px}
+.storebar label{display:flex;align-items:center;gap:6px;font-size:13px}
+select,input[type=number]{font:inherit;font-family:var(--mono);font-size:13px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:5px 6px}
+input[type=number]{width:92px}
+.slots{display:flex;flex-direction:column;gap:10px}
+.slot{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(0,1fr));gap:10px 14px;align-items:end}
+.slot .f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.slot .f select{width:100%}
+.slot .row2{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px}
+.slot .row2 b{color:var(--ink);font-family:var(--mono);font-weight:500}
+.inline{display:flex;gap:4px;align-items:center}
+.warn{color:var(--warn)}
+.good{color:var(--jade)}
+.empty{border:1px dashed var(--line);border-radius:8px;padding:12px;color:var(--muted)}
+.openbox{margin-top:16px;padding:16px;border:1px dashed var(--accent);border-radius:10px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.orderline{margin-top:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--muted)}
+.orderline b{color:var(--ink);font-family:var(--mono)}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:left;padding:6px 6px;border-bottom:1px solid var(--line)}
+td{padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.r,th.r{text-align:right}
+.tablewrap{overflow-x:auto}
+.intel{margin-top:18px}
+.bar{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden;min-width:44px}
+.bar i{display:block;height:100%;background:var(--jade)}
+
+/* side */
+.lb{display:flex;flex-direction:column;gap:8px}
+.lbrow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.lbrow:last-child{border-bottom:0}
+.lbrow .sw{width:10px;height:10px;border-radius:2px}
+.lbrow .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbrow .nw{font-family:var(--mono);font-weight:600}
+.lbrow .sub{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--muted);align-items:center}
+.progress{height:4px;background:var(--sunk);border-radius:2px;grid-column:2/-1;overflow:hidden}
+.progress i{display:block;height:100%}
+.bankgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.kv{background:var(--sunk);border-radius:6px;padding:8px 10px}
+.kv b{display:block;font-family:var(--mono);font-size:15px}
+.btnrow{display:flex;flex-wrap:wrap;gap:6px}
+.news{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.news li{display:grid;grid-template-columns:74px minmax(0,1fr);gap:8px;font-size:13px}
+.news .tag{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 5px;border-radius:4px;background:var(--sunk);color:var(--muted);align-self:start;text-align:center}
+.news .tag.fest{color:var(--jade)} .news .tag.alert{color:var(--warn)} .news .tag.bank{color:var(--gold)}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+details summary{cursor:pointer;font-weight:600}
+
+/* overlay */
+.overlay{position:fixed;inset:0;z-index:20;background:color-mix(in srgb,var(--ink) 55%,transparent);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:max(24px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.modal{background:var(--surface);color:var(--ink);border-radius:14px;max-width:860px;width:100%;padding:24px;border:1px solid var(--line)}
+.modal h1{font-size:clamp(26px,5vw,40px);font-weight:800;letter-spacing:-.03em;line-height:1.05}
+.modal h1 em{font-style:normal;color:var(--accent)}
+.modal .lede{max-width:62ch;color:var(--muted);margin:10px 0 18px;font-size:15px}
+.picks{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.pick{text-align:left;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.pick:hover{border-color:var(--accent)}
+.pick .nm{font-family:var(--display);font-size:14px}
+.pick .sw{width:28px;height:4px;border-radius:2px}
+.howto{margin-top:18px;font-size:13px;color:var(--muted)}
+.howto ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.repsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:14px 0}
+.mfoot{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:18px}
+
+@media (max-width:1180px){ .grid{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)} .side{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))} }
+@media (max-width:760px){ .top{position:static} .grid{grid-template-columns:minmax(0,1fr)} .slot{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .slot .f.prod{grid-column:1/-1} .stats{gap:6px 14px} .stat b{font-size:13px} }
+@media (prefers-reduced-motion:no-preference){ .pin .dot{transition:fill .2s} .progress i,.bar i{transition:width .4s} }
+</style>
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} img{max-width:100%}</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><i aria-hidden="true"></i>Monsoon Merchants</div>
+    <div class="stats" id="stats"></div>
+    <button class="btn ghost small" data-act="help" type="button">How to play</button>
+    <button class="btn primary endbtn" data-act="end" id="endbtn" type="button">End week</button>
+  </div>
+</header>
+
+<main class="wrap grid">
+  <section class="col">
+    <div class="panel map" id="map"></div>
+  </section>
+  <section class="col">
+    <div class="panel" id="store"></div>
+  </section>
+  <aside class="col side" id="side"></aside>
+</main>
+
+<div class="overlay" id="overlay" hidden><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+
+<script>
+/*ENGINE START*/
+const TARGET = 2000000, WEEKS = 52, SHARES = 1000000, START_CASH = 120000;
+const SLOTS = [0, 2, 4, 6], LVL_NAME = ['', 'Kiosk', 'Shop', 'Megastore'], LVL_F = [0, 1, 1.15, 1.3], RENT_M = [0, 1, 1.7, 2.4];
+const PRODUCTS = [
+  {id:'tea',     name:'Bubble Tea',     unit:'cup',    cost:1.2, ref:4,   base:3000, spoil:.4},
+  {id:'noodle',  name:'Instant Noodles',unit:'pack',   cost:.5,  ref:1.5, base:6000, spoil:0},
+  {id:'durian',  name:'Durian Snacks',  unit:'box',    cost:3,   ref:8,   base:900,  spoil:.3},
+  {id:'spice',   name:'Spice Blends',   unit:'jar',    cost:2,   ref:6,   base:1200, spoil:0},
+  {id:'textile', name:'Batik Textiles', unit:'piece',  cost:15,  ref:45,  base:200,  spoil:0},
+  {id:'beauty',  name:'K-Beauty Kits',  unit:'kit',    cost:10,  ref:28,  base:400,  spoil:0},
+  {id:'anime',   name:'Anime Figures',  unit:'figure', cost:20,  ref:60,  base:150,  spoil:0},
+  {id:'phone',   name:'Smartphones',    unit:'phone',  cost:250, ref:420, base:40,   spoil:0},
+];
+const PBY = Object.fromEntries(PRODUCTS.map(p => [p.id, p]));
+//                                                             tea noodle durian spice textile beauty anime phone
+const CITIES = [
+  {id:'SG', name:'Singapore', country:'Singapore',   lon:103.8, lat:1.3,  rent:2500, cost:60000, traffic:1.0, ship:.02, taste:[1.3,1.0,1.4,1.0,.8,1.1,.9,1.2]},
+  {id:'HK', name:'Hong Kong', country:'China SAR',   lon:114.2, lat:22.3, rent:2800, cost:70000, traffic:1.1, ship:.03, taste:[1.2,1.0,.8,.9,.7,1.2,1.0,1.4]},
+  {id:'SH', name:'Shanghai',  country:'China',       lon:121.5, lat:31.2, rent:2800, cost:70000, traffic:1.5, ship:.04, taste:[1.4,1.1,.6,1.0,1.0,1.3,1.1,1.1]},
+  {id:'TK', name:'Tokyo',     country:'Japan',       lon:139.7, lat:35.7, rent:3200, cost:80000, traffic:1.4, ship:.06, taste:[1.0,1.2,.4,.7,.6,1.0,1.8,1.3]},
+  {id:'SE', name:'Seoul',     country:'South Korea', lon:127.0, lat:37.6, rent:2600, cost:65000, traffic:1.2, ship:.05, taste:[1.1,1.3,.4,.6,.5,1.7,1.2,1.3]},
+  {id:'BK', name:'Bangkok',   country:'Thailand',    lon:100.5, lat:13.8, rent:1400, cost:40000, traffic:1.0, ship:.05, taste:[1.3,1.2,1.2,1.3,1.1,1.0,.8,.7]},
+  {id:'JK', name:'Jakarta',   country:'Indonesia',   lon:106.8, lat:-6.2, rent:1200, cost:35000, traffic:1.2, ship:.06, taste:[1.2,1.4,1.5,1.2,1.6,.9,.7,.6]},
+  {id:'MB', name:'Mumbai',    country:'India',       lon:72.9,  lat:19.1, rent:1200, cost:35000, traffic:1.6, ship:.07, taste:[.9,1.1,.3,1.8,1.4,.8,.6,.8]},
+];
+const CBY = Object.fromEntries(CITIES.map(c => [c.id, c]));
+const ALL = CITIES.map(c => c.id);
+const range = (a, b) => Array.from({length:b-a+1}, (_, i) => a + i);
+const FESTIVALS = [
+  {name:'Lunar New Year',      weeks:[5,6],          cities:['SG','HK','SH','SE','JK'], boost:{tea:1.3, textile:1.8, phone:1.3, spice:1.3}},
+  {name:'Hari Raya',           weeks:[13,14],        cities:['JK','SG'],                boost:{textile:2, durian:1.5, spice:1.5}},
+  {name:'Songkran',            weeks:[15],           cities:['BK'],                     boost:{tea:1.8, textile:1.4}},
+  {name:'Golden Week',         weeks:[18],           cities:['TK'],                     boost:{anime:1.8, phone:1.3, beauty:1.3}},
+  {name:'Durian season',       weeks:range(24,30),   cities:['SG','BK','JK'],           boost:{durian:1.8}},
+  {name:'Monsoon rains',       weeks:range(26,36),   cities:['MB'],                     boost:{noodle:1.5, tea:.7, textile:.8}},
+  {name:'Mid-Autumn Festival', weeks:[37],           cities:['SG','HK','SH'],           boost:{tea:1.4, spice:1.2}},
+  {name:'Diwali',              weeks:[44],           cities:['MB','SG'],                boost:{spice:1.8, textile:2, phone:1.5}},
+  {name:'11.11 Singles Day',   weeks:[45],           cities:ALL,                        boost:{phone:1.8, beauty:1.6}},
+  {name:'Year-end holidays',   weeks:[51,52],        cities:ALL,                        boost:{anime:1.5, beauty:1.4, phone:1.4}},
+];
+const COMPANIES = [
+  {id:'lion',    name:'Lion City Traders', hq:'SG', color:'--c1', perk:'ship',  perkText:'Half-price shipping on every order'},
+  {id:'lotus',   name:'Golden Lotus Co.',  hq:'BK', color:'--c2', perk:'ads',   perkText:'Advertising pulls 50% more shoppers'},
+  {id:'lantern', name:'Blue Junk Group',   hq:'HK', color:'--c3', perk:'build', perkText:'Stores and upgrades cost 20% less'},
+  {id:'jade',    name:'Plum Harbour Inc.', hq:'SE', color:'--c4', perk:'loan',  perkText:'Bank loans at half the interest rate'},
+];
+const PERSONAS = [
+  {label:'Discounter', price:.9,  ad:1000, reserve:25000, stockF:1.15},
+  {label:'Premium',    price:1.15,ad:3500, reserve:40000, stockF:1.05},
+  {label:'Balanced',   price:1.02,ad:2000, reserve:30000, stockF:1.1},
+];
+let S = null;
+const rnd = () => Math.random();
+const pick = a => a[Math.floor(rnd() * a.length)];
+const wkOfYear = w => ((w - 1) % 52) + 1;
+const comp = id => S.companies.find(c => c.id === id);
+const human = () => S.companies.find(c => c.human);
+
+function emptySlot(){ return {p:null, stock:0, price:0, order:0, sold:0, dem:0, lost:0, spoiled:0}; }
+function newStore(level, value){ return {level, ad:0, value, slots:Array.from({length:SLOTS[level]}, emptySlot), last:null, wkCogs:0}; }
+
+function festivalsFor(city, week){ const w = wkOfYear(week); return FESTIVALS.filter(f => f.weeks.includes(w) && f.cities.includes(city)); }
+function demandMult(city, pid, week = S.week){
+  let m = 1;
+  for (const f of festivalsFor(city, week)) m *= (f.boost[pid] || 1);
+  for (const e of S.events){
+    if (e.kind === 'typhoon' && e.city === city) m *= .35;
+    if (e.kind === 'viral' && e.p === pid) m *= 1.8;
+  }
+  return m;
+}
+function marketDemand(city, pid, week){ const c = CBY[city], p = PBY[pid]; return p.base * c.traffic * c.taste[PRODUCTS.indexOf(p)] * demandMult(city, pid, week); }
+function unitCost(pid){ let m = 1; for (const e of S.events) if (e.kind === 'shortage' && e.p === pid) m *= 1.4; return PBY[pid].cost * m; }
+function shipPct(city, c){ let s = CBY[city].ship; for (const e of S.events) if (e.kind === 'strike') s *= 3; return c.perk === 'ship' ? s / 2 : s; }
+function landed(city, pid, c){ return unitCost(pid) * (1 + shipPct(city, c)); }
+function buildCost(c, city){ return Math.round(CBY[city].cost * (c.perk === 'build' ? .8 : 1)); }
+function upgradeCost(c, city, level){ return Math.round(CBY[city].cost * (level === 1 ? 1.5 : 3) * (c.perk === 'build' ? .8 : 1)); }
+function adBoost(c, st){ return .5 * (1 - Math.exp(-st.ad / 3000)) * (c.perk === 'ads' ? 1.5 : 1); }
+function rentOf(city, st){ return CBY[city].rent * RENT_M[st.level]; }
+function loanRate(c){ return S.rate * (c.perk === 'loan' ? .5 : 1); }
+function attract(c, st, slot){ const p = PBY[slot.p]; return Math.pow(p.ref / slot.price, 2.5) * LVL_F[st.level] * (1 + adBoost(c, st)); }
+
+function invValue(c){ let v = 0; for (const st of Object.values(c.stores)) for (const s of st.slots) if (s.p) v += s.stock * PBY[s.p].cost; return v; }
+function assets(c){ let v = 0; for (const st of Object.values(c.stores)) v += st.value * .7; return v; }
+function coreNW(c){ return c.cash - c.loan + assets(c) + invValue(c); }
+function sharePrice(c){ return Math.max(.02, coreNW(c) / SHARES); }
+function totalNW(c){ let v = coreNW(c); for (const [id, n] of Object.entries(c.shares)) v += n * sharePrice(comp(id)); return v; }
+function creditLeft(c){ return Math.max(0, Math.max(60000, coreNW(c) * .6) - c.loan); }
+
+function rivalsSelling(city, pid, me){
+  const out = [];
+  for (const c of S.companies){ if (c === me) continue; const st = c.stores[city]; if (!st) continue;
+    for (const s of st.slots) if (s.p === pid && s.price > 0) out.push({c, st, s}); }
+  return out;
+}
+// forecast units a given slot would sell this week at its price, given rivals' current shelves
+function forecast(c, city, slot){
+  if (!slot.p || !slot.price) return 0;
+  const st = c.stores[city]; const a = attract(c, st, slot);
+  let sum = a; for (const r of rivalsSelling(city, slot.p, c)) sum += attract(r.c, r.st, r.s);
+  return marketDemand(city, slot.p) * a / (1 + sum);
+}
+function setSlotProduct(c, slot, pid){
+  if (slot.p === pid) return;
+  if (slot.p && slot.stock > 0){ c.cash += slot.stock * PBY[slot.p].cost * .5; }
+  Object.assign(slot, emptySlot(), {p:pid || null});
+  if (pid) slot.price = PBY[pid].ref;
+}
+function openStore(c, city){
+  const cost = buildCost(c, city); if (c.stores[city] || c.cash < cost) return false;
+  c.cash -= cost; c.stores[city] = newStore(1, cost); return true;
+}
+function upgradeStore(c, city){
+  const st = c.stores[city]; if (!st || st.level >= 3) return false;
+  const cost = upgradeCost(c, city, st.level); if (c.cash < cost) return false;
+  c.cash -= cost; st.value += cost; st.level++;
+  while (st.slots.length < SLOTS[st.level]) st.slots.push(emptySlot());
+  return true;
+}
+function borrow(c, amt){ amt = Math.min(amt, creditLeft(c)); if (amt <= 0) return 0; c.loan += amt; c.cash += amt; return amt; }
+function repay(c, amt){ amt = Math.min(amt, c.loan, Math.max(0, c.cash)); c.loan -= amt; c.cash -= amt; return amt; }
+function tradeShares(c, target, n){
+  const t = comp(target), px = sharePrice(t), have = c.shares[target] || 0;
+  if (n > 0){ n = Math.min(n, 490000 - have, Math.floor(c.cash / (px * 1.01))); if (n <= 0) return 0; c.cash -= n * px * 1.01; }
+  else { n = -Math.min(-n, have); if (n === 0) return 0; c.cash += -n * px * .99; }
+  c.shares[target] = have + n; return n;
+}
+
+// ---- AI ----
+function slotScore(c, city, pid){
+  const n = rivalsSelling(city, pid, c).length;
+  const est = marketDemand(city, pid) / (n + 2);
+  const p = PBY[pid]; const margin = p.ref * c.persona.price - landed(city, pid, c);
+  return est * margin - (p.spoil ? est * .15 * p.cost : 0);
+}
+function cityValue(c, city, slots){
+  const sc = PRODUCTS.map(p => slotScore(c, city, p.id)).sort((a, b) => b - a);
+  return sc.slice(0, slots).reduce((a, b) => a + b, 0) - CBY[city].rent * RENT_M[slots === 2 ? 1 : slots === 4 ? 2 : 3];
+}
+function aiTurn(c){
+  const P = c.persona;
+  // expansion: one new store or one upgrade per week
+  const options = CITIES.filter(x => !c.stores[x.id]).map(x => ({city:x.id, cost:buildCost(c, x.id), v:cityValue(c, x.id, 2)}))
+    .filter(o => o.v > 0).sort((a, b) => b.v / b.cost - a.v / a.cost);
+  const ups = Object.entries(c.stores).filter(([, st]) => st.level < 3)
+    .map(([city, st]) => ({city, cost:upgradeCost(c, city, st.level), v:cityValue(c, city, SLOTS[st.level + 1]) - cityValue(c, city, SLOTS[st.level])}))
+    .filter(o => o.v > 0).sort((a, b) => b.v / b.cost - a.v / a.cost);
+  const bestOpen = options[0], bestUp = ups[0];
+  const choice = [bestOpen && {...bestOpen, kind:'open'}, bestUp && {...bestUp, kind:'up'}].filter(Boolean).sort((a, b) => b.v / b.cost - a.v / a.cost)[0];
+  if (choice && c.cash > choice.cost + P.reserve){ choice.kind === 'open' ? openStore(c, choice.city) : upgradeStore(c, choice.city); }
+  if (c.cash < 15000) borrow(c, 40000);
+  if (c.cash > 150000 && c.loan > 0) repay(c, c.cash - 100000);
+  // stock the shelves
+  for (const [city, st] of Object.entries(c.stores)){
+    st.ad = P.ad;
+    const ranked = PRODUCTS.map(p => ({id:p.id, s:slotScore(c, city, p.id)})).sort((a, b) => b.s - a.s).slice(0, st.slots.length).map(x => x.id);
+    const keep = new Set(st.slots.filter(s => ranked.includes(s.p)).map(s => s.p));
+    const todo = ranked.filter(id => !keep.has(id));
+    for (const s of st.slots){ if (!ranked.includes(s.p)) setSlotProduct(c, s, todo.shift()); }
+    for (const s of st.slots){ if (!s.p) continue;
+      const p = PBY[s.p]; s.price = +(p.ref * P.price * (rnd() * .06 + .97)).toFixed(2);
+      s.order = Math.max(0, Math.round(forecast(c, city, s) * P.stockF - s.stock)); }
+  }
+}
+
+// ---- turn ----
+function buyStock(c){
+  const orders = []; let total = 0;
+  for (const [city, st] of Object.entries(c.stores)){ st.wkCogs = 0;
+    for (const s of st.slots) if (s.p && s.order > 0){ const u = landed(city, s.p, c); orders.push({st, s, u}); total += s.order * u; } }
+  const f = total > Math.max(0, c.cash) ? Math.max(0, c.cash) / total : 1;
+  let spent = 0;
+  for (const o of orders){ const n = Math.floor(o.s.order * f); o.s.stock += n; const cost = n * o.u; o.st.wkCogs += cost; spent += cost; }
+  c.cash -= spent; return {spent, short:f < 1};
+}
+function startWeek(){
+  S.events = S.events.filter(e => e.until >= S.week);
+  const news = [];
+  for (const f of FESTIVALS) if (f.weeks[0] === wkOfYear(S.week)){
+    const goods = Object.entries(f.boost).map(([k, v]) => `${PBY[k].name} ${v >= 1 ? '▲' : '▼'}`).join(', ');
+    news.push({tag:'Festival', cls:'fest', text:`${f.name} begins in ${f.cities.length === ALL.length ? 'every city' : f.cities.map(x => CBY[x].name).join(', ')}. ${goods}.`});
+  }
+  if (S.week > 1 && rnd() < .45){
+    const k = pick(['typhoon', 'viral', 'viral', 'shortage', 'strike']);
+    if (k === 'typhoon'){ const city = pick(['HK','TK','SH','SE']); S.events.push({kind:k, city, until:S.week}); news.push({tag:'Typhoon', cls:'alert', text:`Typhoon warning in ${CBY[city].name}. Shoppers stay home this week: demand down 65%.`}); }
+    if (k === 'viral'){ const p = pick(PRODUCTS); S.events.push({kind:k, p:p.id, until:S.week + 1}); news.push({tag:'Trend', cls:'fest', text:`${p.name} go viral on social media. Demand up 80% in every city for 2 weeks.`}); }
+    if (k === 'shortage'){ const p = pick(PRODUCTS); S.events.push({kind:k, p:p.id, until:S.week + 2}); news.push({tag:'Supply', cls:'alert', text:`Factory shortage: wholesale ${p.name} cost 40% more for 3 weeks.`}); }
+    if (k === 'strike'){ S.events.push({kind:k, until:S.week + 1}); news.push({tag:'Shipping', cls:'alert', text:`Port congestion across the region. Shipping costs triple for 2 weeks.`}); }
+  }
+  const old = S.rate;
+  if (S.week > 1 && rnd() < .3){ S.rate = Math.min(.008, Math.max(.0012, S.rate + (rnd() < .5 ? -1 : 1) * .0006)); }
+  if (S.rate !== old) news.push({tag:'Bank', cls:'bank', text:`Regional central bank ${S.rate > old ? 'raises' : 'cuts'} rates. Loans now ${(S.rate * 5200).toFixed(1)}% a year.`});
+  for (const c of S.companies) if (!c.human) aiTurn(c);
+  S.news = news;
+}
+function endWeek(){
+  const rep = {week:S.week, byCo:{}};
+  for (const c of S.companies){ c.wk = {rev:0, cogs:0, rent:0, ads:0, interest:0, auto:0, nw0:totalNW(c)}; const b = buyStock(c); c.wk.cogs = b.spent; c.wk.short = b.short; }
+  for (const c of S.companies) for (const st of Object.values(c.stores)){ st.wkRev = 0; for (const s of st.slots){ s.sold = 0; s.dem = 0; s.lost = 0; s.spoiled = 0; } }
+  for (const city of ALL) for (const p of PRODUCTS){
+    const sellers = [];
+    for (const c of S.companies){ const st = c.stores[city]; if (!st) continue;
+      for (const s of st.slots) if (s.p === p.id && s.price > 0 && s.stock > 0) sellers.push({c, st, s, a:attract(c, st, s)}); }
+    if (!sellers.length) continue;
+    const D = marketDemand(city, p.id), sum = sellers.reduce((t, x) => t + x.a, 0);
+    for (const x of sellers){ const dem = Math.round(D * x.a / (1 + sum)); const sold = Math.min(x.s.stock, dem);
+      x.s.dem = dem; x.s.sold = sold; x.s.lost = dem - sold; x.s.stock -= sold;
+      const rev = sold * x.s.price; x.c.cash += rev; x.c.wk.rev += rev; x.st.wkRev += rev; }
+  }
+  for (const c of S.companies){
+    for (const [city, st] of Object.entries(c.stores)){
+      const rent = rentOf(city, st); c.cash -= rent + st.ad; c.wk.rent += rent; c.wk.ads += st.ad;
+      st.last = {rev:st.wkRev, cogs:st.wkCogs, rent, ad:st.ad, profit:st.wkRev - st.wkCogs - rent - st.ad};
+      for (const s of st.slots) if (s.p && PBY[s.p].spoil && s.stock > 0){ const lose = Math.ceil(s.stock * PBY[s.p].spoil); s.spoiled = lose; s.stock -= lose; }
+    }
+    const int = c.loan * loanRate(c); c.cash -= int; c.wk.interest = int;
+    if (c.cash < 0){ const need = -c.cash; c.loan += need; c.cash = 0; c.wk.auto = need; }
+    c.wk.profit = c.wk.rev - c.wk.cogs - c.wk.rent - c.wk.ads - c.wk.interest;
+    c.wk.nw = totalNW(c); c.hist.push(Math.round(c.wk.nw));
+    rep.byCo[c.id] = {...c.wk};
+  }
+  S.report = rep;
+  const winner = S.companies.filter(c => totalNW(c) >= S.target).sort((a, b) => totalNW(b) - totalNW(a))[0];
+  if (winner) S.over = {winner:winner.id, reason:'target'};
+  else if (totalNW(human() || S.companies[0]) < -150000) S.over = {winner:[...S.companies].sort((a, b) => totalNW(b) - totalNW(a))[0].id, reason:'bankrupt'};
+  else if (S.week >= S.maxWeeks) S.over = {winner:[...S.companies].sort((a, b) => totalNW(b) - totalNW(a))[0].id, reason:'time'};
+  S.week++;
+  if (!S.over) startWeek();
+}
+function newGame(playerId){
+  const pers = [...PERSONAS];
+  S = {week:1, maxWeeks:WEEKS, target:TARGET, rate:.003, events:[], news:[], over:null, report:null, sel:null,
+    companies:COMPANIES.map(d => ({...d, human:d.id === playerId, cash:START_CASH, loan:0, stores:{}, shares:{}, hist:[START_CASH], wk:null, persona:d.id === playerId ? PERSONAS[2] : (pers.shift() || PERSONAS[2])}))};
+  for (const c of S.companies){ c.stores[c.hq] = newStore(1, CBY[c.hq].cost); }
+  const me = human();
+  if (me){ S.sel = me.hq;
+    const st = me.stores[me.hq];
+    const best = PRODUCTS.map(p => ({id:p.id, s:slotScore(me, me.hq, p.id)})).sort((a, b) => b.s - a.s);
+    st.slots.forEach((s, i) => { setSlotProduct(me, s, best[i].id); });
+  }
+  startWeek();
+  if (me){ const st = me.stores[me.hq]; st.slots.forEach(s => { s.order = Math.round(forecast(me, me.hq, s) * 1.1); }); }
+}
+/*ENGINE END*/
+
+// ================= UI =================
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const money = n => (n < 0 ? '−' : '') + '$' + Math.abs(Math.round(n)).toLocaleString('en-US');
+const short = n => { const a = Math.abs(n), s = n < 0 ? '−' : ''; if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(2) + 'M'; if (a >= 1e4) return s + '$' + (a / 1e3).toFixed(0) + 'k'; return s + '$' + Math.round(a).toLocaleString('en-US'); };
+const price = n => '$' + (n >= 100 ? Math.round(n) : n.toFixed(2));
+const int = n => Math.round(n).toLocaleString('en-US');
+const col = c => `var(${c.color})`;
+function weekDate(w){ const d = new Date(Date.UTC(2027, 0, 4 + 7 * (w - 1))); return d.toLocaleDateString('en-GB', {day:'numeric', month:'short', timeZone:'UTC'}); }
+
+function save(){ try { localStorage.setItem('monsoon-merchants-save', JSON.stringify(S)); } catch(e) {} }
+function load(){ try { const t = localStorage.getItem('monsoon-merchants-save'); return t ? JSON.parse(t) : null; } catch(e) { return null; } }
+
+function render(){ if (!S) return; renderStats(); renderMap(); renderStore(); renderSide(); }
+
+function renderStats(){
+  const me = human(), nw = totalNW(me);
+  $('#stats').innerHTML = `
+    <div class="stat"><span class="label">Week</span><b>${Math.min(S.week, S.maxWeeks)}/${S.maxWeeks} · ${weekDate(Math.min(S.week, S.maxWeeks))}</b></div>
+    <div class="stat"><span class="label">Cash</span><b>${money(me.cash)}</b></div>
+    <div class="stat"><span class="label">Loan</span><b>${money(me.loan)}</b></div>
+    <div class="stat"><span class="label">Net worth</span><b>${money(nw)}</b></div>
+    <div class="stat"><span class="label">Goal</span><b>${short(S.target)}</b></div>`;
+  $('#endbtn').disabled = !!S.over;
+  $('#endbtn').textContent = S.over ? 'Game over' : `End week ${S.week}`;
+}
+
+function proj(lon, lat){ return [20 + (lon - 66) / (146 - 66) * 560, 20 + (44 - lat) / (54) * 380]; }
+function renderMap(){
+  let g = '';
+  for (let lon = 70; lon <= 140; lon += 10){ const [x] = proj(lon, 0); g += `<line class="gl" x1="${x}" y1="10" x2="${x}" y2="410"/><text class="gt" x="${x + 3}" y="408">${lon}°E</text>`; }
+  for (let lat = -10; lat <= 40; lat += 10){ const [, y] = proj(80, lat); g += `<line class="gl" x1="10" y1="${y}" x2="590" y2="${y}"/><text class="gt" x="14" y="${y - 3}">${lat === 0 ? 'EQ' : Math.abs(lat) + '°' + (lat < 0 ? 'S' : 'N')}</text>`; }
+  const lanes = [['MB','SG'],['SG','JK'],['SG','BK'],['SG','HK'],['HK','SH'],['SH','SE'],['SH','TK'],['SE','TK']];
+  for (const [a, b] of lanes){ const [x1, y1] = proj(CBY[a].lon, CBY[a].lat), [x2, y2] = proj(CBY[b].lon, CBY[b].lat); const mx = (x1 + x2) / 2 + (y2 - y1) * .15, my = (y1 + y2) / 2 - (x2 - x1) * .15; g += `<path class="lane" d="M${x1},${y1} Q${mx},${my} ${x2},${y2}"/>`; }
+  const labelPos = {SG:[10,16], JK:[10,4], BK:[-12,-12,'end'], MB:[10,-10], HK:[-12,16,'end'], SH:[10,14], SE:[-12,-10,'end'], TK:[-10,22,'end']};
+  for (const c of CITIES){
+    const [x, y] = proj(c.lon, c.lat), [dx, dy, anchor] = labelPos[c.id];
+    const owners = S.companies.filter(k => k.stores[c.id]);
+    const ev = S.events.some(e => e.kind === 'typhoon' && e.city === c.id) ? ' ⚠' : festivalsFor(c.id, S.week).length ? ' ✦' : '';
+    g += `<g class="pin${S.sel === c.id ? ' sel' : ''}" data-act="city" data-city="${c.id}" tabindex="0" role="button" aria-label="${c.name}">
+      <circle class="ring" cx="${x}" cy="${y}" r="13"/>
+      ${owners.map((k, i) => `<circle cx="${x - 9 + i * 6}" cy="${y + 13}" r="2.6" fill="${col(k)}"/>`).join('')}
+      <circle class="dot" cx="${x}" cy="${y}" r="6"/>
+      <text x="${x + dx}" y="${y + dy}" text-anchor="${anchor || 'start'}">${c.name}<tspan class="evt">${ev}</tspan></text></g>`;
+  }
+  $('#map').innerHTML = `<h2>Trade map</h2>
+    <svg viewBox="0 0 600 420" role="img" aria-label="Map of the eight trading cities">${g}</svg>
+    <div class="citylist">${CITIES.map(c => `<button class="cityb${S.sel === c.id ? ' sel' : ''}" type="button" data-act="city" data-city="${c.id}">
+      <span>${c.name}</span><span class="owners">${S.companies.filter(k => k.stores[c.id]).map(k => `<span style="background:${col(k)}" title="${esc(k.name)}"></span>`).join('')}</span></button>`).join('')}</div>
+    <p class="small muted" style="margin:10px 0 0">✦ festival this week · ⚠ typhoon · dots show who has a store there</p>`;
+}
+
+function demandWord(m){ return m >= 1.6 ? ['Booming','good'] : m >= 1.15 ? ['Strong','good'] : m <= .6 ? ['Weak','bad'] : ['Normal','']; }
+
+function renderStore(){
+  const me = human(), city = S.sel, C = CBY[city], st = me.stores[city];
+  const fests = festivalsFor(city, S.week), typh = S.events.find(e => e.kind === 'typhoon' && e.city === city);
+  const loves = PRODUCTS.map((p, i) => ({p, t:C.taste[i]})).sort((a, b) => b.t - a.t).slice(0, 3).map(x => x.p.name);
+  let h = `<div class="cityhead"><div><div class="label">${esc(C.country)}</div><h2>${C.name}</h2>
+    <div class="facts"><span>Shoppers <b>×${C.traffic.toFixed(1)}</b></span><span>Rent <b>${money(C.rent)}</b>/wk (kiosk)</span><span>Shipping <b>${(shipPct(city, me) * 100).toFixed(1)}%</b></span></div></div></div>
+    <div class="chips"><span class="chip">Locals love: ${loves.join(', ')}</span>
+    ${fests.map(f => `<span class="chip good">✦ ${f.name}</span>`).join('')}
+    ${typh ? `<span class="chip bad">⚠ Typhoon: demand −65%</span>` : ''}</div>`;
+  const rivalsHere = S.companies.filter(k => !k.human && k.stores[city]);
+
+  if (!st){
+    const cost = buildCost(me, city);
+    h += `<div class="openbox"><div><h3 style="font-size:15px">Open a kiosk in ${C.name}</h3>
+      <div class="muted small">2 shelf slots · rent ${money(C.rent)}/wk · ${rivalsHere.length ? 'Rivals here: ' + rivalsHere.map(k => esc(k.name)).join(', ') : 'No rivals here yet'}</div></div>
+      <button class="btn primary" type="button" data-act="open" ${me.cash < cost ? 'disabled' : ''}>Open for ${money(cost)}</button></div>`;
+    if (me.cash < cost) h += `<p class="small warn">You need ${money(cost - me.cash)} more cash. Borrow from the bank or wait for sales.</p>`;
+  } else {
+    const upCost = st.level < 3 ? upgradeCost(me, city, st.level) : 0;
+    h += `<div class="storebar"><div><span class="lvl">${LVL_NAME[st.level]}</span> <span class="muted small">· ${st.slots.length} slots · rent ${money(rentOf(city, st))}/wk</span></div>
+      <label for="ad-${city}">Ads/wk <select id="ad-${city}" data-field="ad">${[0, 1000, 2500, 5000, 10000].map(v => `<option value="${v}" ${st.ad === v ? 'selected' : ''}>${money(v)}</option>`).join('')}</select></label>
+      ${st.level < 3 ? `<button class="btn small" type="button" data-act="upgrade" ${me.cash < upCost ? 'disabled' : ''}>Upgrade to ${LVL_NAME[st.level + 1]} · ${short(upCost)}</button>` : '<span class="chip good">Max size</span>'}</div>`;
+    if (st.last) h += `<p class="small muted" style="margin:-4px 0 12px">Last week: revenue <b class="num">${money(st.last.rev)}</b> · stock bought ${money(st.last.cogs)} · rent+ads ${money(st.last.rent + st.last.ad)} · <b class="num ${st.last.profit >= 0 ? 'good' : 'warn'}">${st.last.profit >= 0 ? 'profit' : 'loss'} ${money(st.last.profit)}</b></p>`;
+    const used = st.slots.map(s => s.p);
+    h += `<div class="slots">` + st.slots.map((s, i) => {
+      const opts = `<option value="">Empty shelf</option>` + PRODUCTS.map(p => `<option value="${p.id}" ${s.p === p.id ? 'selected' : ''} ${used.includes(p.id) && s.p !== p.id ? 'disabled' : ''}>${p.name}</option>`).join('');
+      if (!s.p) return `<div class="slot"><div class="f prod"><span class="label">Slot ${i + 1}</span><select id="p-${city}-${i}" data-field="prod" data-slot="${i}">${opts}</select></div><div class="empty" style="grid-column:2/-1">Pick a product to stock this shelf.</div></div>`;
+      const p = PBY[s.p], u = landed(city, s.p, me), fc = forecast(me, city, s), rv = rivalsSelling(city, s.p, me);
+      const margin = s.price - u;
+      return `<div class="slot">
+        <div class="f prod"><span class="label">Slot ${i + 1}</span><select id="p-${city}-${i}" data-field="prod" data-slot="${i}">${opts}</select></div>
+        <div class="f"><label class="label" for="pr-${city}-${i}">Price / ${p.unit}</label><input id="pr-${city}-${i}" type="number" min="0.1" step="${p.ref >= 100 ? 5 : .1}" value="${s.price}" data-field="price" data-slot="${i}"></div>
+        <div class="f"><label class="label" for="o-${city}-${i}">Weekly order</label><div class="inline"><input id="o-${city}-${i}" type="number" min="0" step="${p.base >= 1000 ? 50 : 5}" value="${s.order}" data-field="order" data-slot="${i}"><button class="btn small" type="button" data-act="suggest" data-slot="${i}" title="Set order to forecast demand minus stock">Auto</button></div></div>
+        <div class="f"><span class="label">On shelf</span><b class="num" style="font-size:15px">${int(s.stock)}</b></div>
+        <div class="row2">
+          <span>Cost <b>${price(u)}</b> · usual price <b>${price(p.ref)}</b> · margin <b class="${margin > 0 ? '' : 'warn'}">${price(margin)}</b></span>
+          <span>Forecast <b>${int(fc)}</b> ${p.unit}s</span>
+          ${s.dem ? `<span>Last week sold <b>${int(s.sold)}</b> of ${int(s.dem)} wanted${s.lost > 0 ? ` <span class="warn">· ran out, lost ${int(s.lost)}</span>` : ''}${s.spoiled ? ` <span class="warn">· ${int(s.spoiled)} spoiled</span>` : ''}</span>` : ''}
+          ${p.spoil ? `<span class="warn">Perishable: ${p.spoil * 100}% of leftovers spoil weekly</span>` : ''}
+          <span>Rivals: ${rv.length ? rv.map(r => `<b style="color:${col(r.c)}">${price(r.s.price)}</b>`).join(' ') : 'none'}</span>
+        </div></div>`;
+    }).join('') + `</div>`;
+    let oc = 0; for (const s of st.slots) if (s.p) oc += s.order * landed(city, s.p, me);
+    h += `<div class="orderline"><span>This store's orders will cost <b>${money(oc)}</b> when the week ends.</span><button class="btn small" type="button" data-act="autoall">Auto-order all shelves</button></div>`;
+  }
+  // market intel
+  h += `<div class="intel"><h3 style="font-size:13px;margin-bottom:6px">Market in ${C.name} this week</h3><div class="tablewrap"><table>
+    <thead><tr><th>Product</th><th>Demand</th><th class="r">Shoppers</th><th class="r">Your cost</th><th class="r">Usual price</th><th>Rival prices</th></tr></thead><tbody>
+    ${PRODUCTS.map(p => { const m = demandMult(city, p.id), [w, cls] = demandWord(m), D = marketDemand(city, p.id), rv = rivalsSelling(city, p.id, me);
+      return `<tr><td>${p.name}</td><td class="${cls}">${w}</td><td class="r num">${int(D)}</td><td class="r num">${price(landed(city, p.id, me))}</td><td class="r num">${price(p.ref)}</td>
+      <td>${rv.length ? rv.map(r => `<span class="num" style="color:${col(r.c)}">${price(r.s.price)}</span>`).join(' ') : '<span class="muted">—</span>'}</td></tr>`; }).join('')}
+    </tbody></table></div><p class="small muted">Shoppers is the whole city's weekly demand. Stores carrying the same product split it, and cheaper, bigger, better-advertised stores win a larger share. Price too high and shoppers buy nothing.</p></div>`;
+  $('#store').innerHTML = h;
+}
+
+function spark(hist, color){
+  const h = hist.slice(-20); if (h.length < 2) return '';
+  const mn = Math.min(...h, 0), mx = Math.max(...h, 1), W = 70, H = 18;
+  const pts = h.map((v, i) => `${(i / (h.length - 1) * W).toFixed(1)},${(H - (v - mn) / (mx - mn) * H).toFixed(1)}`).join(' ');
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
+}
+function renderSide(){
+  const me = human();
+  const ranked = [...S.companies].sort((a, b) => totalNW(b) - totalNW(a));
+  const lb = ranked.map((c, i) => {
+    const nw = totalNW(c), pct = Math.max(0, Math.min(100, nw / S.target * 100)), own = me.shares[c.id] || 0;
+    return `<div class="lbrow"><span class="sw" style="background:${col(c)}"></span><span class="nm">${i + 1}. ${esc(c.name)}${c.human ? ' (you)' : ''}</span><span class="nw">${short(nw)}</span>
+      <div class="progress"><i style="width:${pct}%;background:${col(c)}"></i></div>
+      <div class="sub"><span>${Object.keys(c.stores).length} stores</span>${c.human ? '' : `<span>${c.persona.label}</span>`}<span class="num">share ${price(sharePrice(c))}</span>${spark(c.hist, col(c))}
+      ${c.human ? '' : `<span class="btnrow" style="margin-left:auto"><button class="btn small" type="button" data-act="buysh" data-co="${c.id}">Buy 10k</button><button class="btn small" type="button" data-act="sellsh" data-co="${c.id}" ${own ? '' : 'disabled'}>Sell</button></span>
+      ${own ? `<span style="flex-basis:100%">You own ${int(own)} shares (${(own / SHARES * 100).toFixed(1)}%) = ${money(own * sharePrice(c))}</span>` : ''}`}</div></div>`;
+  }).join('');
+  const rate = loanRate(me) * 5200;
+  $('#side').innerHTML = `
+    <div class="panel"><h2>Rivals</h2><div class="lb">${lb}</div>
+      <p class="small muted" style="margin:8px 0 0">First to ${short(S.target)} net worth wins, or the richest after week ${S.maxWeeks}. Shares rise and fall with each company's net worth; owning rivals' shares counts toward yours.</p></div>
+    <div class="panel"><h2>Bank of the Straits</h2>
+      <div class="bankgrid"><div class="kv"><span class="label">Your loan</span><b>${money(me.loan)}</b></div><div class="kv"><span class="label">Interest</span><b>${rate.toFixed(1)}%/yr</b></div>
+      <div class="kv"><span class="label">Can borrow</span><b>${money(creditLeft(me))}</b></div><div class="kv"><span class="label">Weekly interest</span><b>${money(me.loan * loanRate(me))}</b></div></div>
+      <div class="btnrow"><button class="btn small" type="button" data-act="borrow" data-amt="25000">Borrow $25k</button><button class="btn small" type="button" data-act="borrow" data-amt="100000">Borrow $100k</button>
+      <button class="btn small" type="button" data-act="repay" data-amt="25000" ${me.loan ? '' : 'disabled'}>Repay $25k</button><button class="btn small" type="button" data-act="repay" data-amt="999999999" ${me.loan ? '' : 'disabled'}>Repay all</button></div>
+      <p class="small muted" style="margin:8px 0 0">If cash goes below zero at week's end, the bank covers it with an automatic loan.</p></div>
+    <div class="panel"><h2>Newswire · week ${Math.min(S.week, S.maxWeeks)}</h2>
+      <ul class="news">${S.news.length ? S.news.map(n => `<li><span class="tag ${n.cls}">${n.tag}</span><span>${esc(n.text)}</span></li>`).join('') : '<li><span class="tag">Quiet</span><span>No major news. A normal trading week.</span></li>'}</ul>
+      ${upcoming()}</div>`;
+}
+function upcoming(){
+  const out = [];
+  for (let w = S.week + 1; w <= Math.min(S.week + 4, S.maxWeeks); w++) for (const f of FESTIVALS) if (f.weeks[0] === wkOfYear(w)) out.push(`<li><span class="tag">Wk ${w}</span><span>${f.name} · ${f.cities.length === ALL.length ? 'all cities' : f.cities.map(x => CBY[x].name).join(', ')} · ${Object.keys(f.boost).map(k => PBY[k].name).join(', ')}</span></li>`);
+  return out.length ? `<div class="label" style="margin:14px 0 8px">Coming up</div><ul class="news">${out.join('')}</ul>` : '';
+}
+
+// ---- overlays ----
+function showModal(html){ $('#modal').innerHTML = html; $('#overlay').hidden = false; const f = $('#modal').querySelector('button'); if (f) f.focus(); }
+function closeModal(){ $('#overlay').hidden = true; }
+const HOWTO = `<div class="howto"><b>How a week works</b><ul>
+  <li>Pick a city on the map. Open a kiosk, then upgrade it to a shop or megastore for more shelf slots.</li>
+  <li>Choose what each shelf sells. Every city has its own tastes, and festivals cause demand to spike.</li>
+  <li>Set a price and a weekly order. Unsold perishables spoil, and empty shelves lose sales.</li>
+  <li>Advertise to pull shoppers from rivals. Borrow when growth beats interest, and buy rivals' shares when they are cheap.</li>
+  <li>Press <b>End week</b>. Stock is bought, shoppers split between stores, then rent, ads and interest are paid.</li></ul></div>`;
+function showStart(){
+  const saved = load();
+  showModal(`<div class="label">A retail empire game · 8 cities · 52 weeks</div>
+    <h1>Build the biggest store chain from <em>Mumbai to Tokyo.</em></h1>
+    <p class="lede">You start with ${money(START_CASH)} and one kiosk. Three rival chains want the same shoppers. Read each city's tastes, ride the festival calendar, and be the first to ${short(TARGET)} net worth.</p>
+    ${saved && !saved.over ? `<div class="mfoot" style="justify-content:flex-start;margin:0 0 14px"><button class="btn primary" type="button" data-act="resume">Resume week ${saved.week}</button></div><div class="label" style="margin-bottom:8px">Or start over as</div>` : '<div class="label" style="margin-bottom:8px">Choose your company</div>'}
+    <div class="picks">${COMPANIES.map(c => `<button class="pick" type="button" data-act="start" data-co="${c.id}"><span class="sw" style="background:${col(c)}"></span><span class="nm">${c.name}</span><span class="small muted">Head office: ${CBY[c.hq].name}</span><span class="small">${c.perkText}</span></button>`).join('')}</div>
+    ${HOWTO}`);
+}
+function showReport(){
+  const me = human(), r = S.report.byCo[me.id];
+  const rows = Object.entries(me.stores).filter(([, st]) => st.last).map(([city, st]) => `<tr><td>${CBY[city].name}</td><td>${LVL_NAME[st.level]}</td><td class="r num">${money(st.last.rev)}</td><td class="r num">${money(st.last.cogs)}</td><td class="r num">${money(st.last.rent + st.last.ad)}</td><td class="r num ${st.last.profit >= 0 ? 'good' : 'warn'}">${money(st.last.profit)}</td></tr>`).join('');
+  const d = r.nw - r.nw0;
+  const lost = []; for (const [city, st] of Object.entries(me.stores)) for (const s of st.slots) if (s.lost > 0) lost.push(`${PBY[s.p].name} in ${CBY[city].name} (${int(s.lost)})`);
+  showModal(`<div class="label">Week ${S.report.week} results · ${weekDate(S.report.week)}</div>
+    <h1 style="font-size:28px">${d >= 0 ? 'Net worth up' : 'Net worth down'} ${money(Math.abs(d))}</h1>
+    <div class="repsum"><div class="kv"><span class="label">Revenue</span><b>${money(r.rev)}</b></div><div class="kv"><span class="label">Stock bought</span><b>${money(r.cogs)}</b></div>
+    <div class="kv"><span class="label">Rent + ads</span><b>${money(r.rent + r.ads)}</b></div><div class="kv"><span class="label">Interest</span><b>${money(r.interest)}</b></div></div>
+    <div class="tablewrap"><table><thead><tr><th>City</th><th>Store</th><th class="r">Revenue</th><th class="r">Stock</th><th class="r">Rent+ads</th><th class="r">Cash profit</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${r.auto ? `<p class="warn small">You ran out of cash. The bank added ${money(r.auto)} to your loan.</p>` : ''}
+    ${r.short ? `<p class="warn small">You couldn't afford all your orders, so the bank only filled part of them.</p>` : ''}
+    ${lost.length ? `<p class="small warn">Sold out: ${lost.join(', ')}. Order more to catch those shoppers.</p>` : ''}
+    <p class="small muted">Stock bought counts as spending this week, but unsold stock still counts in your net worth.</p>
+    ${S.news.length ? `<div class="label" style="margin-top:14px">News for week ${S.week}</div><ul class="news" style="margin-top:8px">${S.news.map(n => `<li><span class="tag ${n.cls}">${n.tag}</span><span>${esc(n.text)}</span></li>`).join('')}</ul>` : ''}
+    <div class="mfoot"><button class="btn primary" type="button" data-act="close">Plan week ${S.week}</button></div>`);
+}
+function showEnd(){
+  const ranked = [...S.companies].sort((a, b) => totalNW(b) - totalNW(a)), w = comp(S.over.winner), me = human();
+  const why = S.over.reason === 'target' ? `reached ${short(S.target)} first` : S.over.reason === 'bankrupt' ? 'is left standing after your chain went bankrupt' : `is the richest after ${S.maxWeeks} weeks`;
+  showModal(`<div class="label">Final results</div><h1>${w.human ? 'You <em>win.</em>' : esc(w.name) + ' wins.'}</h1>
+    <p class="lede">${esc(w.name)} ${why}.</p>
+    <div class="tablewrap"><table><thead><tr><th>#</th><th>Company</th><th class="r">Stores</th><th class="r">Net worth</th></tr></thead><tbody>
+    ${ranked.map((c, i) => `<tr><td>${i + 1}</td><td><span style="color:${col(c)}">■</span> ${esc(c.name)}${c.human ? ' (you)' : ''}</td><td class="r num">${Object.keys(c.stores).length}</td><td class="r num">${money(totalNW(c))}</td></tr>`).join('')}</tbody></table></div>
+    <div class="mfoot"><button class="btn" type="button" data-act="close">View the board</button><button class="btn primary" type="button" data-act="newgame">New game</button></div>`);
+}
+
+// ---- events ----
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, me = S && human(), city = S && S.sel, st = me && me.stores[city];
+  const slot = el.dataset.slot != null && st ? st.slots[+el.dataset.slot] : null;
+  switch (act){
+    case 'start': newGame(el.dataset.co); closeModal(); save(); break;
+    case 'resume': S = load(); closeModal(); break;
+    case 'newgame': try { localStorage.removeItem('monsoon-merchants-save'); } catch(e) {} showStart(); return;
+    case 'help': showModal(`<h1 style="font-size:28px">How to play</h1>${HOWTO}<div class="howto"><b>Tips</b><ul><li>Check the market table: a product locals love, with no rivals, is the easiest money.</li><li>Order ahead of festivals in "Coming up". Demand jumps the week they start.</li><li>Perishables spoil, so order close to the forecast. Use <b>Auto</b>.</li><li>Your perk: ${esc(me ? me.perkText : '')}.</li></ul></div><div class="mfoot"><button class="btn primary" type="button" data-act="close">Back to trading</button></div>`); return;
+    case 'close': closeModal(); if (S && S.over) {} break;
+    case 'city': S.sel = el.dataset.city; break;
+    case 'open': openStore(me, city); break;
+    case 'upgrade': upgradeStore(me, city); break;
+    case 'suggest': if (slot) slot.order = Math.max(0, Math.round(forecast(me, city, slot) * 1.1 - slot.stock)); break;
+    case 'autoall': for (const s of st.slots) if (s.p) s.order = Math.max(0, Math.round(forecast(me, city, s) * 1.1 - s.stock)); break;
+    case 'borrow': borrow(me, +el.dataset.amt); break;
+    case 'repay': repay(me, +el.dataset.amt); break;
+    case 'buysh': tradeShares(me, el.dataset.co, 10000); break;
+    case 'sellsh': tradeShares(me, el.dataset.co, -(me.shares[el.dataset.co] || 0)); break;
+    case 'end': if (S.over) return; endWeek(); save(); render(); S.over ? showEnd() : showReport(); return;
+  }
+  render();
+});
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.pin')){ e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', {bubbles:true})); }
+  if (e.key === 'Escape' && !$('#overlay').hidden && S && !S.over && $('#modal [data-act="close"]')) { closeModal(); }
+});
+document.addEventListener('change', e => {
+  const el = e.target; if (!el.dataset.field || !S) return;
+  const me = human(), city = S.sel, st = me.stores[city]; if (!st) return;
+  const slot = el.dataset.slot != null ? st.slots[+el.dataset.slot] : null;
+  if (el.dataset.field === 'ad') st.ad = +el.value;
+  if (el.dataset.field === 'prod' && slot){ setSlotProduct(me, slot, el.value); if (slot.p) slot.order = Math.max(0, Math.round(forecast(me, city, slot) * 1.1)); }
+  if (el.dataset.field === 'price' && slot) slot.price = Math.max(.1, +el.value || PBY[slot.p].ref);
+  if (el.dataset.field === 'order' && slot) slot.order = Math.max(0, Math.round(+el.value || 0));
+  render();
+  const again = document.getElementById(el.id); if (again) again.focus();
+});
+
+function boot(data){
+  if (data && data.S) { S = data.S; render(); if (S.over) showEnd(); return; }
+  const saved = load();
+  if (saved && !saved.over){ S = saved; render(); showStart(); return; }
+  // show a live board behind the start screen
+  newGame('lion'); render(); S = null; const preview = true; showStart();
+  if (preview) { /* board stays rendered as a backdrop until a company is picked */ }
+}
+window.claude?.hot?.snapshot?.(() => ({S}));
+window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+</script>
+</body>
+</html>

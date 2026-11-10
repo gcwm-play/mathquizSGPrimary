@@ -17,6 +17,7 @@ export default defineConfig({
         dicegrid: fileURLToPath(new URL("./dicegrid.html", import.meta.url)),
         dicetactics: fileURLToPath(new URL("./dicetactics.html", import.meta.url)),
         dinorace: fileURLToPath(new URL("./dinorace.html", import.meta.url)),
+        merchant: fileURLToPath(new URL("./merchant.html", import.meta.url)),
       },
     },
   },
