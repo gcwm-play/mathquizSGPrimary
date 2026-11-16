@@ -184,6 +184,31 @@ details summary{cursor:pointer;font-weight:600}
 .prodpick select{flex:1;min-width:0}
 td:first-child{white-space:nowrap}
 .tico{display:inline-block;width:18px;height:18px;vertical-align:-4px;margin-right:6px}
+
+/* multiplayer */
+:root{ --hdr-warn:#FFB25B } @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --hdr-warn:#9A4A00 }} :root[data-theme="dark"]{ --hdr-warn:#9A4A00 }
+@media (max-width:1420px){ .top .wrap:has(.netbar:not([hidden])) .stat.goal{display:none} }
+.netbar{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px}
+.netbar .room{padding:3px 8px;border-radius:5px;border:1px solid color-mix(in srgb,var(--bg) 35%,transparent);letter-spacing:.14em}
+.netbar .tmr{font-size:17px;font-weight:600;min-width:3.2em}
+.netbar .tmr.low,.netbar .lostdot{color:var(--hdr-warn)}
+.endbtn.isready{background:var(--jade);border-color:var(--jade);color:var(--surface)}
+.roomcode{font-family:var(--mono);letter-spacing:.14em;color:var(--accent)}
+.seats{display:flex;flex-direction:column}
+.seat{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.seat:last-child{border-bottom:0}
+.seat .sw{width:10px;height:10px;border-radius:2px;flex:none}
+.seatnm{display:flex;flex-direction:column;min-width:0;flex:1}
+.lobbyhead{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-top:8px}
+.codebig{font-family:var(--mono);font-size:clamp(30px,8vw,46px);letter-spacing:.2em;font-weight:600;color:var(--accent);line-height:1.1}
+.pick.mine{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.pick.taken,.pick:disabled{opacity:.5;cursor:not-allowed}
+.pick.mine:disabled{opacity:1}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:16px}
+.fbox{display:flex;flex-direction:column;gap:5px;min-width:0}
+.friendgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--sunk)}
+input[type=text],.savebox{font:inherit;font-size:14px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:7px 8px;min-width:0}
+.savebox{width:100%;min-height:120px;font-family:var(--mono);font-size:11px;word-break:break-all;resize:vertical}
 @media (max-width:1180px){ .grid{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)} .side{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))} }
 @media (max-width:760px){ .top{position:static} .grid{grid-template-columns:minmax(0,1fr)} .slot{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .slot .f.prod{grid-column:1/-1} .stats{gap:6px 14px} .stat b{font-size:13px} }
 @media (prefers-reduced-motion:no-preference){ .pin .dot{transition:fill .2s} .progress i,.bar i{transition:width .4s} }
@@ -196,6 +221,7 @@ td:first-child{white-space:nowrap}
   <div class="wrap">
     <div class="brand"><i aria-hidden="true"></i>Monsoon Merchants</div>
     <div class="stats" id="stats"></div>
+    <div class="netbar" id="netbar" hidden></div>
     <button class="btn ghost small" data-act="help" type="button">How to play</button>
     <button class="btn primary endbtn" data-act="end" id="endbtn" type="button">End week</button>
   </div>
@@ -406,7 +432,7 @@ function startWeek(){
   const old = S.rate;
   if (S.week > 1 && rnd() < .3){ S.rate = Math.min(.008, Math.max(.0012, S.rate + (rnd() < .5 ? -1 : 1) * .0006)); }
   if (S.rate !== old) news.push({tag:'Bank', cls:'bank', text:`Regional central bank ${S.rate > old ? 'raises' : 'cuts'} rates. Loans now ${(S.rate * 5200).toFixed(1)}% a year.`});
-  for (const c of S.companies) if (!c.human) aiTurn(c);
+  for (const c of S.companies) if (!c.human || c.aiCover) aiTurn(c);
   S.news = news;
 }
 function endWeek(){
@@ -438,24 +464,42 @@ function endWeek(){
   S.report = rep;
   const winner = S.companies.filter(c => totalNW(c) >= S.target).sort((a, b) => totalNW(b) - totalNW(a))[0];
   if (winner) S.over = {winner:winner.id, reason:'target'};
-  else if (totalNW(human() || S.companies[0]) < -150000) S.over = {winner:[...S.companies].sort((a, b) => totalNW(b) - totalNW(a))[0].id, reason:'bankrupt'};
+  else if (S.companies.some(c => c.human) && S.companies.filter(c => c.human).every(c => totalNW(c) < -150000)) S.over = {winner:[...S.companies].sort((a, b) => totalNW(b) - totalNW(a))[0].id, reason:'bankrupt'};
   else if (S.week >= S.maxWeeks) S.over = {winner:[...S.companies].sort((a, b) => totalNW(b) - totalNW(a))[0].id, reason:'time'};
   S.week++;
   if (!S.over) startWeek();
 }
-function newGame(playerId){
+function newGame(playerIds, opts = {}){
+  const humans = Array.isArray(playerIds) ? playerIds : [playerIds];
   const pers = [...PERSONAS];
-  S = {week:1, maxWeeks:WEEKS, target:TARGET, rate:.003, events:[], news:[], over:null, report:null, sel:null,
-    companies:COMPANIES.map(d => ({...d, human:d.id === playerId, cash:START_CASH, loan:0, stores:{}, shares:{}, hist:[START_CASH], wk:null, persona:d.id === playerId ? PERSONAS[2] : (pers.shift() || PERSONAS[2])}))};
+  S = {week:1, maxWeeks:opts.weeks || WEEKS, target:TARGET, rate:.003, events:[], news:[], over:null, report:null, sel:null,
+    companies:COMPANIES.map(d => ({...d, human:humans.includes(d.id), cash:START_CASH, loan:0, stores:{}, shares:{}, hist:[START_CASH], wk:null, persona:humans.includes(d.id) ? PERSONAS[2] : (pers.shift() || PERSONAS[2])}))};
   for (const c of S.companies){ c.stores[c.hq] = newStore(1, CBY[c.hq].cost); }
-  const me = human();
-  if (me){ S.sel = me.hq;
+  const hs = S.companies.filter(c => c.human);
+  if (hs.length) S.sel = hs[0].hq;
+  for (const me of hs){
     const st = me.stores[me.hq];
     const best = PRODUCTS.map(p => ({id:p.id, s:slotScore(me, me.hq, p.id)})).sort((a, b) => b.s - a.s);
     st.slots.forEach((s, i) => { setSlotProduct(me, s, best[i].id); });
   }
   startWeek();
-  if (me){ const st = me.stores[me.hq]; st.slots.forEach(s => { s.order = Math.round(forecast(me, me.hq, s) * 1.1); }); }
+  for (const me of hs){ const st = me.stores[me.hq]; st.slots.forEach(s => { s.order = Math.round(forecast(me, me.hq, s) * 1.1); }); }
+}
+// one player decision, as sent over the network: [type, ...args]. Every rule is re-checked here.
+function applyAction(c, a){
+  if (!c || !Array.isArray(a)) return;
+  const [t, x, y, z] = a, st = c.stores[x], slot = st && Number.isInteger(y) ? st.slots[y] : null;
+  switch (t){
+    case 'open': if (CBY[x]) openStore(c, x); break;
+    case 'upgrade': upgradeStore(c, x); break;
+    case 'ad': if (st) st.ad = [0, 1000, 2500, 5000, 10000].includes(+y) ? +y : 0; break;
+    case 'prod': if (slot && (!z || PBY[z]) && !(z && st.slots.some(o => o !== slot && o.p === z))) setSlotProduct(c, slot, z || null); break;
+    case 'price': if (slot && slot.p) slot.price = Math.min(100000, Math.max(.1, +z || PBY[slot.p].ref)); break;
+    case 'order': if (slot) slot.order = Math.min(1e6, Math.max(0, Math.round(+z || 0))); break;
+    case 'borrow': borrow(c, Math.max(0, +x || 0)); break;
+    case 'repay': repay(c, Math.max(0, +x || 0)); break;
+    case 'trade': if (x !== c.id && S.companies.some(o => o.id === x)) tradeShares(c, x, Math.round(+y || 0)); break;
+  }
 }
 /*ENGINE END*/
 
@@ -495,21 +539,23 @@ const ICONS = {
 };
 const icon = (pid, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[pid]}</svg>`;
 
-function save(){ try { localStorage.setItem('monsoon-merchants-save', JSON.stringify(S)); } catch(e) {} }
+function mine(){ return NET ? (S && MY.co ? comp(MY.co) : null) : S.companies.find(c => c.human); }
+function save(){ if (NET) return; try { localStorage.setItem('monsoon-merchants-save', JSON.stringify(S)); } catch(e) {} }
 function load(){ try { const t = localStorage.getItem('monsoon-merchants-save'); return t ? JSON.parse(t) : null; } catch(e) { return null; } }
 
-function render(){ if (!S) return; renderStats(); renderMap(); renderStore(); renderSide(); }
+function render(){ renderNet(); if (!S || !mine()) return; renderStats(); renderMap(); renderStore(); renderSide(); }
 
 function renderStats(){
-  const me = human(), nw = totalNW(me);
+  const me = mine(), nw = totalNW(me);
   $('#stats').innerHTML = `
     <div class="stat"><span class="label">Week</span><b>${Math.min(S.week, S.maxWeeks)}/${S.maxWeeks} · ${weekDate(Math.min(S.week, S.maxWeeks))}</b></div>
     <div class="stat"><span class="label">Cash</span><b>${money(me.cash)}</b></div>
     <div class="stat"><span class="label">Loan</span><b>${money(me.loan)}</b></div>
     <div class="stat"><span class="label">Net worth</span><b>${money(nw)}</b></div>
-    <div class="stat"><span class="label">Goal</span><b>${short(S.target)}</b></div>`;
-  $('#endbtn').disabled = !!S.over;
-  $('#endbtn').textContent = S.over ? 'Game over' : `End week ${S.week}`;
+    <div class="stat goal"><span class="label">Goal</span><b>${short(S.target)}</b></div>`;
+  const b = $('#endbtn');
+  if (NET){ const rd = myReady(); b.disabled = !!S.over || !MY.co; b.textContent = S.over ? 'Game over' : rd ? 'Ready ✓ · undo' : `Ready for week ${S.week}`; b.classList.toggle('isready', rd); }
+  else { b.disabled = !!S.over; b.textContent = S.over ? 'Game over' : `End week ${S.week}`; b.classList.remove('isready'); }
 }
 
 function proj(lon, lat){ return [20 + (lon - 66) / (146 - 66) * 560, 20 + (44 - lat) / (54) * 380]; }
@@ -540,7 +586,7 @@ function renderMap(){
 function demandWord(m){ return m >= 1.6 ? ['Booming','good'] : m >= 1.15 ? ['Strong','good'] : m <= .6 ? ['Weak','bad'] : ['Normal','']; }
 
 function renderStore(){
-  const me = human(), city = S.sel, C = CBY[city], st = me.stores[city];
+  const me = mine(), city = S.sel, C = CBY[city], st = me.stores[city];
   const fests = festivalsFor(city, S.week), typh = S.events.find(e => e.kind === 'typhoon' && e.city === city);
   const loves = PRODUCTS.map((p, i) => ({p, t:C.taste[i]})).sort((a, b) => b.t - a.t).slice(0, 3).map(x => x.p.name);
   $('#store').style.setProperty('--city', `var(--city-${city})`);
@@ -602,18 +648,18 @@ function spark(hist, color){
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
 }
 function renderSide(){
-  const me = human();
+  const me = mine();
   const ranked = [...S.companies].sort((a, b) => totalNW(b) - totalNW(a));
   const lb = ranked.map((c, i) => {
     const nw = totalNW(c), pct = Math.max(0, Math.min(100, nw / S.target * 100)), own = me.shares[c.id] || 0;
-    return `<div class="lbrow"><span class="sw" style="background:${col(c)}"></span><span class="nm">${i + 1}. ${esc(c.name)}${c.human ? ' (you)' : ''}</span><span class="nw">${short(nw)}</span>
+    return `<div class="lbrow"><span class="sw" style="background:${col(c)}"></span><span class="nm">${i + 1}. ${esc(c.name)}${c.id === me.id ? ' (you)' : c.human && c.player ? ' · ' + esc(c.player) : ''}</span><span class="nw">${short(nw)}</span>
       <div class="progress"><i style="width:${pct}%;background:${col(c)}"></i></div>
-      <div class="sub"><span>${Object.keys(c.stores).length} stores</span>${c.human ? '' : `<span>${c.persona.label}</span>`}<span class="num">share ${price(sharePrice(c))}</span>${spark(c.hist, col(c))}
-      ${c.human ? '' : `<span class="btnrow" style="margin-left:auto"><button class="btn small" type="button" data-act="buysh" data-co="${c.id}">Buy 10k</button><button class="btn small" type="button" data-act="sellsh" data-co="${c.id}" ${own ? '' : 'disabled'}>Sell</button></span>
+      <div class="sub"><span>${Object.keys(c.stores).length} stores</span>${c.human ? (c.id === me.id ? '' : '<span>Human</span>') : `<span>AI · ${c.persona.label}</span>`}<span class="num">share ${price(sharePrice(c))}</span>${spark(c.hist, col(c))}
+      ${c.id === me.id ? '' : `<span class="btnrow" style="margin-left:auto"><button class="btn small" type="button" data-act="buysh" data-co="${c.id}">Buy 10k</button><button class="btn small" type="button" data-act="sellsh" data-co="${c.id}" ${own ? '' : 'disabled'}>Sell</button></span>
       ${own ? `<span style="flex-basis:100%">You own ${int(own)} shares (${(own / SHARES * 100).toFixed(1)}%) = ${money(own * sharePrice(c))}</span>` : ''}`}</div></div>`;
   }).join('');
   const rate = loanRate(me) * 5200;
-  $('#side').innerHTML = `
+  $('#side').innerHTML = playersPanel() + `
     <div class="panel"><h2>Rivals</h2><div class="lb">${lb}</div>
       <p class="small muted" style="margin:8px 0 0">First to ${short(S.target)} net worth wins, or the richest after week ${S.maxWeeks}. Shares rise and fall with each company's net worth; owning rivals' shares counts toward yours.</p></div>
     <div class="panel"><h2>Bank of the Straits</h2>
@@ -633,9 +679,10 @@ function upcoming(){
 }
 
 // ---- overlays ----
-function showModal(html){ $('#modal').innerHTML = html; $('#overlay').hidden = false; const f = $('#modal').querySelector('button'); if (f) f.focus(); }
-function closeModal(){ $('#overlay').hidden = true; }
+function showModal(html, lobby){ if (NET) NET.modal = lobby ? 'lobby' : 'other'; $('#modal').innerHTML = html; $('#overlay').hidden = false; if (!lobby){ const f = $('#modal').querySelector('button'); if (f) f.focus(); } }
+function closeModal(){ if (NET) NET.modal = null; $('#overlay').hidden = true; }
 const HOWTO = `<div class="howto"><b>How a week works</b><ul>
+  <li>With friends, everyone plans the same week at once. The week plays out when all players press <b>Ready</b> or the timer runs out.</li>
   <li>Pick a city on the map. Open a kiosk, then upgrade it to a shop or megastore for more shelf slots.</li>
   <li>Choose what each shelf sells. Every city has its own tastes, and festivals cause demand to spike.</li>
   <li>Set a price and a weekly order. Unsold perishables spoil, and empty shelves lose sales.</li>
@@ -648,10 +695,11 @@ function showStart(){
     <p class="lede">You start with ${money(START_CASH)} and one kiosk. Three rival chains want the same shoppers. Read each city's tastes, ride the festival calendar, and be the first to ${short(TARGET)} net worth.</p>
     ${saved && !saved.over ? `<div class="mfoot" style="justify-content:flex-start;margin:0 0 14px"><button class="btn primary" type="button" data-act="resume">Resume week ${saved.week}</button></div><div class="label" style="margin-bottom:8px">Or start over as</div>` : '<div class="label" style="margin-bottom:8px">Choose your company</div>'}
     <div class="picks">${COMPANIES.map(c => `<button class="pick" type="button" data-act="start" data-co="${c.id}"><span class="sw" style="background:${col(c)}"></span><span class="nm">${c.name}</span><span class="small muted">Head office: ${CBY[c.hq].name}</span><span class="small">${c.perkText}</span></button>`).join('')}</div>
+    ${friendsSection()}
     ${HOWTO}`);
 }
 function showReport(){
-  const me = human(), r = S.report.byCo[me.id];
+  const me = mine(), r = S.report.byCo[me.id];
   const rows = Object.entries(me.stores).filter(([, st]) => st.last).map(([city, st]) => `<tr><td>${CBY[city].name}</td><td>${LVL_NAME[st.level]}</td><td class="r num">${money(st.last.rev)}</td><td class="r num">${money(st.last.cogs)}</td><td class="r num">${money(st.last.rent + st.last.ad)}</td><td class="r num ${st.last.profit >= 0 ? 'good' : 'warn'}">${money(st.last.profit)}</td></tr>`).join('');
   const d = r.nw - r.nw0;
   const lost = []; for (const [city, st] of Object.entries(me.stores)) for (const s of st.slots) if (s.lost > 0) lost.push(`${PBY[s.p].name} in ${CBY[city].name} (${int(s.lost)})`);
@@ -668,64 +716,537 @@ function showReport(){
     <div class="mfoot"><button class="btn primary" type="button" data-act="close">Plan week ${S.week}</button></div>`);
 }
 function showEnd(){
-  const ranked = [...S.companies].sort((a, b) => totalNW(b) - totalNW(a)), w = comp(S.over.winner), me = human();
-  const why = S.over.reason === 'target' ? `reached ${short(S.target)} first` : S.over.reason === 'bankrupt' ? 'is left standing after your chain went bankrupt' : `is the richest after ${S.maxWeeks} weeks`;
-  showModal(`<div class="label">Final results</div><h1>${w.human ? 'You <em>win.</em>' : esc(w.name) + ' wins.'}</h1>
+  const ranked = [...S.companies].sort((a, b) => totalNW(b) - totalNW(a)), w = comp(S.over.winner), me = mine();
+  const why = S.over.reason === 'target' ? `reached ${short(S.target)} first` : S.over.reason === 'bankrupt' ? 'is left standing after the human chains went bankrupt' : `is the richest after ${S.maxWeeks} weeks`;
+  showModal(`<div class="label">Final results</div><h1>${me && w.id === me.id ? 'You <em>win.</em>' : esc(w.name) + ' wins.'}</h1>
     <p class="lede">${esc(w.name)} ${why}.</p>
     <div class="tablewrap"><table><thead><tr><th>#</th><th>Company</th><th class="r">Stores</th><th class="r">Net worth</th></tr></thead><tbody>
-    ${ranked.map((c, i) => `<tr><td>${i + 1}</td><td><span style="color:${col(c)}">■</span> ${esc(c.name)}${c.human ? ' (you)' : ''}</td><td class="r num">${Object.keys(c.stores).length}</td><td class="r num">${money(totalNW(c))}</td></tr>`).join('')}</tbody></table></div>
+    ${ranked.map((c, i) => `<tr><td>${i + 1}</td><td><span style="color:${col(c)}">■</span> ${esc(c.name)}${me && c.id === me.id ? ' (you)' : c.player ? ' · ' + esc(c.player) : ''}</td><td class="r num">${Object.keys(c.stores).length}</td><td class="r num">${money(totalNW(c))}</td></tr>`).join('')}</tbody></table></div>
     <div class="mfoot"><button class="btn" type="button" data-act="close">View the board</button><button class="btn primary" type="button" data-act="newgame">New game</button></div>`);
 }
+
+// ================= multiplayer =================
+// The host's browser is the referee: it keeps the real game (AUTH), runs the AI seats and plays out each week.
+// Players send the list of decisions they made this week; everyone sees rivals as they stood at the start of the week.
+const URLP = new URLSearchParams(location.search);
+const LOCAL_NET = URLP.get('net') === 'local';             // test mode: browser tabs talk over BroadcastChannel
+const KEYNS = LOCAL_NET ? (URLP.get('profile') || '') : '';  // separate saves per test profile
+const MP_PREFIX = 'monsoon-merchants-v1-';
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const genCode = () => Array.from({length:5}, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+const genToken = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const clone = x => JSON.parse(JSON.stringify(x));
+const TIMERS = [[60, '1 min'], [120, '2 min'], [180, '3 min'], [300, '5 min'], [0, 'No timer']];
+let NET = null, AUTH = null;
+const MY = {co:null};
+function store(key, val){ try { val == null ? localStorage.removeItem(key + KEYNS) : localStorage.setItem(key + KEYNS, JSON.stringify(val)); } catch(e) {} }
+function fetchKey(key){ try { const t = localStorage.getItem(key + KEYNS); return t ? JSON.parse(t) : null; } catch(e) { return null; } }
+function player(){ let p = fetchKey('mm-player'); if (!p || !p.token){ p = {name:p && p.name || '', token:genToken()}; store('mm-player', p); } return p; }
+function withState(st, fn){ const old = S; S = st; try { return fn(); } finally { S = old; } }
+const fmtClock = ms => { const t = Math.ceil(Math.max(0, ms) / 1000); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
+function safeSend(conn, m){ try { conn.send(m); } catch(e) {} }
+
+// --- a PeerJS look-alike over BroadcastChannel, for testing in several tabs of one browser ---
+class Emitter { constructor(){ this._h = {}; } on(e, f){ (this._h[e] = this._h[e] || []).push(f); return this; } emit(e, ...a){ (this._h[e] || []).forEach(f => f(...a)); } }
+class LocalConn extends Emitter {
+  constructor(peer, cid, remote){ super(); this.peer = peer; this.cid = cid; this.peerId = remote; this.open = false; }
+  send(data){ if (this.open) this.peer._post({k:'data', to:this.peerId, cid:this.cid, data:clone(data)}); }
+  close(){ if (!this.open) return; this.open = false; this.peer._post({k:'close', to:this.peerId, cid:this.cid}); delete this.peer.conns[this.cid]; this.emit('close'); }
+}
+class LocalPeer extends Emitter {
+  constructor(id){ super(); this.id = id || 'p-' + genToken(); this.nonce = genToken(); this.conns = {}; this.opened = false; this.dead = false;
+    this.bc = new BroadcastChannel('mm-local-net'); this.bc.onmessage = ev => this._recv(ev.data);
+    addEventListener('pagehide', () => this.destroy());
+    this._post({k:'claim'}); setTimeout(() => { if (!this.dead && !this.taken){ this.opened = true; this.emit('open', this.id); } }, 200); }
+  _post(m){ if (this.dead) return; m.from = this.id; m.nonce = this.nonce; this.bc.postMessage(m); }
+  _recv(m){
+    if (this.dead || m.nonce === this.nonce) return;
+    if (m.k === 'claim' && m.from === this.id && this.opened) return this._post({k:'taken', to:this.id, forNonce:m.nonce});
+    if (m.k === 'taken' && m.forNonce === this.nonce){ this.taken = true; return this.emit('error', {type:'unavailable-id'}); }
+    if (m.to !== this.id || !this.opened) return;
+    if (m.k === 'connect'){ const c = new LocalConn(this, m.cid, m.from); c.open = true; this.conns[m.cid] = c; this.emit('connection', c); this._post({k:'accept', to:m.from, cid:m.cid}); setTimeout(() => c.emit('open'), 0); }
+    const c = this.conns[m.cid]; if (!c) return;
+    if (m.k === 'accept'){ c.open = true; c.accepted = true; c.emit('open'); }
+    if (m.k === 'data') c.emit('data', m.data);
+    if (m.k === 'close'){ c.open = false; delete this.conns[m.cid]; c.emit('close'); }
+  }
+  connect(remote){ const c = new LocalConn(this, genToken(), remote); this.conns[c.cid] = c; this._post({k:'connect', to:remote, cid:c.cid});
+    setTimeout(() => { if (!c.accepted && !this.dead){ delete this.conns[c.cid]; this.emit('error', {type:'peer-unavailable'}); } }, 1500); return c; }
+  reconnect(){}
+  destroy(){ if (this.dead) return; Object.values(this.conns).forEach(c => c.close()); this.dead = true; try { this.bc.close(); } catch(e) {} }
+}
+function loadPeerLib(){
+  if (LOCAL_NET) return Promise.resolve(LocalPeer);
+  if (window.Peer) return Promise.resolve(window.Peer);
+  return new Promise((res, rej) => {
+    const tryLoad = srcs => { if (!srcs.length) return rej(new Error('Could not load the multiplayer library. Check your internet connection.'));
+      const el = document.createElement('script'); el.src = srcs[0];
+      el.onload = () => window.Peer ? res(window.Peer) : tryLoad(srcs.slice(1));
+      el.onerror = () => { el.remove(); tryLoad(srcs.slice(1)); };
+      document.head.appendChild(el); };
+    tryLoad(['vendor/peerjs-1.5.4.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js']);
+  });
+}
+const makePeer = (Cls, id) => LOCAL_NET ? new LocalPeer(id) : id ? new Cls(id, {debug:1}) : new Cls({debug:1});
+function teardown(){
+  if (!NET) return;
+  clearInterval(NET.timerId); clearTimeout(NET.saveT); clearTimeout(NET.planT);
+  if (NET.conns) for (const c of NET.conns.keys()) { try { c.close(); } catch(e) {} }
+  if (NET.conn) { try { NET.conn.close(); } catch(e) {} }
+  if (NET.peer) { try { NET.peer.destroy(); } catch(e) {} }
+  NET = null; AUTH = null; MY.co = null;
+}
+
+// --- shared helpers ---
+function mySeat(){ return NET && NET.role === 'host' ? NET.seats.find(s => s.host) : null; }
+function myReady(){ if (!NET) return false; return NET.role === 'host' ? !!(mySeat() && mySeat().ready) : !!NET.ready; }
+function viewMP(){ return !NET ? null : NET.role === 'host' ? pubMP() : NET.mp; }
+function remainingMs(){ const mp = viewMP(); if (!mp || !mp.timer) return null;
+  if (NET.role === 'host') return mp.paused ? NET.mp.pausedLeft : Math.max(0, NET.mp.deadline - Date.now());
+  return mp.paused ? (mp.remaining || 0) : Math.max(0, NET.deadline - Date.now()); }
+function setView(auth, actions){
+  const keep = S && S.sel;
+  S = clone(auth);
+  const c = mine();
+  S.sel = keep && CBY[keep] ? keep : c ? c.hq : S.sel;
+  if (c) for (const a of actions) applyAction(c, a);
+}
+function doAct(a){
+  const c = mine(); if (!c || S.over) return;
+  applyAction(c, a);
+  if (!NET) return;
+  if (NET.role === 'host'){ const s = mySeat(); s.actions.push(a); if (s.ready){ s.ready = false; hostStatus(); } hostSaveSoon(); }
+  else { NET.actions.push(a); NET.ready = false; clientSendPlan(); }
+}
+function toggleReady(){
+  if (!NET || !S || S.over || !MY.co) return;
+  if (NET.role === 'host'){ const s = mySeat(); s.ready = !s.ready; hostStatus(); hostCheckReady(); }
+  else { NET.ready = !NET.ready; clientSendPlan(true); }
+  render();
+}
+function afterNewWeek(){ if (!S) return; if (S.over) showEnd(); else if (S.report) showReport(); }
+
+// --- host ---
+function seatCovered(s){ return !s.host && !!s.co && !s.connected && (NET.mp.drop === 'ai' || s.forceAI); }
+function pubMP(){
+  const m = NET.mp, now = Date.now();
+  return {code:NET.code, started:m.started, paused:m.paused, pauseReason:m.pauseReason, timer:m.timer, weeks:m.weeks, drop:m.drop,
+    remaining:m.timer ? (m.paused ? m.pausedLeft : Math.max(0, m.deadline - now)) : null,
+    seats:NET.seats.map(s => ({name:s.name, co:s.co, connected:s.connected, ready:s.ready, host:!!s.host, covered:seatCovered(s)}))};
+}
+function hostCreate(name){
+  const p = player(); p.name = name; store('mm-player', p);
+  teardown();
+  NET = {role:'host', code:genCode(), conns:new Map(), retries:0, status:'Opening the room…', online:false,
+    mp:{started:false, paused:false, pauseReason:'', timer:180, weeks:52, drop:'ai', deadline:0, pausedLeft:0},
+    seats:[{token:p.token, name, co:null, connected:true, ready:false, actions:[], host:true}]};
+  S = null; AUTH = null; MY.co = null;
+  hostOpen(); hostTimers(); showLobby();
+}
+function hostResumeFrom(save, freshCode){
+  const p = player();
+  teardown();
+  let seats = save.seats.map(s => ({token:s.token, name:s.name, co:s.co, host:false, connected:false, ready:false, actions:Array.isArray(s.actions) ? s.actions : []}));
+  let mine_ = seats.find(s => s.token === p.token) || seats.find((s, i) => save.seats[i].host) || seats[0];
+  mine_.token = p.token; mine_.host = true; mine_.connected = true; if (!p.name){ p.name = mine_.name; store('mm-player', p); }
+  NET = {role:'host', code:freshCode ? genCode() : save.code, conns:new Map(), retries:0, status:'Opening the room…', online:false,
+    mp:{started:true, paused:true, pauseReason:'resume', timer:save.mp.timer, weeks:save.mp.weeks, drop:save.mp.drop || 'ai', deadline:0, pausedLeft:(save.mp.timer || 0) * 1000},
+    seats};
+  AUTH = save.S; MY.co = mine_.co;
+  S = null; setView(AUTH, mine_.actions);
+  hostOpen(); hostTimers(); hostSave(); closeModal(); render();
+}
+function hostOpen(){
+  loadPeerLib().then(Cls => {
+    const attempt = () => {
+      if (!NET || NET.role !== 'host') return;
+      const peer = makePeer(Cls, MP_PREFIX + NET.code); NET.peer = peer;
+      peer.on('open', () => { if (NET && NET.peer === peer){ NET.online = true; NET.status = ''; NET.retries = 0; hostStatus(); } });
+      peer.on('connection', conn => hostAccept(conn));
+      peer.on('disconnected', () => { if (NET && NET.peer === peer && !NET.closing) setTimeout(() => { try { peer.reconnect(); } catch(e) {} }, 2000); });
+      peer.on('error', err => {
+        if (!NET || NET.peer !== peer) return;
+        if (err.type === 'unavailable-id'){
+          try { peer.destroy(); } catch(e) {}
+          if (++NET.retries <= 40){ NET.status = `Waiting for room code ${NET.code} to free up. This can take a minute after the old tab closes…`; setTimeout(attempt, 4000); }
+          else NET.status = 'Could not reopen this room code. Use "Copy save", then import it to get a new code.';
+          renderNet();
+        } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)){
+          NET.status = 'Connection problem. Retrying…'; NET.online = false; renderNet();
+          setTimeout(() => { try { peer.reconnect(); } catch(e) {} }, 3000);
+        } else if (err.type === 'browser-incompatible'){ NET.status = 'This browser cannot host. Try a recent Chrome, Edge, Firefox or Safari.'; renderNet(); }
+      });
+    };
+    attempt();
+  }).catch(e => { if (NET){ NET.status = e.message; renderNet(); } });
+}
+function hostAccept(conn){
+  conn.on('data', m => { if (NET && NET.role === 'host') hostOnMsg(conn, m); });
+  conn.on('close', () => { if (NET && NET.role === 'host') hostDrop(conn); });
+  conn.on('error', () => {});
+}
+function hostOnMsg(conn, m){
+  if (!m || typeof m !== 'object') return;
+  if (m.t === 'hello'){
+    const token = String(m.token || '').slice(0, 40); if (!token) return;
+    let s = NET.seats.find(x => x.token === token);
+    if (s && s.host){ safeSend(conn, {t:'reject', reason:'You are already the host of this room in another tab.'}); return; }
+    if (!s){ s = {token, name:'', co:null, connected:true, ready:false, actions:[]}; NET.seats.push(s); }
+    for (const [k, v] of NET.conns) if (v === s && k !== conn){ NET.conns.delete(k); try { k.close(); } catch(e) {} }
+    s.name = String(m.name || s.name || 'Player').slice(0, 20); s.connected = true; s.forceAI = false; s.lastSeen = Date.now();
+    NET.conns.set(conn, s);
+    safeSend(conn, {t:'welcome', co:s.co, code:NET.code});
+    if (NET.mp.started) safeSend(conn, stateMsg(s));
+    hostMaybeAutoResume(); hostStatus(); hostSave();
+    return;
+  }
+  const seat = NET.conns.get(conn); if (!seat) return;
+  seat.lastSeen = Date.now();
+  if (m.t === 'pick') hostPick(seat, m.co);
+  if (m.t === 'plan' && NET.mp.started && AUTH && m.week === AUTH.week && Array.isArray(m.actions) && seat.co){
+    seat.actions = m.actions.slice(0, 3000); seat.ready = !!m.ready; hostStatus(); hostSaveSoon(); hostCheckReady();
+  }
+}
+function hostPick(seat, co){
+  if (!COMPANIES.some(c => c.id === co) || NET.seats.some(s => s !== seat && s.co === co)) return;
+  if (!NET.mp.started){ seat.co = co; }
+  else {
+    if (seat.co) return;
+    const c = AUTH.companies.find(x => x.id === co); if (!c || c.human) return;
+    c.human = true; c.player = seat.name; c.aiCover = false; seat.co = co; seat.actions = []; seat.ready = false;
+    for (const [k, v] of NET.conns) safeSend(k, stateMsg(v));
+    if (seat.host){ MY.co = co; setView(AUTH, []); }
+  }
+  if (seat.host) MY.co = co;
+  hostStatus(); hostSave(); if (seat.host && !NET.mp.started) showLobby();
+}
+function hostDrop(conn){
+  const seat = NET.conns.get(conn); NET.conns.delete(conn);
+  if (!seat || [...NET.conns.values()].includes(seat)) return;
+  seat.connected = false; seat.ready = false;
+  if (NET.mp.started && seat.co && NET.mp.drop === 'wait' && !NET.mp.paused) hostPause('drop');
+  hostStatus(); hostCheckReady();
+}
+function hostPause(reason){ const m = NET.mp; if (m.paused) return; m.paused = true; m.pauseReason = reason; m.pausedLeft = m.timer ? Math.max(0, m.deadline - Date.now()) : 0; hostStatus(); }
+function hostUnpause(){ const m = NET.mp; if (!m.paused) return; m.paused = false; m.pauseReason = ''; m.deadline = Date.now() + Math.max(m.pausedLeft, 20000); hostStatus(); hostCheckReady(); }
+function hostMaybeAutoResume(){ if (NET.mp.paused && NET.mp.pauseReason === 'drop' && NET.seats.every(s => !s.co || s.connected || seatCovered(s))) hostUnpause(); }
+function hostCheckReady(){
+  const m = NET.mp; if (!m.started || m.paused || !AUTH || AUTH.over) return;
+  const active = NET.seats.filter(s => s.co && !seatCovered(s));
+  if (active.length && active.every(s => s.ready && s.connected)) hostResolve();
+}
+function hostResolve(){
+  if (NET.resolving || !AUTH || AUTH.over) return; NET.resolving = true;
+  try {
+    withState(AUTH, () => {
+      for (const s of NET.seats){ if (!s.co) continue; const c = comp(s.co); if (!c) continue;
+        const was = c.aiCover; c.aiCover = seatCovered(s); c.player = s.name;
+        if (c.aiCover){ if (!was) aiTurn(c); } else for (const a of s.actions) applyAction(c, a); }
+      endWeek();
+    });
+    for (const s of NET.seats){ s.actions = []; s.ready = false; }
+    NET.mp.deadline = Date.now() + NET.mp.timer * 1000;
+    hostSave();
+    for (const [k, v] of NET.conns) safeSend(k, stateMsg(v));
+    setView(AUTH, []);
+  } finally { NET.resolving = false; }
+  hostStatus(); render(); afterNewWeek();
+}
+function hostStart(){
+  const hs = NET.seats.filter(s => s.co); if (!mySeat().co) return;
+  newGame(hs.map(s => s.co), {weeks:NET.mp.weeks});
+  AUTH = S; for (const s of hs){ const c = AUTH.companies.find(x => x.id === s.co); c.player = s.name; }
+  NET.mp.started = true; NET.mp.paused = false; NET.mp.deadline = Date.now() + NET.mp.timer * 1000;
+  for (const s of NET.seats){ s.actions = []; s.ready = false; }
+  MY.co = mySeat().co; S = null; setView(AUTH, []);
+  hostSave(); for (const [k, v] of NET.conns) safeSend(k, stateMsg(v));
+  closeModal(); hostStatus(); render();
+}
+function stateMsg(seat){
+  return {t:'state', S:AUTH, mp:pubMP(), you:seat.co,
+    backup:{seats:NET.seats.map(s => ({token:s.token, name:s.name, co:s.co, host:!!s.host})), mp:{timer:NET.mp.timer, weeks:NET.mp.weeks, drop:NET.mp.drop}}};
+}
+function hostStatus(){ if (!NET || NET.role !== 'host') return; NET.lastStatus = Date.now(); const mp = pubMP(); for (const [k, v] of NET.conns) safeSend(k, {t:'status', mp, you:v.co}); renderNet(); }
+function hostSaveObj(){ return {v:1, code:NET.code, S:AUTH, mp:{timer:NET.mp.timer, weeks:NET.mp.weeks, drop:NET.mp.drop},
+  seats:NET.seats.filter(s => s.co || s.host).map(s => ({token:s.token, name:s.name, co:s.co, host:!!s.host, actions:s.actions})), when:Date.now()}; }
+function hostSave(){ if (NET && NET.role === 'host' && NET.mp.started && AUTH) store('mm-host', hostSaveObj()); }
+function hostSaveSoon(){ clearTimeout(NET.saveT); NET.saveT = setTimeout(hostSave, 800); }
+function hostTimers(){
+  NET.timerId = setInterval(() => {
+    if (!NET || NET.role !== 'host') return;
+    const now = Date.now();
+    for (const [k, s] of NET.conns) if (now - (s.lastSeen || now) > 10000){ try { k.close(); } catch(e) {} hostDrop(k); }
+    const m = NET.mp;
+    if (m.started && !m.paused && m.timer && AUTH && !AUTH.over && now >= m.deadline) hostResolve();
+    if (now - (NET.lastStatus || 0) > 2000) hostStatus();
+    tickClock();
+  }, 500);
+}
+
+// --- client ---
+function clientJoin(code, name){
+  const p = player(); p.name = name; store('mm-player', p);
+  code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  teardown();
+  NET = {role:'client', code, token:p.token, name, mp:null, actions:[], ready:false, seenWeek:0, status:`Connecting to room ${code}…`, lastMsg:Date.now(), lost:false};
+  S = null; AUTH = null; MY.co = null; store('mm-join', {code});
+  showLobby();
+  loadPeerLib().then(Cls => {
+    if (!NET || NET.role !== 'client') return;
+    const peer = makePeer(Cls); NET.peer = peer;
+    peer.on('open', () => clientConnect());
+    peer.on('disconnected', () => { if (NET && NET.peer === peer) setTimeout(() => { try { peer.reconnect(); } catch(e) {} }, 2000); });
+    peer.on('error', err => {
+      if (!NET || NET.peer !== peer) return;
+      if (err.type === 'peer-unavailable'){ NET.lost = true; NET.status = `Can't reach room ${NET.code}. The host may be offline or still reopening it. Retrying…`; renderNet(); clientRetry(); }
+      else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)){ NET.status = 'Connection problem. Retrying…'; renderNet(); }
+    });
+  }).catch(e => { if (NET){ NET.status = e.message; renderNet(); } });
+  NET.timerId = setInterval(() => {
+    if (!NET || NET.role !== 'client') return;
+    const now = Date.now();
+    if (NET.conn && NET.conn.open) safeSend(NET.conn, {t:'ping'});
+    if (now - NET.lastMsg > 9000){ NET.lastMsg = now; if (!NET.lost){ NET.lost = true; NET.status = 'Lost the host. Reconnecting…'; renderNet(); } clientConnect(); }
+    tickClock();
+  }, 2000);
+  NET.clockId = setInterval(tickClock, 500);
+}
+function clientRetry(ms = 3000){ if (!NET || NET.role !== 'client' || NET.retryT) return; NET.retryT = setTimeout(() => { if (NET){ NET.retryT = null; clientConnect(); } }, ms); }
+function clientConnect(){
+  if (!NET || NET.role !== 'client' || !NET.peer) return;
+  NET.lastMsg = Math.max(NET.lastMsg, Date.now() - 4000);
+  if (NET.conn){ const old = NET.conn; NET.conn = null; try { old.close(); } catch(e) {} }
+  let conn; try { conn = NET.peer.connect(MP_PREFIX + NET.code, {reliable:true, serialization:'json'}); } catch(e) { return; }
+  NET.conn = conn;
+  conn.on('open', () => { if (NET && NET.conn === conn) safeSend(conn, {t:'hello', token:NET.token, name:NET.name}); });
+  conn.on('data', m => { if (NET && NET.conn === conn) clientOnMsg(m); });
+  conn.on('close', () => { if (NET && NET.conn === conn){ NET.lost = true; NET.status = 'Lost the host. Reconnecting…'; renderNet(); clientRetry(); } });
+  conn.on('error', () => {});
+}
+function clientSendPlan(now){
+  clearTimeout(NET.planT);
+  const send = () => { if (NET && NET.conn && AUTH) safeSend(NET.conn, {t:'plan', week:AUTH.week, actions:NET.actions, ready:NET.ready}); };
+  now ? send() : (NET.planT = setTimeout(send, 250));
+}
+function clientOnMsg(m){
+  if (!m || typeof m !== 'object') return;
+  NET.lastMsg = Date.now();
+  if (NET.lost){ NET.lost = false; NET.status = ''; if (AUTH) clientSendPlan(true); }
+  if (m.t === 'welcome'){ NET.joined = true; NET.status = ''; MY.co = m.co || MY.co; store('mm-join', {code:NET.code}); renderNet(); }
+  if (m.t === 'reject'){ NET.status = m.reason; renderNet(); }
+  if (m.t === 'status'){ NET.mp = m.mp; if (!AUTH || !AUTH.companies.some(c => c.id === MY.co && c.human)) MY.co = m.you || null; NET.deadline = Date.now() + (m.mp.remaining || 0);
+    if (!m.mp.started || !MY.co) showLobby(); renderNet(); if (S && mine()) renderStats(); }
+  if (m.t === 'state'){
+    const newWeek = !AUTH || m.S.week !== AUTH.week;
+    AUTH = m.S; NET.mp = m.mp; NET.deadline = Date.now() + (m.mp.remaining || 0); MY.co = m.you || null;
+    if (newWeek){ NET.actions = []; NET.ready = false; }
+    setView(AUTH, NET.actions);
+    store('mm-backup', {code:NET.code, S:AUTH, seats:m.backup.seats, mp:m.backup.mp, when:Date.now()});
+    if (!MY.co){ showLobby(); return; }
+    if (NET.modal === 'lobby') closeModal();
+    render();
+    if (newWeek && NET.seenWeek && AUTH.week > NET.seenWeek) afterNewWeek();
+    else if (AUTH.over) showEnd();
+    NET.seenWeek = AUTH.week;
+  }
+}
+function clientTakeover(){
+  const b = fetchKey('mm-backup'); if (!b || !b.S) return;
+  hostResumeFrom({code:b.code, S:b.S, mp:b.mp, seats:b.seats.map(s => ({...s, host:s.token === player().token}))}, true);
+}
+
+// --- multiplayer UI ---
+function seatLabel(s){ const c = COMPANIES.find(x => x.id === s.co); return c ? c.name : 'Choosing a company'; }
+function seatChip(s, started){
+  if (s.host && NET.role === 'client' && NET.lost) return '<span class="chip bad">Offline</span>';
+  if (!s.connected && !s.host) return s.covered ? '<span class="chip">Offline · AI playing</span>' : '<span class="chip bad">Offline · waiting</span>';
+  if (!started) return s.co ? '<span class="chip good">Joined</span>' : '<span class="chip">Joined</span>';
+  if (!s.co) return '<span class="chip">Watching</span>';
+  return s.ready ? '<span class="chip good">Ready ✓</span>' : '<span class="chip">Planning…</span>';
+}
+function seatRows(mp, hostControls){
+  return mp.seats.map((s, i) => { const c = COMPANIES.find(x => x.id === s.co);
+    return `<div class="seat"><span class="sw" style="background:${c ? col(c) : 'var(--line)'}"></span><div class="seatnm"><b>${esc(s.name || 'Player')}${s.host ? ' · host' : ''}</b><span class="small muted">${esc(seatLabel(s))}</span></div>
+      ${seatChip(s, mp.started)}${hostControls && !s.connected && !s.host && s.co && !s.covered ? `<button class="btn small" type="button" data-act="mp-forceai" data-seat="${i}">Let AI play</button>` : ''}</div>`; }).join('');
+}
+function playersPanel(){
+  if (!NET) return '';
+  const mp = viewMP(); if (!mp) return '';
+  const host = NET.role === 'host', ready = mp.seats.filter(s => s.co && s.ready).length, need = mp.seats.filter(s => s.co && !s.covered).length;
+  const backup = !host && fetchKey('mm-backup');
+  return `<div class="panel players"><h2>Room <span class="roomcode">${esc(mp.code || NET.code)}</span></h2>
+    ${NET.status ? `<p class="small ${NET.lost ? 'warn' : 'muted'}" style="margin:0 0 8px">${esc(NET.status)}</p>` : ''}
+    ${mp.paused ? `<p class="small warn" style="margin:0 0 8px">Paused${mp.pauseReason === 'drop' ? ' while a player reconnects' : mp.pauseReason === 'resume' ? ' after reopening. Resume when everyone is back' : ' by the host'}.</p>` : ''}
+    <div class="seats">${seatRows(mp, host)}</div>
+    <p class="small muted" style="margin:8px 0 10px">${ready} of ${need} ready · ${mp.timer ? TIMERS.find(t => t[0] === mp.timer)[1] + ' per week' : 'no timer'} · if someone drops: ${mp.drop === 'ai' ? 'AI plays for them' : 'pause and wait'}</p>
+    <div class="btnrow">${host ? `<button class="btn small" type="button" data-act="mp-pause">${mp.paused ? 'Resume game' : 'Pause'}</button><button class="btn small" type="button" data-act="mp-export">Copy save</button>` : ''}
+      ${!host && NET.lost && backup && backup.code === NET.code ? `<button class="btn small" type="button" data-act="mp-takeover">Take over as host</button>` : ''}
+      <button class="btn small" type="button" data-act="mp-leave">Leave room</button></div></div>`;
+}
+function renderNet(){
+  const bar = $('#netbar'); if (!bar) return;
+  const mp = viewMP();
+  if (!NET || !mp || !mp.started){ bar.hidden = true; return; }
+  bar.hidden = false;
+  const ready = mp.seats.filter(s => s.co && s.ready).length, need = mp.seats.filter(s => s.co && !s.covered).length;
+  bar.innerHTML = `<span class="room" title="Room code">${esc(mp.code)}</span>${mp.timer ? `<span class="tmr" id="nettimer">${fmtClock(remainingMs())}</span>` : ''}<span>${mp.paused ? 'Paused' : `${ready}/${need} ready`}</span>${NET.lost ? '<span class="lostdot">Reconnecting</span>' : ''}`;
+  if (NET.modal === 'lobby' && !$('#overlay').hidden) showLobby();
+  if (S && mine()) { const side = $('#side .players'); if (side){ const t = document.createElement('div'); t.innerHTML = playersPanel(); side.replaceWith(t.firstElementChild); } }
+  if (S && mine()){ const b = $('#endbtn'); const rd = myReady(); b.textContent = S.over ? 'Game over' : rd ? 'Ready ✓ · undo' : `Ready for week ${S.week}`; b.classList.toggle('isready', rd); }
+}
+function tickClock(){ const el = $('#nettimer'); if (!el) return; const ms = remainingMs(); el.textContent = fmtClock(ms); el.classList.toggle('low', ms != null && ms < 30000 && !viewMP().paused); }
+
+function friendsSection(){
+  const p = player(), hs = fetchKey('mm-host'), jn = fetchKey('mm-join');
+  return `<div class="friends"><div class="label" style="margin:18px 0 8px">Or play with friends</div>
+    <div class="friendgrid">
+      <div class="fbox"><label class="label" for="mp-name">Your name</label><input id="mp-name" type="text" maxlength="20" value="${esc(p.name)}" placeholder="e.g. Gabriel"></div>
+      <div class="fbox"><span class="label">Start a room</span><button class="btn primary" type="button" data-act="mp-host">Host a game</button></div>
+      <div class="fbox"><label class="label" for="mp-code">Room code</label><div class="inline"><input id="mp-code" type="text" maxlength="8" placeholder="ABCDE" style="text-transform:uppercase;width:100%"><button class="btn" type="button" data-act="mp-join">Join</button></div></div>
+    </div>
+    <p class="small warn" id="mp-err" hidden></p>
+    <div class="btnrow" style="margin-top:10px">
+      ${hs && hs.S && !hs.S.over ? `<button class="btn" type="button" data-act="mp-resume">Resume hosted game · room ${esc(hs.code)} · week ${hs.S.week}</button>` : ''}
+      ${jn && jn.code ? `<button class="btn" type="button" data-act="mp-rejoin" data-code="${esc(jn.code)}">Rejoin room ${esc(jn.code)}</button>` : ''}
+      <button class="btn" type="button" data-act="mp-import">Import a save</button></div>
+    <p class="small muted" style="margin:8px 0 0">Up to 4 players. Empty seats are played by the computer. The host's browser runs the game, so the host keeps the tab open and holds the save.</p></div>`;
+}
+function showLobby(){
+  if (!NET) return;
+  const host = NET.role === 'host', mp = viewMP();
+  const seats = mp ? mp.seats : [], started = mp && mp.started;
+  const myCo = host ? mySeat().co : MY.co;
+  const takenBy = co => seats.find(s => s.co === co);
+  const pickable = c => started ? (AUTH && AUTH.companies.find(x => x.id === c.id) && !AUTH.companies.find(x => x.id === c.id).human && !takenBy(c.id)) : (!takenBy(c.id) || c.id === myCo);
+  const html = `<div class="label">${host ? 'You are hosting' : 'Joining a game'}</div>
+    <div class="lobbyhead"><div><span class="label">Room code</span><div class="codebig">${esc(NET.code)}</div></div>
+      ${host ? `<button class="btn small" type="button" data-act="mp-copycode">Copy code</button>` : ''}</div>
+    <p class="small ${NET.lost ? 'warn' : 'muted'}">${esc(NET.status || (host ? 'Share this code with your friends. They open this page, choose "Join" and type it in.' : started ? 'The game has started. Pick a free company to take over from the computer.' : 'Pick a company, then wait for the host to start.'))}</p>
+    <div class="label" style="margin:14px 0 8px">${myCo && !started ? 'Your company' : 'Choose your company'}</div>
+    <div class="picks">${COMPANIES.map(c => { const t = takenBy(c.id), ok = pickable(c);
+      return `<button class="pick${c.id === myCo ? ' mine' : ''}${!ok && c.id !== myCo ? ' taken' : ''}" type="button" data-act="mp-pick" data-co="${c.id}" ${ok && !(started && myCo) ? '' : 'disabled'}>
+        <span class="sw" style="background:${col(c)}"></span><span class="nm">${c.name}</span><span class="small muted">${CBY[c.hq].name} · ${c.perkText}</span>
+        <span class="small">${c.id === myCo ? 'You' : t ? esc(t.name) : started ? 'Computer' : 'Computer unless someone picks it'}</span></button>`; }).join('')}</div>
+    ${host && !started ? `<div class="settings">
+      <label class="fbox" for="mp-timer"><span class="label">Week timer</span><select id="mp-timer" data-field="mp-timer">${TIMERS.map(([v, l]) => `<option value="${v}" ${NET.mp.timer === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="fbox" for="mp-weeks"><span class="label">Game length</span><select id="mp-weeks" data-field="mp-weeks">${[[26, '26 weeks'], [52, '52 weeks']].map(([v, l]) => `<option value="${v}" ${NET.mp.weeks === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="fbox" for="mp-drop"><span class="label">If a player drops out</span><select id="mp-drop" data-field="mp-drop"><option value="ai" ${NET.mp.drop === 'ai' ? 'selected' : ''}>AI plays for them</option><option value="wait" ${NET.mp.drop === 'wait' ? 'selected' : ''}>Pause and wait</option></select></label></div>` : ''}
+    <div class="label" style="margin:16px 0 6px">Players in the room</div>
+    <div class="seats">${seats.length ? seatRows(mp, false) : '<p class="small muted">Connecting…</p>'}</div>
+    <div class="mfoot"><button class="btn" type="button" data-act="mp-leave">Leave</button>
+      ${host && !started ? `<button class="btn primary" type="button" data-act="mp-start" ${myCo ? '' : 'disabled'}>${myCo ? `Start game · ${seats.filter(s => s.co).length} human${seats.filter(s => s.co).length > 1 ? 's' : ''}, ${4 - seats.filter(s => s.co).length} AI` : 'Pick your company to start'}</button>` : ''}</div>`;
+  if ($('#overlay').hidden || NET.modal !== 'lobby' || NET.lobbyHtml !== html){ NET.lobbyHtml = html; showModal(html, true); }
+}
+function showExport(){
+  const text = 'MM1.' + btoa(unescape(encodeURIComponent(JSON.stringify(hostSaveObj()))));
+  NET.modal = 'export';
+  showModal(`<h1 style="font-size:26px">Copy save</h1><p class="lede">Keep this text somewhere safe. To continue on any device, choose <b>Import a save</b> on the start screen and paste it in. Players rejoin with the new room code.</p>
+    <textarea id="mp-exporttext" class="savebox" readonly>${esc(text)}</textarea>
+    <p class="small muted" id="mp-copied" hidden>Copied.</p>
+    <div class="mfoot"><button class="btn" type="button" data-act="close">Done</button><button class="btn primary" type="button" data-act="mp-copysave">Copy to clipboard</button></div>`);
+}
+function showImport(){
+  showModal(`<h1 style="font-size:26px">Import a save</h1><p class="lede">Paste a save from <b>Copy save</b>. You become the host, the game opens paused with a new room code, and players rejoin with that code.</p>
+    <textarea id="mp-importtext" class="savebox" placeholder="MM1.…"></textarea><p class="small warn" id="mp-importerr" hidden></p>
+    <div class="mfoot"><button class="btn" type="button" data-act="back">Back</button><button class="btn primary" type="button" data-act="mp-doimport">Host this save</button></div>`);
+}
+function copyText(text, okEl, fallbackEl){
+  const done = () => { const o = $(okEl); if (o) o.hidden = false; };
+  const fallback = () => { const t = $(fallbackEl); if (t){ t.focus(); t.select(); } };
+  try { navigator.clipboard.writeText(text).then(done, fallback); } catch(e) { fallback(); }
+}
+function mpError(msg){ const e = $('#mp-err'); if (e){ e.textContent = msg; e.hidden = false; } }
 
 // ---- events ----
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
-  const act = el.dataset.act, me = S && human(), city = S && S.sel, st = me && me.stores[city];
-  const slot = el.dataset.slot != null && st ? st.slots[+el.dataset.slot] : null;
+  const act = el.dataset.act, me = S && mine(), city = S && S.sel, st = me && me.stores[city];
+  const si = el.dataset.slot != null ? +el.dataset.slot : null, slot = si != null && st ? st.slots[si] : null;
+  const name = () => (($('#mp-name') || {}).value || '').trim().slice(0, 20);
   switch (act){
-    case 'start': newGame(el.dataset.co); closeModal(); save(); break;
-    case 'resume': S = load(); closeModal(); break;
-    case 'newgame': try { localStorage.removeItem('monsoon-merchants-save'); } catch(e) {} showStart(); return;
+    case 'start': teardown(); newGame(el.dataset.co); closeModal(); save(); break;
+    case 'resume': teardown(); S = load(); closeModal(); break;
+    case 'newgame': teardown(); try { localStorage.removeItem('monsoon-merchants-save'); } catch(e) {} showStart(); return;
+    case 'back': showStart(); return;
     case 'help': showModal(`<h1 style="font-size:28px">How to play</h1>${HOWTO}<div class="howto"><b>Tips</b><ul><li>Check the market table: a product locals love, with no rivals, is the easiest money.</li><li>Order ahead of festivals in "Coming up". Demand jumps the week they start.</li><li>Perishables spoil, so order close to the forecast. Use <b>Auto</b>.</li><li>Your perk: ${esc(me ? me.perkText : '')}.</li></ul></div><div class="mfoot"><button class="btn primary" type="button" data-act="close">Back to trading</button></div>`); return;
-    case 'close': closeModal(); if (S && S.over) {} break;
+    case 'close': if (NET) NET.modal = null; closeModal(); if (NET && NET.role === 'client' && !MY.co) showLobby(); break;
     case 'city': S.sel = el.dataset.city; break;
-    case 'open': openStore(me, city); break;
-    case 'upgrade': upgradeStore(me, city); break;
-    case 'suggest': if (slot) slot.order = Math.max(0, Math.round(forecast(me, city, slot) * 1.1 - slot.stock)); break;
-    case 'autoall': for (const s of st.slots) if (s.p) s.order = Math.max(0, Math.round(forecast(me, city, s) * 1.1 - s.stock)); break;
-    case 'borrow': borrow(me, +el.dataset.amt); break;
-    case 'repay': repay(me, +el.dataset.amt); break;
-    case 'buysh': tradeShares(me, el.dataset.co, 10000); break;
-    case 'sellsh': tradeShares(me, el.dataset.co, -(me.shares[el.dataset.co] || 0)); break;
-    case 'end': if (S.over) return; endWeek(); save(); render(); S.over ? showEnd() : showReport(); return;
+    case 'open': doAct(['open', city]); break;
+    case 'upgrade': doAct(['upgrade', city]); break;
+    case 'suggest': if (slot) doAct(['order', city, si, Math.max(0, Math.round(forecast(me, city, slot) * 1.1 - slot.stock))]); break;
+    case 'autoall': st.slots.forEach((s, i) => { if (s.p) doAct(['order', city, i, Math.max(0, Math.round(forecast(me, city, s) * 1.1 - s.stock))]); }); break;
+    case 'borrow': doAct(['borrow', +el.dataset.amt]); break;
+    case 'repay': doAct(['repay', +el.dataset.amt]); break;
+    case 'buysh': doAct(['trade', el.dataset.co, 10000]); break;
+    case 'sellsh': doAct(['trade', el.dataset.co, -(me.shares[el.dataset.co] || 0)]); break;
+    case 'end':
+      if (!S || S.over) return;
+      if (NET) { toggleReady(); return; }
+      endWeek(); save(); render(); S.over ? showEnd() : showReport(); return;
+    // multiplayer
+    case 'mp-host': if (!name()) return mpError('Type your name first, so friends know who is hosting.'); hostCreate(name()); return;
+    case 'mp-join': case 'mp-rejoin': {
+      const code = act === 'mp-rejoin' ? el.dataset.code : (($('#mp-code') || {}).value || '').trim();
+      if (!name()) return mpError('Type your name first.');
+      if (!/^[A-Za-z0-9]{4,8}$/.test(code)) return mpError('Room codes are 5 letters or numbers, like K7QMX.');
+      clientJoin(code, name()); return; }
+    case 'mp-resume': { const hs = fetchKey('mm-host'); if (hs) hostResumeFrom(hs, false); return; }
+    case 'mp-import': showImport(); return;
+    case 'mp-doimport': {
+      const raw = (($('#mp-importtext') || {}).value || '').trim(), err = $('#mp-importerr');
+      try { const obj = JSON.parse(decodeURIComponent(escape(atob(raw.replace(/^MM1\./, '').replace(/\s+/g, ''))))); if (!obj.S || !Array.isArray(obj.seats)) throw 0; hostResumeFrom(obj, true); }
+      catch(x) { err.textContent = "That doesn't look like a Monsoon Merchants save. Paste the whole text from Copy save."; err.hidden = false; }
+      return; }
+    case 'mp-pick':
+      if (NET.role === 'host') hostPick(mySeat(), el.dataset.co);
+      else { safeSend(NET.conn, {t:'pick', co:el.dataset.co}); }
+      return;
+    case 'mp-start': hostStart(); return;
+    case 'mp-copycode': copyText(NET.code, null, null); el.textContent = 'Copied'; return;
+    case 'mp-pause': NET.mp.paused ? hostUnpause() : hostPause('host'); break;
+    case 'mp-forceai': { const s = NET.seats[+el.dataset.seat]; if (s){ s.forceAI = true; hostMaybeAutoResume(); hostStatus(); hostCheckReady(); } break; }
+    case 'mp-export': showExport(); return;
+    case 'mp-copysave': copyText($('#mp-exporttext').value, '#mp-copied', '#mp-exporttext'); return;
+    case 'mp-takeover': clientTakeover(); return;
+    case 'mp-leave': {
+      if (NET && NET.role === 'host') hostSave();
+      teardown(); S = null; render(); showStart(); return; }
   }
   render();
 });
 document.addEventListener('keydown', e => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.pin')){ e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', {bubbles:true})); }
-  if (e.key === 'Escape' && !$('#overlay').hidden && S && !S.over && $('#modal [data-act="close"]')) { closeModal(); }
+  if (e.key === 'Enter' && e.target.id === 'mp-code'){ e.preventDefault(); $('[data-act="mp-join"]').click(); }
+  if (e.key === 'Escape' && !$('#overlay').hidden && S && !S.over && $('#modal [data-act="close"]')) { if (NET) NET.modal = null; closeModal(); }
 });
 document.addEventListener('change', e => {
-  const el = e.target; if (!el.dataset.field || !S) return;
-  const me = human(), city = S.sel, st = me.stores[city]; if (!st) return;
-  const slot = el.dataset.slot != null ? st.slots[+el.dataset.slot] : null;
-  if (el.dataset.field === 'ad') st.ad = +el.value;
-  if (el.dataset.field === 'prod' && slot){ setSlotProduct(me, slot, el.value); if (slot.p) slot.order = Math.max(0, Math.round(forecast(me, city, slot) * 1.1)); }
-  if (el.dataset.field === 'price' && slot) slot.price = Math.max(.1, +el.value || PBY[slot.p].ref);
-  if (el.dataset.field === 'order' && slot) slot.order = Math.max(0, Math.round(+el.value || 0));
+  const el = e.target; if (!el.dataset.field) return;
+  if (el.dataset.field.startsWith('mp-') && NET && NET.role === 'host' && !NET.mp.started){
+    if (el.dataset.field === 'mp-timer') NET.mp.timer = +el.value;
+    if (el.dataset.field === 'mp-weeks') NET.mp.weeks = +el.value;
+    if (el.dataset.field === 'mp-drop') NET.mp.drop = el.value === 'wait' ? 'wait' : 'ai';
+    hostStatus(); showLobby(); return;
+  }
+  if (!S) return;
+  const me = mine(), city = S.sel, st = me && me.stores[city]; if (!st) return;
+  const i = el.dataset.slot != null ? +el.dataset.slot : null, slot = i != null ? st.slots[i] : null;
+  if (el.dataset.field === 'ad') doAct(['ad', city, +el.value]);
+  if (el.dataset.field === 'prod' && slot){ doAct(['prod', city, i, el.value || null]); if (slot.p) doAct(['order', city, i, Math.max(0, Math.round(forecast(me, city, slot) * 1.1))]); }
+  if (el.dataset.field === 'price' && slot) doAct(['price', city, i, +el.value]);
+  if (el.dataset.field === 'order' && slot) doAct(['order', city, i, +el.value]);
   render();
   const again = document.getElementById(el.id); if (again) again.focus();
 });
 
 function boot(data){
-  if (data && data.S) { S = data.S; render(); if (S.over) showEnd(); return; }
+  if (data && data.S && !NET) { S = data.S; render(); if (S.over) showEnd(); return; }
   const saved = load();
   if (saved && !saved.over){ S = saved; render(); showStart(); return; }
   // show a live board behind the start screen
-  newGame('lion'); render(); S = null; const preview = true; showStart();
-  if (preview) { /* board stays rendered as a backdrop until a company is picked */ }
+  newGame('lion'); render(); S = null; showStart();
 }
-window.claude?.hot?.snapshot?.(() => ({S}));
+
+window.claude?.hot?.snapshot?.(() => NET ? {} : {S});
 window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
 </script>
 </body>
