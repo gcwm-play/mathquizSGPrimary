@@ -70,8 +70,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .map .lane{stroke:var(--grid);stroke-width:1.5;fill:none}
 .pin{cursor:pointer}
 .pin .dot{fill:var(--surface);stroke:var(--ink);stroke-width:2}
-.pin.sel .dot{fill:var(--accent);stroke:var(--accent)}
-.pin .ring{fill:none;stroke:var(--accent);stroke-width:2;opacity:0}
+.pin .ring{fill:none;stroke-width:2;opacity:0}
 .pin.sel .ring{opacity:.5}
 .pin text{fill:var(--ink);font:600 12px var(--body)}
 .pin .evt{fill:var(--warn);font:700 11px var(--mono)}
@@ -96,12 +95,14 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 select,input[type=number]{font:inherit;font-family:var(--mono);font-size:13px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:5px 6px}
 input[type=number]{width:92px}
 .slots{display:flex;flex-direction:column;gap:10px}
-.slot{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(0,1fr));gap:10px 14px;align-items:end}
+.slot{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,.8fr) minmax(0,1.3fr) minmax(0,.6fr);gap:10px 14px;align-items:end}
 .slot .f{display:flex;flex-direction:column;gap:4px;min-width:0}
 .slot .f select{width:100%}
 .slot .row2{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px}
 .slot .row2 b{color:var(--ink);font-family:var(--mono);font-weight:500}
-.inline{display:flex;gap:4px;align-items:center}
+.inline{display:flex;gap:4px;align-items:center;min-width:0}
+.slot .f input[type=number]{width:100%;min-width:0}
+.inline .btn{flex:none}
 .warn{color:var(--warn)}
 .good{color:var(--jade)}
 .empty{border:1px dashed var(--line);border-radius:8px;padding:12px;color:var(--muted)}
@@ -156,6 +157,33 @@ details summary{cursor:pointer;font-weight:600}
 .repsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:14px 0}
 .mfoot{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:18px}
 
+
+/* per-city identity: each city tints its own store page */
+:root{ --city-SG:#C8203A; --city-HK:#A82C68; --city-SH:#8F6A00; --city-TK:#3646A6; --city-SE:#13639F; --city-BK:#B5500B; --city-JK:#14764A; --city-MB:#6838B0; --city:var(--accent) }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --city-SG:#FF6B7A; --city-HK:#F07AB4; --city-SH:#E8BE45; --city-TK:#8C9EFF; --city-SE:#6CB8F0; --city-BK:#FF9D52; --city-JK:#4CD08E; --city-MB:#B796F2 }}
+:root[data-theme="dark"]{ --city-SG:#FF6B7A; --city-HK:#F07AB4; --city-SH:#E8BE45; --city-TK:#8C9EFF; --city-SE:#6CB8F0; --city-BK:#FF9D52; --city-JK:#4CD08E; --city-MB:#B796F2 }
+#store{--accent:var(--city);border-top:6px solid var(--city);background:linear-gradient(to bottom,color-mix(in srgb,var(--city) 11%,var(--surface)),var(--surface) 190px)}
+.cityband{display:flex;gap:14px;align-items:center}
+.flag{display:block;flex:none;border-radius:3px;box-shadow:0 0 0 1px var(--line)}
+.cityband .flag{width:60px;height:40px}
+.cityhead h2{color:var(--city)}
+.nick{font-size:13px;color:var(--city);font-weight:600;margin-top:2px}
+#store .storebar{background:color-mix(in srgb,var(--city) 9%,var(--sunk))}
+#store .slot{border-left:3px solid color-mix(in srgb,var(--city) 55%,var(--line))}
+.cityb{border-left:4px solid var(--cityc)}
+.cityb .cn{display:flex;align-items:center;gap:7px;min-width:0}
+.cityb .flag{width:21px;height:14px}
+.cityb.sel{border-color:var(--cityc);box-shadow:none;background:color-mix(in srgb,var(--cityc) 14%,var(--surface));font-weight:600}
+.pin.sel .dot{fill:var(--cityc);stroke:var(--cityc)}
+.pin .ring{stroke:var(--cityc)}
+/* product icons */
+.pico{display:inline-grid;place-items:center;flex:none;width:38px;height:38px;border-radius:8px;background:var(--sunk);border:1px solid var(--line)}
+.pico svg{width:28px;height:28px}
+.pico.empty-ico{border-style:dashed;color:var(--muted);font-size:18px}
+.prodpick{display:flex;gap:8px;align-items:center;min-width:0}
+.prodpick select{flex:1;min-width:0}
+td:first-child{white-space:nowrap}
+.tico{display:inline-block;width:18px;height:18px;vertical-align:-4px;margin-right:6px}
 @media (max-width:1180px){ .grid{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)} .side{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))} }
 @media (max-width:760px){ .top{position:static} .grid{grid-template-columns:minmax(0,1fr)} .slot{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .slot .f.prod{grid-column:1/-1} .stats{gap:6px 14px} .stat b{font-size:13px} }
 @media (prefers-reduced-motion:no-preference){ .pin .dot{transition:fill .2s} .progress i,.bar i{transition:width .4s} }
@@ -202,14 +230,14 @@ const PRODUCTS = [
 const PBY = Object.fromEntries(PRODUCTS.map(p => [p.id, p]));
 //                                                             tea noodle durian spice textile beauty anime phone
 const CITIES = [
-  {id:'SG', name:'Singapore', country:'Singapore',   lon:103.8, lat:1.3,  rent:2500, cost:60000, traffic:1.0, ship:.02, taste:[1.3,1.0,1.4,1.0,.8,1.1,.9,1.2]},
-  {id:'HK', name:'Hong Kong', country:'China SAR',   lon:114.2, lat:22.3, rent:2800, cost:70000, traffic:1.1, ship:.03, taste:[1.2,1.0,.8,.9,.7,1.2,1.0,1.4]},
-  {id:'SH', name:'Shanghai',  country:'China',       lon:121.5, lat:31.2, rent:2800, cost:70000, traffic:1.5, ship:.04, taste:[1.4,1.1,.6,1.0,1.0,1.3,1.1,1.1]},
-  {id:'TK', name:'Tokyo',     country:'Japan',       lon:139.7, lat:35.7, rent:3200, cost:80000, traffic:1.4, ship:.06, taste:[1.0,1.2,.4,.7,.6,1.0,1.8,1.3]},
-  {id:'SE', name:'Seoul',     country:'South Korea', lon:127.0, lat:37.6, rent:2600, cost:65000, traffic:1.2, ship:.05, taste:[1.1,1.3,.4,.6,.5,1.7,1.2,1.3]},
-  {id:'BK', name:'Bangkok',   country:'Thailand',    lon:100.5, lat:13.8, rent:1400, cost:40000, traffic:1.0, ship:.05, taste:[1.3,1.2,1.2,1.3,1.1,1.0,.8,.7]},
-  {id:'JK', name:'Jakarta',   country:'Indonesia',   lon:106.8, lat:-6.2, rent:1200, cost:35000, traffic:1.2, ship:.06, taste:[1.2,1.4,1.5,1.2,1.6,.9,.7,.6]},
-  {id:'MB', name:'Mumbai',    country:'India',       lon:72.9,  lat:19.1, rent:1200, cost:35000, traffic:1.6, ship:.07, taste:[.9,1.1,.3,1.8,1.4,.8,.6,.8]},
+  {id:'SG', nick:'The Lion City', name:'Singapore', country:'Singapore',   lon:103.8, lat:1.3,  rent:2500, cost:60000, traffic:1.0, ship:.02, taste:[1.3,1.0,1.4,1.0,.8,1.1,.9,1.2]},
+  {id:'HK', nick:'Fragrant Harbour', name:'Hong Kong', country:'China SAR',   lon:114.2, lat:22.3, rent:2800, cost:70000, traffic:1.1, ship:.03, taste:[1.2,1.0,.8,.9,.7,1.2,1.0,1.4]},
+  {id:'SH', nick:'Pearl of the Orient', name:'Shanghai',  country:'China',       lon:121.5, lat:31.2, rent:2800, cost:70000, traffic:1.5, ship:.04, taste:[1.4,1.1,.6,1.0,1.0,1.3,1.1,1.1]},
+  {id:'TK', nick:'The Eastern Capital', name:'Tokyo',     country:'Japan',       lon:139.7, lat:35.7, rent:3200, cost:80000, traffic:1.4, ship:.06, taste:[1.0,1.2,.4,.7,.6,1.0,1.8,1.3]},
+  {id:'SE', nick:'Capital on the Han River', name:'Seoul',     country:'South Korea', lon:127.0, lat:37.6, rent:2600, cost:65000, traffic:1.2, ship:.05, taste:[1.1,1.3,.4,.6,.5,1.7,1.2,1.3]},
+  {id:'BK', nick:'City of Angels', name:'Bangkok',   country:'Thailand',    lon:100.5, lat:13.8, rent:1400, cost:40000, traffic:1.0, ship:.05, taste:[1.3,1.2,1.2,1.3,1.1,1.0,.8,.7]},
+  {id:'JK', nick:'The Big Durian', name:'Jakarta',   country:'Indonesia',   lon:106.8, lat:-6.2, rent:1200, cost:35000, traffic:1.2, ship:.06, taste:[1.2,1.4,1.5,1.2,1.6,.9,.7,.6]},
+  {id:'MB', nick:'City of Dreams', name:'Mumbai',    country:'India',       lon:72.9,  lat:19.1, rent:1200, cost:35000, traffic:1.6, ship:.07, taste:[.9,1.1,.3,1.8,1.4,.8,.6,.8]},
 ];
 const CBY = Object.fromEntries(CITIES.map(c => [c.id, c]));
 const ALL = CITIES.map(c => c.id);
@@ -441,6 +469,32 @@ const int = n => Math.round(n).toLocaleString('en-US');
 const col = c => `var(${c.color})`;
 function weekDate(w){ const d = new Date(Date.UTC(2027, 0, 4 + 7 * (w - 1))); return d.toLocaleDateString('en-GB', {day:'numeric', month:'short', timeZone:'UTC'}); }
 
+
+// ---- art: simplified flags and product icons, drawn as inline SVG so they look the same on every device ----
+function starPts(cx, cy, r, n = 5, inner = .42, rot = -90){ const pts = []; for (let i = 0; i < n * 2; i++){ const a = (rot + i * 180 / n) * Math.PI / 180, rr = i % 2 ? r * inner : r; pts.push((cx + rr * Math.cos(a)).toFixed(2) + ',' + (cy + rr * Math.sin(a)).toFixed(2)); } return pts.join(' '); }
+const FLAGS = {
+  SG:`<rect width="30" height="10" fill="#EF3340"/><rect y="10" width="30" height="10" fill="#fff"/><circle cx="6.2" cy="5" r="3.3" fill="#fff"/><circle cx="7.4" cy="5" r="3.1" fill="#EF3340"/>${[0,1,2,3,4].map(i => { const a = (-90 + i * 72) * Math.PI / 180; return `<polygon points="${starPts(9.6 + 1.7 * Math.cos(a), 5 + 1.7 * Math.sin(a), .75)}" fill="#fff"/>`; }).join('')}`,
+  HK:`<rect width="30" height="20" fill="#DE2910"/>${[0,1,2,3,4].map(i => `<ellipse cx="15" cy="6.4" rx="1.9" ry="3.6" fill="#fff" transform="rotate(${i * 72} 15 10)"/>`).join('')}<circle cx="15" cy="10" r="1" fill="#DE2910"/>`,
+  SH:`<rect width="30" height="20" fill="#EE1C25"/><polygon points="${starPts(5, 5, 3)}" fill="#FFDE00"/>${[[10,2],[12,4],[12,7],[10,9]].map(([x, y]) => `<polygon points="${starPts(x, y, 1)}" fill="#FFDE00"/>`).join('')}`,
+  TK:`<rect width="30" height="20" fill="#fff"/><circle cx="15" cy="10" r="6" fill="#BC002D"/>`,
+  SE:`<rect width="30" height="20" fill="#fff"/><g transform="rotate(-30 15 10)"><circle cx="15" cy="10" r="5" fill="#0047A0"/><path d="M10 10a5 5 0 0 1 10 0a2.5 2.5 0 0 1-5 0a2.5 2.5 0 0 0-5 0z" fill="#CD2E3A"/></g>${[[5,4,-56],[25,4,56],[5,16,56],[25,16,-56]].map(([x, y, r]) => `<g transform="rotate(${r} ${x} ${y})" fill="#111"><rect x="${x - 2.4}" y="${y - 1.7}" width="4.8" height=".8"/><rect x="${x - 2.4}" y="${y - .4}" width="4.8" height=".8"/><rect x="${x - 2.4}" y="${y + .9}" width="4.8" height=".8"/></g>`).join('')}`,
+  BK:`<rect width="30" height="20" fill="#A51931"/><rect y="3.33" width="30" height="13.34" fill="#F4F5F8"/><rect y="6.67" width="30" height="6.66" fill="#2D2A4A"/>`,
+  JK:`<rect width="30" height="10" fill="#CE1126"/><rect y="10" width="30" height="10" fill="#fff"/>`,
+  MB:`<rect width="30" height="6.67" fill="#FF9933"/><rect y="6.67" width="30" height="6.66" fill="#fff"/><rect y="13.33" width="30" height="6.67" fill="#138808"/><circle cx="15" cy="10" r="2.6" fill="none" stroke="#000080" stroke-width=".5"/><circle cx="15" cy="10" r=".6" fill="#000080"/>${[0,1,2,3,4,5,6,7,8,9,10,11].map(i => `<line x1="15" y1="10" x2="${(15 + 2.6 * Math.cos(i * Math.PI / 6)).toFixed(2)}" y2="${(10 + 2.6 * Math.sin(i * Math.PI / 6)).toFixed(2)}" stroke="#000080" stroke-width=".25"/>`).join('')}`,
+};
+const flag = id => `<svg class="flag" viewBox="0 0 30 20" aria-hidden="true">${FLAGS[id]}</svg>`;
+const ICONS = {
+  tea:`<path d="M6 8h12l-1.6 13a1.5 1.5 0 0 1-1.5 1.3H9.1a1.5 1.5 0 0 1-1.5-1.3z" fill="#D9B48A"/><rect x="5" y="6.5" width="14" height="2.2" rx="1.1" fill="#8A5A3B"/><path d="M13.6 1.5l-1.2 6" stroke="#E0533D" stroke-width="2" stroke-linecap="round"/><g fill="#3B2418"><circle cx="10" cy="19.2" r="1.2"/><circle cx="13" cy="19.6" r="1.2"/><circle cx="11.5" cy="17" r="1.2"/><circle cx="14.4" cy="17.2" r="1.1"/></g>`,
+  noodle:`<path d="M6 10c1.2-3 2.2 0 3.4-3s2.2 0 3.4-3 2.2 0 3.4-3" stroke="#F2C14E" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M15 2.5l5.5 8.5M18 2l4 8.5" stroke="#8A5A3B" stroke-width="1.4" stroke-linecap="round"/><path d="M2.5 11.5h19a9.5 9.5 0 0 1-19 0z" fill="#D8433A"/><rect x="2.5" y="10.6" width="19" height="1.8" rx=".9" fill="#F2C14E"/><path d="M7 15.5h10" stroke="#fff" stroke-width="1.2" stroke-dasharray="2 1.5" opacity=".7"/>`,
+  durian:`<path d="M12 6.5V3" stroke="#6B4A2B" stroke-width="1.6" stroke-linecap="round"/><polygon points="${starPts(12, 14, 9, 14, .82)}" fill="#7E9A23"/><ellipse cx="12" cy="14" rx="6.6" ry="6.4" fill="#A3BE3A"/><g fill="#6F8A1C">${[[9,11],[13,10],[15.5,13],[11,14.5],[14,17],[8.5,16.5]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r=".9"/>`).join('')}</g>`,
+  spice:`<rect x="6" y="7" width="12" height="15" rx="2.5" fill="#D9682B"/><rect x="7" y="3" width="10" height="4.4" rx="1.2" fill="#5B3A29"/><rect x="8" y="11" width="8" height="6.5" rx="1" fill="#F6E7C8"/><circle cx="12" cy="14.2" r="1.8" fill="#B8441E"/>`,
+  textile:`<rect x="3" y="5" width="18" height="14" rx="1.5" fill="#2F4B8A"/><path d="M3 9c3-2 6 2 9 0s6 2 9 0M3 15c3-2 6 2 9 0s6 2 9 0" stroke="#E9B949" stroke-width="1.4" fill="none"/><g fill="#E9B949"><circle cx="7.5" cy="12" r="1.1"/><circle cx="12" cy="12" r="1.1"/><circle cx="16.5" cy="12" r="1.1"/></g><path d="M16 19l5-5v3.5a1.5 1.5 0 0 1-1.5 1.5z" fill="#1E3466"/>`,
+  beauty:`<rect x="4.5" y="8" width="8" height="14" rx="2" fill="#F2A3B8"/><rect x="6.5" y="3.5" width="4" height="4.8" rx="1" fill="#C2557A"/><rect x="6" y="13" width="5" height="4.5" rx="1" fill="#FFF1F5"/><rect x="14" y="14.5" width="6.5" height="7.5" rx="1.8" fill="#F7C9D5"/><rect x="13.6" y="12.5" width="7.3" height="2.8" rx="1" fill="#C2557A"/>`,
+  anime:`<ellipse cx="12" cy="21.6" rx="7" ry="1.6" fill="#7A869A"/><rect x="9" y="13.5" width="6" height="7" rx="2" fill="#E2533D"/><circle cx="12" cy="9" r="5" fill="#FFE0C2"/><path d="M6.6 8.8c0-4.2 2.6-6.8 5.4-6.8s5.4 2.6 5.4 6.8l-1.8-2.2-1 2.2-1.4-2.6-1.2 2.6-1.2-2.6-1.4 2.6-1-2.2z" fill="#3A4FB8"/><circle cx="10.2" cy="10.2" r=".85" fill="#222"/><circle cx="13.8" cy="10.2" r=".85" fill="#222"/>`,
+  phone:`<rect x="6.5" y="1.5" width="11" height="21" rx="2.5" fill="#2B2F36" stroke="#8A929E" stroke-width=".8"/><rect x="7.8" y="3.6" width="8.4" height="15.8" rx="1" fill="#4FA3E8"/><path d="M7.8 15.5l3-3 2 2 3.4-4.2v9.1H7.8z" fill="#2E7DC6"/><rect x="10.5" y="20.4" width="3" height=".9" rx=".45" fill="#8A929E"/>`,
+};
+const icon = (pid, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[pid]}</svg>`;
+
 function save(){ try { localStorage.setItem('monsoon-merchants-save', JSON.stringify(S)); } catch(e) {} }
 function load(){ try { const t = localStorage.getItem('monsoon-merchants-save'); return t ? JSON.parse(t) : null; } catch(e) { return null; } }
 
@@ -470,7 +524,7 @@ function renderMap(){
     const [x, y] = proj(c.lon, c.lat), [dx, dy, anchor] = labelPos[c.id];
     const owners = S.companies.filter(k => k.stores[c.id]);
     const ev = S.events.some(e => e.kind === 'typhoon' && e.city === c.id) ? ' ⚠' : festivalsFor(c.id, S.week).length ? ' ✦' : '';
-    g += `<g class="pin${S.sel === c.id ? ' sel' : ''}" data-act="city" data-city="${c.id}" tabindex="0" role="button" aria-label="${c.name}">
+    g += `<g class="pin${S.sel === c.id ? ' sel' : ''}" style="--cityc:var(--city-${c.id})" data-act="city" data-city="${c.id}" tabindex="0" role="button" aria-label="${c.name}">
       <circle class="ring" cx="${x}" cy="${y}" r="13"/>
       ${owners.map((k, i) => `<circle cx="${x - 9 + i * 6}" cy="${y + 13}" r="2.6" fill="${col(k)}"/>`).join('')}
       <circle class="dot" cx="${x}" cy="${y}" r="6"/>
@@ -478,8 +532,8 @@ function renderMap(){
   }
   $('#map').innerHTML = `<h2>Trade map</h2>
     <svg viewBox="0 0 600 420" role="img" aria-label="Map of the eight trading cities">${g}</svg>
-    <div class="citylist">${CITIES.map(c => `<button class="cityb${S.sel === c.id ? ' sel' : ''}" type="button" data-act="city" data-city="${c.id}">
-      <span>${c.name}</span><span class="owners">${S.companies.filter(k => k.stores[c.id]).map(k => `<span style="background:${col(k)}" title="${esc(k.name)}"></span>`).join('')}</span></button>`).join('')}</div>
+    <div class="citylist">${CITIES.map(c => `<button class="cityb${S.sel === c.id ? ' sel' : ''}" style="--cityc:var(--city-${c.id})" type="button" data-act="city" data-city="${c.id}">
+      <span class="cn">${flag(c.id)}${c.name}</span><span class="owners">${S.companies.filter(k => k.stores[c.id]).map(k => `<span style="background:${col(k)}" title="${esc(k.name)}"></span>`).join('')}</span></button>`).join('')}</div>
     <p class="small muted" style="margin:10px 0 0">✦ festival this week · ⚠ typhoon · dots show who has a store there</p>`;
 }
 
@@ -489,7 +543,8 @@ function renderStore(){
   const me = human(), city = S.sel, C = CBY[city], st = me.stores[city];
   const fests = festivalsFor(city, S.week), typh = S.events.find(e => e.kind === 'typhoon' && e.city === city);
   const loves = PRODUCTS.map((p, i) => ({p, t:C.taste[i]})).sort((a, b) => b.t - a.t).slice(0, 3).map(x => x.p.name);
-  let h = `<div class="cityhead"><div><div class="label">${esc(C.country)}</div><h2>${C.name}</h2>
+  $('#store').style.setProperty('--city', `var(--city-${city})`);
+  let h = `<div class="cityhead"><div class="cityband">${flag(city)}<div><div class="label">${esc(C.country)}</div><h2>${C.name}</h2><div class="nick">${esc(C.nick)}</div></div></div><div style="flex-basis:100%">
     <div class="facts"><span>Shoppers <b>×${C.traffic.toFixed(1)}</b></span><span>Rent <b>${money(C.rent)}</b>/wk (kiosk)</span><span>Shipping <b>${(shipPct(city, me) * 100).toFixed(1)}%</b></span></div></div></div>
     <div class="chips"><span class="chip">Locals love: ${loves.join(', ')}</span>
     ${fests.map(f => `<span class="chip good">✦ ${f.name}</span>`).join('')}
@@ -511,11 +566,11 @@ function renderStore(){
     const used = st.slots.map(s => s.p);
     h += `<div class="slots">` + st.slots.map((s, i) => {
       const opts = `<option value="">Empty shelf</option>` + PRODUCTS.map(p => `<option value="${p.id}" ${s.p === p.id ? 'selected' : ''} ${used.includes(p.id) && s.p !== p.id ? 'disabled' : ''}>${p.name}</option>`).join('');
-      if (!s.p) return `<div class="slot"><div class="f prod"><span class="label">Slot ${i + 1}</span><select id="p-${city}-${i}" data-field="prod" data-slot="${i}">${opts}</select></div><div class="empty" style="grid-column:2/-1">Pick a product to stock this shelf.</div></div>`;
+      if (!s.p) return `<div class="slot"><div class="f prod"><span class="label">Slot ${i + 1}</span><div class="prodpick"><span class="pico empty-ico">+</span><select id="p-${city}-${i}" data-field="prod" data-slot="${i}">${opts}</select></div></div><div class="empty" style="grid-column:2/-1">Pick a product to stock this shelf.</div></div>`;
       const p = PBY[s.p], u = landed(city, s.p, me), fc = forecast(me, city, s), rv = rivalsSelling(city, s.p, me);
       const margin = s.price - u;
       return `<div class="slot">
-        <div class="f prod"><span class="label">Slot ${i + 1}</span><select id="p-${city}-${i}" data-field="prod" data-slot="${i}">${opts}</select></div>
+        <div class="f prod"><span class="label">Slot ${i + 1}</span><div class="prodpick"><span class="pico" title="${p.name}">${icon(p.id)}</span><select id="p-${city}-${i}" data-field="prod" data-slot="${i}">${opts}</select></div></div>
         <div class="f"><label class="label" for="pr-${city}-${i}">Price / ${p.unit}</label><input id="pr-${city}-${i}" type="number" min="0.1" step="${p.ref >= 100 ? 5 : .1}" value="${s.price}" data-field="price" data-slot="${i}"></div>
         <div class="f"><label class="label" for="o-${city}-${i}">Weekly order</label><div class="inline"><input id="o-${city}-${i}" type="number" min="0" step="${p.base >= 1000 ? 50 : 5}" value="${s.order}" data-field="order" data-slot="${i}"><button class="btn small" type="button" data-act="suggest" data-slot="${i}" title="Set order to forecast demand minus stock">Auto</button></div></div>
         <div class="f"><span class="label">On shelf</span><b class="num" style="font-size:15px">${int(s.stock)}</b></div>
@@ -534,7 +589,7 @@ function renderStore(){
   h += `<div class="intel"><h3 style="font-size:13px;margin-bottom:6px">Market in ${C.name} this week</h3><div class="tablewrap"><table>
     <thead><tr><th>Product</th><th>Demand</th><th class="r">Shoppers</th><th class="r">Your cost</th><th class="r">Usual price</th><th>Rival prices</th></tr></thead><tbody>
     ${PRODUCTS.map(p => { const m = demandMult(city, p.id), [w, cls] = demandWord(m), D = marketDemand(city, p.id), rv = rivalsSelling(city, p.id, me);
-      return `<tr><td>${p.name}</td><td class="${cls}">${w}</td><td class="r num">${int(D)}</td><td class="r num">${price(landed(city, p.id, me))}</td><td class="r num">${price(p.ref)}</td>
+      return `<tr><td>${icon(p.id, 'tico')}${p.name}</td><td class="${cls}">${w}</td><td class="r num">${int(D)}</td><td class="r num">${price(landed(city, p.id, me))}</td><td class="r num">${price(p.ref)}</td>
       <td>${rv.length ? rv.map(r => `<span class="num" style="color:${col(r.c)}">${price(r.s.price)}</span>`).join(' ') : '<span class="muted">—</span>'}</td></tr>`; }).join('')}
     </tbody></table></div><p class="small muted">Shoppers is the whole city's weekly demand. Stores carrying the same product split it, and cheaper, bigger, better-advertised stores win a larger share. Price too high and shoppers buy nothing.</p></div>`;
   $('#store').innerHTML = h;
