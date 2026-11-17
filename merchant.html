@@ -176,6 +176,16 @@ details summary{cursor:pointer;font-weight:600}
 .cityb.sel{border-color:var(--cityc);box-shadow:none;background:color-mix(in srgb,var(--cityc) 14%,var(--surface));font-weight:600}
 .pin.sel .dot{fill:var(--cityc);stroke:var(--cityc)}
 .pin .ring{stroke:var(--cityc)}
+.favs{margin-top:12px}
+.favlist{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.favlist li{display:flex;align-items:center;gap:9px;min-width:0;padding:8px 10px 7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.favlist .rank{position:absolute;top:-7px;left:-7px;width:19px;height:19px;border-radius:50%;display:grid;place-items:center;font:600 11px var(--mono);background:var(--city);color:var(--surface)}
+.favlist li:nth-child(n+2) .rank{background:var(--surface);color:var(--city);box-shadow:inset 0 0 0 1.5px var(--city)}
+.favlist .pico{position:relative;width:34px;height:34px}.favlist .pico svg{width:24px;height:24px}
+.favtx{display:flex;flex-direction:column;min-width:0}
+.favtx b{font-size:13px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
+@media (max-width:560px){ .favlist{grid-template-columns:minmax(0,1fr)} }
+.chips:empty{display:none}
 /* product icons */
 .pico{display:inline-grid;place-items:center;flex:none;width:38px;height:38px;border-radius:8px;background:var(--sunk);border:1px solid var(--line)}
 .pico svg{width:28px;height:28px}
@@ -588,11 +598,12 @@ function demandWord(m){ return m >= 1.6 ? ['Booming','good'] : m >= 1.15 ? ['Str
 function renderStore(){
   const me = mine(), city = S.sel, C = CBY[city], st = me.stores[city];
   const fests = festivalsFor(city, S.week), typh = S.events.find(e => e.kind === 'typhoon' && e.city === city);
-  const loves = PRODUCTS.map((p, i) => ({p, t:C.taste[i]})).sort((a, b) => b.t - a.t).slice(0, 3).map(x => x.p.name);
+  const loves = PRODUCTS.map((p, i) => ({p, t:C.taste[i]})).sort((a, b) => b.t - a.t).slice(0, 3);
   $('#store').style.setProperty('--city', `var(--city-${city})`);
   let h = `<div class="cityhead"><div class="cityband">${flag(city)}<div><div class="label">${esc(C.country)}</div><h2>${C.name}</h2><div class="nick">${esc(C.nick)}</div></div></div><div style="flex-basis:100%">
     <div class="facts"><span>Shoppers <b>×${C.traffic.toFixed(1)}</b></span><span>Rent <b>${money(C.rent)}</b>/wk (kiosk)</span><span>Shipping <b>${(shipPct(city, me) * 100).toFixed(1)}%</b></span></div></div></div>
-    <div class="chips"><span class="chip">Locals love: ${loves.join(', ')}</span>
+    <div class="favs"><span class="label">Locals love</span><ol class="favlist">${loves.map((x, i) => `<li><span class="pico">${icon(x.p.id)}<span class="rank">${i + 1}</span></span><span class="favtx"><b>${x.p.name}</b><span class="small muted">${x.t > 1 ? '+' + Math.round((x.t - 1) * 100) + '% shoppers' : 'average demand'}</span></span></li>`).join('')}</ol></div>
+    <div class="chips">
     ${fests.map(f => `<span class="chip good">✦ ${f.name}</span>`).join('')}
     ${typh ? `<span class="chip bad">⚠ Typhoon: demand −65%</span>` : ''}</div>`;
   const rivalsHere = S.companies.filter(k => !k.human && k.stores[city]);
