@@ -81,6 +81,10 @@ A running game at `dinorace.html` (`/mathquizSGPrimary/dinorace.html` on Pages) 
 
 Source: `src/dinodash/` (`engine.js` rules and computer players, `render.js` canvas drawing, `sprites.js` dino sprites and skin recolouring, `input.js` keyboard / controller / touch, `sfx.js` sounds). The sprite strips in `src/dinodash/sprites/` are made from the magenta-background sheets in `sprites/source/` with `python3 src/dinodash/sprites/slice.py` (needs Pillow and numpy), which removes the background and ground line, lines up the 4 frames on the feet and snout, and checks the result.
 
+## GCWM Play home page
+
+A home page listing every game and app across gcwm-play's repos, at `public/home/` (`/mathquizSGPrimary/home/` on Pages). It reads everything from `public/home/projects.json`, so adding, hiding or reordering a game is a one-file edit. See `public/home/HOW-TO-UPDATE.md`.
+
 ## Development
 
 ```bash
