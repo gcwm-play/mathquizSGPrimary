@@ -83,7 +83,7 @@ Source: `src/dinodash/` (`engine.js` rules and computer players, `render.js` can
 
 ## GCWM Play home page
 
-A home page listing every game and app across gcwm-play's repos, at `public/home/` (`/mathquizSGPrimary/home/` on Pages). It reads everything from `public/home/projects.json`, so adding, hiding or reordering a game is a one-file edit. See `public/home/HOW-TO-UPDATE.md`.
+A home page listing every game and app across gcwm-play's repos, at `public/home/` (`/mathquizSGPrimary/home/` on Pages). It reads everything from `public/home/projects.json`, so adding, hiding or reordering a game is a one-file edit. Tiles can be managed in the browser at `home/admin.html` (publishes with a GitHub token kept in the browser). See `public/home/HOW-TO-UPDATE.md`.
 
 ## Development
 
