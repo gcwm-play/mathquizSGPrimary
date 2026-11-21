@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>GCWM Play Admin</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='16' fill='%23111727'/><rect x='14' y='14' width='16' height='16' rx='4' fill='%23FFC53D'/><rect x='34' y='14' width='16' height='16' rx='4' fill='white'/><rect x='14' y='34' width='16' height='16' rx='4' fill='white'/><rect x='34' y='34' width='16' height='16' rx='4' fill='white'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a workbench. Top bar with publish state, tile list on the left (drag to reorder), editor on the right; stacks on phones. */
+:root{
+  --bg:#EEF1F7; --surface:#FFFFFF; --sunk:#E3E8F1; --ink:#111727; --muted:#596379; --line:#D6DCE8;
+  --accent:#2B4BF2; --accent-ink:#FFFFFF; --sun:#FFC53D; --sun-ink:#3A2A00; --ok:#16805A; --bad:#C62E3A; --shadow:20 30 60;
+  --display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --body:"Figtree","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0A0E18; --surface:#131A29; --sunk:#0F1522; --ink:#E9EDF6; --muted:#8F99B0; --line:#232C42;
+  --accent:#7D93FF; --accent-ink:#0A0E18; --sun:#FFD166; --sun-ink:#2A1E00; --ok:#4CC593; --bad:#FF6B76; --shadow:0 0 0; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0A0E18; --surface:#131A29; --sunk:#0F1522; --ink:#E9EDF6; --muted:#8F99B0; --line:#232C42;
+  --accent:#7D93FF; --accent-ink:#0A0E18; --sun:#FFD166; --sun-ink:#2A1E00; --ok:#4CC593; --bad:#FF6B76; --shadow:0 0 0; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--surface)}
+img{max-width:100%;display:block}
+a{color:inherit}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.eyebrow{font:500 11.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--surface);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:10px;min-height:62px;flex-wrap:wrap;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;font:800 18px/1 var(--display);margin-right:auto;text-decoration:none;white-space:nowrap}
+.brand small{font:500 11px/1 var(--mono);padding:4px 7px;border-radius:6px;background:var(--ink);color:var(--bg);letter-spacing:.06em}
+.btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:14px;text-decoration:none;white-space:nowrap;transition:border-color .15s,background .15s,transform .12s}
+.btn:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--bad)}
+.btn.sm{height:32px;padding:0 10px;font-size:13px}
+.btn.icon{width:34px;height:34px;padding:0;justify-content:center}
+.btn svg{width:16px;height:16px;flex:none}
+.pill{display:inline-flex;align-items:center;gap:6px;font:500 12px/1 var(--mono);padding:6px 9px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--sun-ink);background:var(--sun)} .pill.bad{color:var(--bad)}
+
+.layout{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:22px;padding-block:22px 60px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px}
+.panel>header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel>header h2{font-size:17px;margin-right:auto}
+
+.tabs{display:flex;gap:4px;padding:4px;background:var(--sunk);border-radius:10px}
+.tabs button{border:0;background:none;padding:6px 10px;border-radius:7px;font-weight:600;font-size:13px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(var(--shadow) / .15)}
+
+.list{list-style:none;margin:0;padding:8px;display:grid;grid-template-columns:minmax(0,1fr);gap:4px;max-height:calc(100dvh - 210px);overflow:auto}
+@media (max-width:860px){.list{max-height:none}}
+.tile{display:flex;align-items:center;gap:10px;padding:6px;border-radius:10px;border:1px solid transparent;background:none;width:100%;text-align:left;position:relative}
+.tile:hover{background:var(--sunk)}
+.tile[aria-current="true"]{background:color-mix(in srgb,var(--accent) 12%,var(--surface));border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.tile.dragging{opacity:.4}
+.tile.over-top::before,.tile.over-bot::after{content:"";position:absolute;left:8px;right:8px;height:3px;border-radius:2px;background:var(--accent)}
+.tile.over-top::before{top:-3px}.tile.over-bot::after{bottom:-3px}
+.grip{cursor:grab;color:var(--muted);display:grid;place-items:center;width:18px;flex:none;touch-action:none}
+.grip svg{width:14px;height:14px}
+.tile img{width:64px;height:40px;object-fit:cover;object-position:top;border-radius:6px;background:var(--sunk);flex:none}
+.tile .t{min-width:0;flex:1 1 0;overflow:hidden;cursor:pointer}
+.tile b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .t span{font-size:12px;color:var(--muted)}
+.tile.off img,.tile.off b{opacity:.45}
+.tile .tools{display:flex;gap:2px;flex:none}
+.ib{width:30px;height:30px;border:0;border-radius:8px;background:none;display:grid;place-items:center;color:var(--muted)}
+.ib:hover{background:var(--surface);color:var(--ink)}
+.ib svg{width:16px;height:16px}
+.ib.on-vis{color:var(--ink)} .ib.on-feat{color:#D89A00}
+.ib[disabled]{opacity:.3;cursor:default}
+
+.editor{padding:18px;display:grid;gap:16px}
+.ed-head{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.shot{position:relative;width:min(100%,340px);aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:var(--sunk);border:2px dashed var(--line);flex:none;max-width:100%}
+.shot img{width:100%;height:100%;object-fit:cover;object-position:top}
+.shot.drop{border-color:var(--accent)}
+.shot .ov{position:absolute;inset:auto 8px 8px auto;display:flex;gap:6px}
+.shot .empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:13px;padding:12px}
+.ed-meta{flex:1;min-width:220px;display:grid;gap:10px}
+.toggles{display:flex;gap:10px;flex-wrap:wrap}
+.switch{display:inline-flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;user-select:none;font-weight:600;font-size:14px}
+.switch input{appearance:none;width:34px;height:20px;border-radius:99px;background:var(--line);position:relative;margin:0;cursor:pointer;transition:background .15s}
+.switch input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{transform:translateX(14px)}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:560px){.fields{grid-template-columns:1fr}}
+.f{display:grid;gap:6px;min-width:0}
+.f.full{grid-column:1/-1}
+.f label{font-weight:600;font-size:13px}
+.f small{color:var(--muted);font-size:12px}
+.f input,.f textarea,.f select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 11px;min-width:0}
+.f textarea{min-height:84px;resize:vertical}
+.f input:focus,.f textarea:focus,.f select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.f .err{color:var(--bad);font-size:12.5px;font-weight:600}
+.f.bad input,.f.bad select{border-color:var(--bad)}
+.color{display:flex;gap:8px}
+.color input[type=color]{width:46px;padding:3px;flex:none;height:40px}
+.chipsin{display:flex;flex-wrap:wrap;gap:6px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:6px}
+.chipsin span{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;padding:4px 4px 4px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
+.chipsin span button{border:0;background:none;width:20px;height:20px;border-radius:50%;color:var(--muted)}
+.chipsin input{border:0;background:none;flex:1;min-width:120px;padding:4px;outline:none}
+.ed-foot{display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
+.ed-foot .sp{margin-left:auto}
+
+.cats{display:grid;gap:8px}
+.cat{display:flex;gap:8px;align-items:center}
+.cat input{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 10px;min-width:0}
+.cat input.id{width:110px;font-family:var(--mono);font-size:13px}
+.cat input.lb{flex:1}
+
+.banner{margin-top:16px;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:var(--surface);display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.banner p{margin:0;flex:1;min-width:240px;color:var(--muted)}
+.banner b{color:var(--ink)}
+
+dialog{border:0;padding:0;background:transparent;color:var(--ink);max-width:100vw}
+dialog::backdrop{background:rgb(6 10 20 / .55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.modal{width:min(560px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;display:grid;gap:14px;animation:pop .18s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}}
+.modal h2{font-size:22px}
+.modal p,.modal ol{margin:0;color:var(--muted)}
+.modal ol{padding-left:20px;display:grid;gap:4px}
+.modal .row{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.modal code{font-family:var(--mono);font-size:12.5px;background:var(--sunk);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.diff{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13.5px;display:grid;gap:4px;background:var(--bg)}
+.diff div{display:flex;gap:8px}
+.diff i{font-style:normal;font:600 11px/1.6 var(--mono);min-width:56px;color:var(--muted)}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:60;max-width:calc(100vw - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.blank{padding:40px 20px;text-align:center;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:520px){.tile img{width:48px;height:30px}.tile .tools{gap:0}.ib{width:28px}.panel>header{flex-wrap:wrap}.top .btn{height:34px;padding:0 11px}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./"><span>GCWM Play</span><small>ADMIN</small></a>
+    <span class="pill" id="conn"><i></i>Not connected</span>
+    <span class="pill" id="dirty" hidden><i></i>0 unsaved changes</span>
+    <button class="btn" id="connectBtn">Connect GitHub</button>
+    <a class="btn" href="./?preview" target="_blank" rel="noopener">View page</a>
+    <button class="btn primary" id="saveBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg>Publish
+    </button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="banner" id="banner" hidden></div>
+  <div class="layout">
+    <section class="panel" aria-labelledby="tilesTitle">
+      <header>
+        <h2 id="tilesTitle">Tiles</h2>
+        <div class="tabs" role="tablist" aria-label="Show">
+          <button role="tab" aria-selected="true" data-f="all">All</button>
+          <button role="tab" aria-selected="false" data-f="on">Shown</button>
+          <button role="tab" aria-selected="false" data-f="off">Hidden</button>
+        </div>
+      </header>
+      <div style="padding:10px 10px 0;display:flex;gap:8px">
+        <button class="btn sm primary" id="addBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add tile</button>
+        <button class="btn sm" id="siteBtn">Site text &amp; categories</button>
+      </div>
+      <ul class="list" id="list"></ul>
+      <p style="margin:0;padding:0 16px 14px;font-size:12.5px;color:var(--muted)">Drag the handle or use the arrows to reorder. Order here is the order on the page.</p>
+    </section>
+
+    <section class="panel" id="editorPanel" aria-live="polite">
+      <div class="blank">Loading tiles…</div>
+    </section>
+  </div>
+</div>
+
+<dialog id="connectDlg">
+  <form class="modal" method="dialog" id="connectForm">
+    <h2>Connect to GitHub</h2>
+    <p>Publishing saves your changes to <code>projects.json</code> in the <b>mathquizSGPrimary</b> repo. GitHub Pages then updates the live page in about two minutes.</p>
+    <ol>
+      <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → New fine-grained token</a>.</li>
+      <li>Repository access: <b>Only select repositories</b> → <code>mathquizSGPrimary</code>.</li>
+      <li>Permissions → Repository → <b>Contents: Read and write</b>.</li>
+      <li>Generate, copy the token and paste it below.</li>
+    </ol>
+    <div class="f">
+      <label for="tokenIn">Access token</label>
+      <input id="tokenIn" type="password" autocomplete="off" placeholder="github_pat_…" spellcheck="false">
+      <small>Stored only in this browser. It is never put in the repo or sent anywhere except GitHub.</small>
+      <span class="err" id="tokenErr"></span>
+    </div>
+    <label class="switch" style="justify-self:start"><input type="checkbox" id="remember" checked> Remember on this device</label>
+    <div class="row">
+      <button class="btn danger" type="button" id="forgetBtn" hidden>Disconnect</button>
+      <button class="btn" type="button" id="cancelConnect">Cancel</button>
+      <button class="btn primary" type="submit" id="doConnect">Connect</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="saveDlg">
+  <div class="modal">
+    <h2>Publish changes</h2>
+    <p id="saveSummary"></p>
+    <div class="diff" id="diffList"></div>
+    <div class="f">
+      <label for="msgIn">Note for this change</label>
+      <input id="msgIn" type="text" maxlength="120">
+    </div>
+    <div class="row">
+      <button class="btn" id="dlJson" type="button">Download projects.json</button>
+      <button class="btn" type="button" id="cancelSave">Cancel</button>
+      <button class="btn primary" type="button" id="confirmSave">Publish</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="confirmDlg">
+  <div class="modal">
+    <h2 id="cTitle"></h2>
+    <p id="cBody"></p>
+    <div class="row"><button class="btn" id="cNo" type="button">Cancel</button><button class="btn primary" id="cYes" type="button">OK</button></div>
+  </div>
+</dialog>
+
+<input type="file" id="fileIn" accept="image/*" hidden>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  const CFG = { owner: 'gcwm-play', repo: 'mathquizSGPrimary', branch: 'claude/deploy-app-github-adtcla', dir: 'public/home' };
+  const API = `https://api.github.com/repos/${CFG.owner}/${CFG.repo}`;
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const ls = { get(k){ try { return localStorage.getItem('gcwm-admin:' + k); } catch { return null; } }, set(k, v){ try { v == null ? localStorage.removeItem('gcwm-admin:' + k) : localStorage.setItem('gcwm-admin:' + k, v); } catch {} } };
+  const ss = { get(k){ try { return sessionStorage.getItem('gcwm-admin:' + k); } catch { return null; } }, set(k, v){ try { v == null ? sessionStorage.removeItem('gcwm-admin:' + k) : sessionStorage.setItem('gcwm-admin:' + k, v); } catch {} } };
+  const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2600); };
+  const ICON = {
+    grip: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
+    eyeOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A16.6 16.6 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
+    star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>',
+    starO: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>',
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
+    down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+  };
+
+  let token = ss.get('token') || ls.get('token');
+  let data = null, original = '', fileSha = null, selected = null, filter = 'all';
+  const pendingImages = new Map(); // path -> { blob, url }
+  const publishedImages = new Map(); // path -> url, keeps new uploads visible until Pages rebuilds
+  let view = 'tile';
+
+  /* ---------- GitHub ---------- */
+  async function gh(path, opts = {}){
+    const r = await fetch(path.startsWith('http') ? path : API + path, { ...opts, headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) } });
+    if (!r.ok) { let m = ''; try { m = (await r.json()).message; } catch {} const e = new Error(m || ('GitHub said ' + r.status)); e.status = r.status; throw e; }
+    return r.status === 204 ? null : r.json();
+  }
+  const b64ToText = b => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\n/g, '')), c => c.charCodeAt(0)));
+  const blobToB64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(blob); });
+
+  async function load(){
+    try {
+      if (token) {
+        const f = await gh(`/contents/${CFG.dir}/projects.json?ref=${encodeURIComponent(CFG.branch)}`);
+        fileSha = f.sha; original = b64ToText(f.content);
+      } else {
+        const r = await fetch('projects.json', { cache: 'no-cache' }); if (!r.ok) throw new Error('projects.json returned ' + r.status);
+        original = await r.text(); fileSha = null;
+      }
+      data = JSON.parse(original);
+      original = JSON.stringify(data);
+      const draft = ls.get('draft');
+      if (draft && draft !== original) {
+        try { const d = JSON.parse(draft); if (await ask('Restore unsaved changes?', 'You have changes from an earlier visit that were never published. Restore them, or start from the live list?', 'Restore')) data = d; else ls.set('draft', null); } catch { ls.set('draft', null); }
+      }
+      selected = data.projects[0]?.id ?? null;
+      renderAll();
+    } catch (e) {
+      $('#editorPanel').innerHTML = `<div class="blank"><b>Couldn't load the tiles.</b><br>${esc(e.message)}${e.status === 401 ? '<br>Your access token was refused. Reconnect with a new one.' : ''}</div>`;
+      if (e.status === 401) setConn('bad', 'Token refused');
+    }
+  }
+
+  /* ---------- State helpers ---------- */
+  const changed = () => data && (JSON.stringify(data) !== original || pendingImages.size > 0);
+  function touch(){
+    if (!data) return;
+    const n = changeList().length;
+    $('#dirty').hidden = !n; $('#dirty').className = 'pill warn'; $('#dirty').innerHTML = `<i></i>${n} unsaved change${n === 1 ? '' : 's'}`;
+    $('#saveBtn').disabled = !n;
+    try { if (JSON.stringify(data) !== original) ls.set('draft', JSON.stringify(data)); else ls.set('draft', null); } catch {}
+  }
+  addEventListener('beforeunload', e => { if (changed()) { e.preventDefault(); e.returnValue = ''; } });
+
+  function changeList(){
+    if (!data) return [];
+    const was = JSON.parse(original), out = [];
+    const wasMap = new Map(was.projects.map(p => [p.id, p]));
+    const nowIds = data.projects.map(p => p.id);
+    for (const p of data.projects) {
+      const o = wasMap.get(p.id);
+      if (!o) { out.push(['Added', p.title]); continue; }
+      if ((o.visible !== false) !== (p.visible !== false)) out.push([p.visible === false ? 'Hidden' : 'Shown', p.title]);
+      if (!!o.featured !== !!p.featured) out.push([p.featured ? 'Featured' : 'Unfeatured', p.title]);
+      const strip = x => JSON.stringify({ ...x, visible: undefined, featured: undefined });
+      if (strip(o) !== strip(p)) out.push(['Edited', p.title]);
+    }
+    for (const o of was.projects) if (!nowIds.includes(o.id)) out.push(['Deleted', o.title]);
+    const wasOrder = was.projects.map(p => p.id).filter(id => nowIds.includes(id)), nowOrder = nowIds.filter(id => wasMap.has(id));
+    if (wasOrder.join() !== nowOrder.join()) out.push(['Reordered', 'Tile order']);
+    if (JSON.stringify(was.site) !== JSON.stringify(data.site) || JSON.stringify(was.categories) !== JSON.stringify(data.categories)) out.push(['Edited', 'Site text & categories']);
+    for (const path of pendingImages.keys()) out.push(['Image', path.split('/').pop()]);
+    return out;
+  }
+
+  function setConn(kind, text){ const c = $('#conn'); c.className = 'pill ' + kind; c.innerHTML = '<i></i>' + esc(text); }
+  const imgSrc = p => { const k = `${CFG.dir}/${p.image}`, pi = pendingImages.get(k); return pi ? pi.url : publishedImages.get(k) || p.image; };
+  const catLabel = id => data.categories.find(c => c.id === id)?.label || id || 'No category';
+
+  /* ---------- Render ---------- */
+  function renderAll(){ renderList(); view === 'site' ? renderSite() : renderEditor(); touch(); }
+
+  function renderList(){
+    const vis = p => filter === 'all' || (filter === 'on' ? p.visible !== false : p.visible === false);
+    const ps = data.projects;
+    $('#list').innerHTML = ps.map((p, i) => vis(p) ? `
+      <li class="tile${p.visible === false ? ' off' : ''}" data-id="${esc(p.id)}" aria-current="${view === 'tile' && p.id === selected}" draggable="true">
+        <span class="grip" title="Drag to reorder" aria-hidden="true">${ICON.grip}</span>
+        <img src="${esc(imgSrc(p))}" alt="" loading="lazy">
+        <span class="t" data-sel="${esc(p.id)}" role="button" tabindex="0"><b>${esc(p.title || 'Untitled')}</b><span>${esc(catLabel(p.category))}</span></span>
+        <span class="tools">
+          <button class="ib ${p.featured ? 'on-feat' : ''}" data-act="feat" title="${p.featured ? 'Remove from spotlight' : 'Feature in spotlight'}" aria-pressed="${!!p.featured}" aria-label="Featured: ${esc(p.title)}">${p.featured ? ICON.star : ICON.starO}</button>
+          <button class="ib ${p.visible !== false ? 'on-vis' : ''}" data-act="vis" title="${p.visible === false ? 'Show on page' : 'Hide from page'}" aria-pressed="${p.visible !== false}" aria-label="Visible: ${esc(p.title)}">${p.visible === false ? ICON.eyeOff : ICON.eye}</button>
+          <button class="ib" data-act="up" aria-label="Move ${esc(p.title)} up" ${i === 0 ? 'disabled' : ''}>${ICON.up}</button>
+          <button class="ib" data-act="down" aria-label="Move ${esc(p.title)} down" ${i === ps.length - 1 ? 'disabled' : ''}>${ICON.down}</button>
+        </span>
+      </li>` : '').join('') || '<li class="blank">No tiles here.</li>';
+  }
+
+  $('#list').addEventListener('click', e => {
+    const li = e.target.closest('.tile'); if (!li) return;
+    const id = li.dataset.id, i = data.projects.findIndex(p => p.id === id), p = data.projects[i];
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'vis') { p.visible = p.visible === false; toast(p.visible ? `${p.title} will be shown` : `${p.title} will be hidden`); }
+    else if (act === 'feat') { p.featured = !p.featured; }
+    else if (act === 'up' && i > 0) { data.projects.splice(i - 1, 0, ...data.projects.splice(i, 1)); }
+    else if (act === 'down' && i < data.projects.length - 1) { data.projects.splice(i + 1, 0, ...data.projects.splice(i, 1)); }
+    else if (e.target.closest('[data-sel],img,.grip')) { selected = id; view = 'tile'; }
+    else return;
+    renderAll();
+    if (act === 'up' || act === 'down') document.querySelector(`.tile[data-id="${CSS.escape(id)}"] [data-act="${act}"]`)?.focus();
+    if (!act && matchMedia('(max-width:860px)').matches) $('#editorPanel').scrollIntoView({ behavior: 'smooth' });
+  });
+  $('#list').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-sel]')) { e.preventDefault(); e.target.click(); } });
+
+  /* Drag to reorder (mouse via HTML5 DnD, touch via the grip) */
+  let dragId = null;
+  const clearOver = () => document.querySelectorAll('.over-top,.over-bot').forEach(x => x.classList.remove('over-top', 'over-bot'));
+  const dropAt = (targetId, after) => {
+    if (!dragId || dragId === targetId) return;
+    const from = data.projects.findIndex(p => p.id === dragId); const [m] = data.projects.splice(from, 1);
+    let to = data.projects.findIndex(p => p.id === targetId) + (after ? 1 : 0);
+    data.projects.splice(to, 0, m); renderAll();
+  };
+  $('#list').addEventListener('dragstart', e => { const li = e.target.closest('.tile'); if (!li) return; dragId = li.dataset.id; li.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch {} });
+  $('#list').addEventListener('dragend', () => { dragId = null; clearOver(); document.querySelectorAll('.dragging').forEach(x => x.classList.remove('dragging')); });
+  $('#list').addEventListener('dragover', e => { const li = e.target.closest('.tile'); if (!li || !dragId) return; e.preventDefault(); clearOver(); const r = li.getBoundingClientRect(); li.classList.add(e.clientY > r.top + r.height / 2 ? 'over-bot' : 'over-top'); });
+  $('#list').addEventListener('drop', e => { const li = e.target.closest('.tile'); if (!li) return; e.preventDefault(); const after = li.classList.contains('over-bot'); clearOver(); dropAt(li.dataset.id, after); });
+  $('#list').addEventListener('pointerdown', e => {
+    const grip = e.target.closest('.grip'); if (!grip || e.pointerType === 'mouse') return;
+    const li = grip.closest('.tile'); dragId = li.dataset.id; li.classList.add('dragging'); grip.setPointerCapture(e.pointerId);
+    let target = null, after = false;
+    const move = ev => { const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.tile'); clearOver(); if (el && el !== li) { const r = el.getBoundingClientRect(); after = ev.clientY > r.top + r.height / 2; el.classList.add(after ? 'over-bot' : 'over-top'); target = el.dataset.id; } else target = null; };
+    const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up); clearOver(); li.classList.remove('dragging'); if (target) dropAt(target, after); dragId = null; };
+    grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+  });
+
+  document.querySelectorAll('.tabs [data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; document.querySelectorAll('.tabs [data-f]').forEach(x => x.setAttribute('aria-selected', x === b)); renderList(); });
+
+  /* ---------- Tile editor ---------- */
+  const slug = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 48);
+  function problems(p){
+    const e = {};
+    if (!p.title?.trim()) e.title = 'Give the tile a name.';
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(p.id || '')) e.id = 'Use lowercase letters, numbers and hyphens.';
+    else if (data.projects.filter(x => x.id === p.id).length > 1) e.id = 'Another tile already uses this id.';
+    if (!/^https?:\/\/\S+$/.test(p.url || '')) e.url = 'Paste a full link starting with https://';
+    if (p.source && !/^https?:\/\/\S+$/.test(p.source)) e.source = 'Paste a full link starting with https://, or leave empty.';
+    if (!data.categories.some(c => c.id === p.category)) e.category = 'Pick a category.';
+    if (!p.image) e.image = 'Add a screenshot.';
+    return e;
+  }
+
+  function renderEditor(){
+    const p = data.projects.find(x => x.id === selected);
+    const panel = $('#editorPanel');
+    if (!p) { panel.innerHTML = '<div class="blank">Pick a tile on the left, or add a new one.</div>'; return; }
+    const err = problems(p);
+    const F = (key, label, html, hint, full) => `<div class="f${full ? ' full' : ''}${err[key] ? ' bad' : ''}"><label for="e-${key}">${label}</label>${html}${hint ? `<small>${hint}</small>` : ''}${err[key] ? `<span class="err">${esc(err[key])}</span>` : ''}</div>`;
+    panel.innerHTML = `
+      <header><h2>${esc(p.title || 'New tile')}</h2><a class="btn sm" href="${esc(p.url)}" target="_blank" rel="noopener">Open link ↗</a></header>
+      <div class="editor">
+        <div class="ed-head">
+          <div class="shot" id="shot">
+            ${p.image ? `<img src="${esc(imgSrc(p))}" alt="Screenshot of ${esc(p.title)}">` : '<div class="empty">Drop a screenshot here<br>or use Upload</div>'}
+            <div class="ov"><button class="btn sm" id="upBtn" type="button">Upload screenshot</button></div>
+          </div>
+          <div class="ed-meta">
+            <div class="toggles">
+              <label class="switch"><input type="checkbox" id="e-visible" ${p.visible !== false ? 'checked' : ''}> Shown on page</label>
+              <label class="switch"><input type="checkbox" id="e-featured" ${p.featured ? 'checked' : ''}> In spotlight</label>
+            </div>
+            ${err.image ? `<span class="err" style="color:var(--bad);font-weight:600;font-size:13px">${err.image}</span>` : ''}
+            <small style="color:var(--muted);font-size:12.5px">Any PNG, JPG or WebP. It's cropped to 16:10 and saved as a 960 × 600 WebP.</small>
+          </div>
+        </div>
+        <div class="fields">
+          ${F('title', 'Title', `<input id="e-title" value="${esc(p.title)}">`)}
+          ${F('category', 'Category', `<select id="e-category">${data.categories.map(c => `<option value="${esc(c.id)}" ${c.id === p.category ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}${data.categories.some(c => c.id === p.category) ? '' : '<option value="" selected>Pick one…</option>'}</select>`)}
+          ${F('summary', 'Summary', `<textarea id="e-summary" maxlength="320">${esc(p.summary)}</textarea>`, `<span id="sumCount">${(p.summary || '').length}</span>/320. One or two sentences; cards show about three lines.`, true)}
+          ${F('url', 'Play link', `<input id="e-url" type="url" value="${esc(p.url)}" placeholder="https://…">`, '', true)}
+          ${F('source', 'Source code link', `<input id="e-source" type="url" value="${esc(p.source || '')}" placeholder="https://github.com/…">`, 'Optional. Shows a "Source code" button.')}
+          ${F('added', 'Date added', `<input id="e-added" type="date" value="${esc(p.added || '')}">`, 'Used by the Newest / Oldest sort.')}
+          ${F('tags', 'Tags', `<div class="chipsin" id="tagBox">${(p.tags || []).map((t, i) => `<span>${esc(t)}<button type="button" data-tag="${i}" aria-label="Remove ${esc(t)}">×</button></span>`).join('')}<input id="e-tags" placeholder="Type a tag, press Enter"></div>`, '', true)}
+          ${F('color', 'Accent colour', `<div class="color"><input type="color" id="e-colorpick" value="${esc(/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : '#2b4bf2')}" aria-label="Pick colour"><input id="e-color" value="${esc(p.color || '')}" placeholder="#2B4BF2"></div>`, 'Glow around the card on hover.')}
+          ${F('id', 'Link id', `<input id="e-id" value="${esc(p.id)}" spellcheck="false">`, `Page link: …/home/#${esc(p.id)}`)}
+        </div>
+        <div class="ed-foot">
+          <button class="btn" id="dupBtn" type="button">Duplicate</button>
+          <button class="btn danger sp" id="delBtn" type="button">Delete tile</button>
+        </div>
+      </div>`;
+    const bind = (id, fn, ev = 'input') => $(id).addEventListener(ev, fn);
+    const set = (k, v, rerender) => { p[k] = v; if (v === '' && (k === 'source' || k === 'color' || k === 'added')) delete p[k]; renderList(); touch(); if (rerender) renderEditor(); };
+    bind('#e-title', e => { set('title', e.target.value); panel.querySelector('header h2').textContent = e.target.value || 'New tile'; });
+    bind('#e-title', () => renderEditor(), 'change');
+    bind('#e-summary', e => { set('summary', e.target.value); $('#sumCount').textContent = e.target.value.length; });
+    bind('#e-url', e => set('url', e.target.value.trim())); bind('#e-url', () => renderEditor(), 'change');
+    bind('#e-source', e => set('source', e.target.value.trim())); bind('#e-source', () => renderEditor(), 'change');
+    bind('#e-added', e => set('added', e.target.value));
+    bind('#e-category', e => set('category', e.target.value, true), 'change');
+    bind('#e-color', e => { set('color', e.target.value.trim()); if (/^#[0-9a-f]{6}$/i.test(e.target.value)) $('#e-colorpick').value = e.target.value; });
+    bind('#e-colorpick', e => { $('#e-color').value = e.target.value.toUpperCase(); set('color', e.target.value.toUpperCase()); });
+    bind('#e-visible', e => set('visible', e.target.checked), 'change');
+    bind('#e-featured', e => set('featured', e.target.checked), 'change');
+    bind('#e-id', e => { const old = p.id; const v = slug(e.target.value); if (old === v) return; p.id = v; selected = v; renderAll(); $('#e-id').focus(); }, 'change');
+    $('#e-tags').addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ',') && e.target.value.trim()) { e.preventDefault(); p.tags = [...(p.tags || []), e.target.value.trim().replace(/,$/, '')]; touch(); renderEditor(); $('#e-tags').focus(); }
+      else if (e.key === 'Backspace' && !e.target.value && p.tags?.length) { p.tags.pop(); touch(); renderEditor(); $('#e-tags').focus(); }
+    });
+    $('#tagBox').addEventListener('click', e => { const b = e.target.closest('[data-tag]'); if (b) { p.tags.splice(+b.dataset.tag, 1); touch(); renderEditor(); } else $('#e-tags').focus(); });
+    $('#upBtn').onclick = () => $('#fileIn').click();
+    const shot = $('#shot');
+    shot.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); shot.classList.add('drop'); } });
+    shot.addEventListener('dragleave', () => shot.classList.remove('drop'));
+    shot.addEventListener('drop', e => { e.preventDefault(); shot.classList.remove('drop'); const f = e.dataTransfer.files[0]; if (f) setImage(p, f); });
+    $('#dupBtn').onclick = () => { const c = JSON.parse(JSON.stringify(p)); c.title += ' (copy)'; c.id = uniqueId(p.id + '-copy'); c.featured = false; data.projects.splice(data.projects.indexOf(p) + 1, 0, c); selected = c.id; renderAll(); toast('Tile duplicated'); };
+    $('#delBtn').onclick = async () => { if (!(await ask(`Delete ${p.title}?`, 'The tile is removed from the page when you publish. Its screenshot stays in the repo. To keep it but take it off the page, hide it instead.', 'Delete'))) return; const i = data.projects.indexOf(p); data.projects.splice(i, 1); selected = data.projects[Math.min(i, data.projects.length - 1)]?.id; renderAll(); toast('Tile deleted'); };
+  }
+  $('#fileIn').addEventListener('change', e => { const f = e.target.files[0]; const p = data.projects.find(x => x.id === selected); if (f && p) setImage(p, f); e.target.value = ''; });
+
+  function uniqueId(base){ let id = slug(base) || 'new-tile', n = 2; const ids = new Set(data.projects.map(p => p.id)); let out = id; while (ids.has(out)) out = `${id}-${n++}`; return out; }
+
+  async function setImage(p, file){
+    if (!file.type.startsWith('image/')) { toast('That file is not an image.'); return; }
+    try {
+      const bmp = await createImageBitmap(file);
+      const W = 960, H = 600, c = document.createElement('canvas'); c.width = W; c.height = H;
+      const s = Math.max(W / bmp.width, H / bmp.height), w = bmp.width * s, h = bmp.height * s;
+      c.getContext('2d').drawImage(bmp, (W - w) / 2, 0, w, h); // keep the top of the screenshot
+      const blob = await new Promise(r => c.toBlob(r, 'image/webp', 0.82)) || await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+      const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+      const name = `shots/${p.id}-${Date.now().toString(36)}.${ext}`;
+      const old = pendingImages.get(`${CFG.dir}/${p.image}`); if (old) { URL.revokeObjectURL(old.url); pendingImages.delete(`${CFG.dir}/${p.image}`); }
+      pendingImages.set(`${CFG.dir}/${name}`, { blob, url: URL.createObjectURL(blob) });
+      p.image = name; renderAll(); toast('Screenshot ready. Publish to upload it.');
+    } catch (e) { toast('Could not read that image: ' + e.message); }
+  }
+
+  $('#addBtn').onclick = () => {
+    const id = uniqueId('new-tile');
+    data.projects.unshift({ id, title: 'New tile', summary: '', url: 'https://', image: '', category: filter === 'off' ? data.categories[0]?.id : data.categories[0]?.id, tags: [], added: new Date().toISOString().slice(0, 10), color: '#2B4BF2', featured: false, visible: true });
+    selected = id; view = 'tile'; if (filter === 'off') { filter = 'all'; document.querySelectorAll('.tabs [data-f]').forEach(x => x.setAttribute('aria-selected', x.dataset.f === 'all')); }
+    renderAll(); $('#e-title').select(); $('#e-title').focus();
+  };
+
+  /* ---------- Site text & categories ---------- */
+  $('#siteBtn').onclick = () => { view = 'site'; renderAll(); };
+  function renderSite(){
+    const s = data.site = data.site || {};
+    const used = id => data.projects.filter(p => p.category === id).length;
+    $('#editorPanel').innerHTML = `
+      <header><h2>Site text &amp; categories</h2></header>
+      <div class="editor">
+        <div class="fields">
+          <div class="f"><label for="s-title">Site name</label><input id="s-title" value="${esc(s.title)}"></div>
+          <div class="f"><label for="s-github">GitHub link</label><input id="s-github" type="url" value="${esc(s.github)}"></div>
+          <div class="f full"><label for="s-tagline">Tagline</label><input id="s-tagline" value="${esc(s.tagline)}"><small>Small line above the big heading.</small></div>
+          <div class="f full"><label for="s-intro">Intro</label><textarea id="s-intro">${esc(s.intro)}</textarea></div>
+        </div>
+        <div class="f"><label>Categories</label><small>These are the filter chips. The id is what tiles store; a category with no shown tiles doesn't appear.</small></div>
+        <div class="cats" id="cats">${data.categories.map((c, i) => `
+          <div class="cat"><input class="id" data-ci="${i}" data-k="id" value="${esc(c.id)}" aria-label="Category id" spellcheck="false"><input class="lb" data-ci="${i}" data-k="label" value="${esc(c.label)}" aria-label="Category name">
+          <span class="pill">${used(c.id)} tiles</span>
+          <button class="ib" data-cup="${i}" ${i ? '' : 'disabled'} aria-label="Move up">${ICON.up}</button>
+          <button class="ib" data-cdel="${i}" ${used(c.id) ? `disabled title="Move its tiles to another category first"` : ''} aria-label="Delete category">×</button></div>`).join('')}
+        </div>
+        <div><button class="btn sm" id="addCat" type="button">Add category</button></div>
+      </div>`;
+    ['title', 'tagline', 'intro', 'github'].forEach(k => $('#s-' + k).addEventListener('input', e => { s[k] = e.target.value; touch(); }));
+    const cats = $('#cats');
+    cats.addEventListener('change', e => {
+      const t = e.target.closest('[data-ci]'); if (!t) return; const c = data.categories[+t.dataset.ci];
+      if (t.dataset.k === 'id') { const v = slug(t.value); if (!v || data.categories.some(x => x !== c && x.id === v)) { toast('Category ids must be unique and not empty.'); t.value = c.id; return; } data.projects.forEach(p => { if (p.category === c.id) p.category = v; }); c.id = v; }
+      else c.label = t.value;
+      renderAll();
+    });
+    cats.addEventListener('click', e => {
+      const up = e.target.closest('[data-cup]'), del = e.target.closest('[data-cdel]');
+      if (up) { const i = +up.dataset.cup; data.categories.splice(i - 1, 0, ...data.categories.splice(i, 1)); renderAll(); }
+      if (del) { data.categories.splice(+del.dataset.cdel, 1); renderAll(); }
+    });
+    $('#addCat').onclick = () => { data.categories.push({ id: uniqueCat('new'), label: 'New category' }); renderAll(); };
+  }
+  const uniqueCat = b => { let i = 1, id = b; while (data.categories.some(c => c.id === id)) id = b + '-' + ++i; return id; };
+
+  /* ---------- Confirm dialog ---------- */
+  function ask(title, body, yes){
+    return new Promise(res => {
+      const d = $('#confirmDlg'); $('#cTitle').textContent = title; $('#cBody').textContent = body; $('#cYes').textContent = yes || 'OK';
+      const done = v => { d.close(); res(v); };
+      $('#cYes').onclick = () => done(true); $('#cNo').onclick = () => done(false); d.oncancel = () => res(false);
+      d.showModal();
+    });
+  }
+
+  /* ---------- Connect ---------- */
+  const cd = $('#connectDlg');
+  $('#connectBtn').onclick = () => { $('#tokenIn').value = ''; $('#tokenErr').textContent = ''; $('#forgetBtn').hidden = !token; cd.showModal(); $('#tokenIn').focus(); };
+  $('#cancelConnect').onclick = () => cd.close();
+  $('#forgetBtn').onclick = () => { token = null; ls.set('token', null); ss.set('token', null); cd.close(); setConn('', 'Not connected'); $('#connectBtn').textContent = 'Connect GitHub'; toast('Disconnected. Your token was removed from this browser.'); };
+  $('#connectForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const t = $('#tokenIn').value.trim(); if (!t) { $('#tokenErr').textContent = 'Paste your token first.'; return; }
+    $('#doConnect').disabled = true; $('#doConnect').textContent = 'Checking…';
+    const prev = token; token = t;
+    try {
+      const r = await gh('');
+      if (!r.permissions?.push) throw new Error('This token can read the repo but not change it. Give it Contents: Read and write.');
+      ls.set('token', null); ss.set('token', null); ($('#remember').checked ? ls : ss).set('token', t);
+      cd.close(); await connected(r);
+      if (!changed()) await load();
+      else await syncSha();
+    } catch (err) {
+      token = prev; $('#tokenErr').textContent = err.status === 401 ? 'GitHub refused this token. Check you copied all of it and that it hasn\'t expired.' : err.status === 404 ? 'This token can\'t see mathquizSGPrimary. Add that repo under Repository access.' : err.message;
+    } finally { $('#doConnect').disabled = false; $('#doConnect').textContent = 'Connect'; }
+  });
+  // Connected while holding unsaved edits: learn the file's version so Publish can spot edits made elsewhere.
+  async function syncSha(){
+    try {
+      const f = await gh(`/contents/${CFG.dir}/projects.json?ref=${encodeURIComponent(CFG.branch)}`);
+      if (JSON.stringify(JSON.parse(b64ToText(f.content))) === original) fileSha = f.sha;
+      else { fileSha = 'stale'; toast('projects.json changed on GitHub since this page loaded. Publishing will ask you to reload first.'); }
+    } catch {}
+  }
+  async function connected(r){
+    setConn('ok', 'Connected'); $('#connectBtn').textContent = 'GitHub key';
+  }
+
+  /* ---------- Publish ---------- */
+  const sd = $('#saveDlg');
+  const serialize = () => JSON.stringify(data, null, 2) + '\n';
+  $('#saveBtn').onclick = () => {
+    const bad = data.projects.map(p => [p, problems(p)]).filter(([, e]) => Object.keys(e).length);
+    if (bad.length) { const [p, e] = bad[0]; selected = p.id; view = 'tile'; renderAll(); toast(`Fix "${p.title || p.id}" first: ${Object.values(e)[0]}`); return; }
+    const list = changeList();
+    $('#saveSummary').innerHTML = token ? `These changes go live on the page in about two minutes.` : `You're not connected to GitHub, so you can download the file instead and upload it to <code>${CFG.dir}/</code> yourself. Connect GitHub to publish in one click.`;
+    $('#diffList').innerHTML = list.map(([k, v]) => `<div><i>${esc(k)}</i><span>${esc(v)}</span></div>`).join('');
+    $('#msgIn').value = list.length === 1 ? `Home page: ${list[0][0].toLowerCase()} ${list[0][1]}` : `Home page: update ${list.length} tiles`;
+    $('#confirmSave').hidden = !token;
+    sd.showModal();
+  };
+  $('#cancelSave').onclick = () => sd.close();
+  $('#dlJson').onclick = () => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([serialize()], { type: 'application/json' })); a.download = 'projects.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    if (pendingImages.size) toast('New screenshots are only uploaded when you publish through GitHub.');
+  };
+  $('#confirmSave').onclick = async () => {
+    const btn = $('#confirmSave'); btn.disabled = true; btn.textContent = 'Publishing…';
+    try {
+      const ref = await gh(`/git/ref/heads/${CFG.branch}`);
+      const head = await gh(`/git/commits/${ref.object.sha}`);
+      if (fileSha) {
+        const cur = await gh(`/contents/${CFG.dir}/projects.json?ref=${encodeURIComponent(CFG.branch)}`);
+        if (cur.sha !== fileSha) throw Object.assign(new Error('projects.json changed on GitHub since you opened this page. Download your version to keep it, then reload to start from the latest.'), { conflict: true });
+      }
+      const tree = [{ path: `${CFG.dir}/projects.json`, mode: '100644', type: 'blob', content: serialize() }];
+      for (const [path, { blob }] of pendingImages) {
+        const b = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: await blobToB64(blob), encoding: 'base64' }) });
+        tree.push({ path, mode: '100644', type: 'blob', sha: b.sha });
+      }
+      const t = await gh('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: head.tree.sha, tree }) });
+      const c = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: $('#msgIn').value.trim() || 'Update home page tiles', tree: t.sha, parents: [head.sha] }) });
+      await gh(`/git/refs/heads/${CFG.branch}`, { method: 'PATCH', body: JSON.stringify({ sha: c.sha }) });
+      const f = await gh(`/contents/${CFG.dir}/projects.json?ref=${c.sha}`);
+      fileSha = f.sha; original = JSON.stringify(data); for (const [k, v] of pendingImages) publishedImages.set(k, v.url); pendingImages.clear(); ls.set('draft', null);
+      sd.close(); renderAll();
+      showBanner(c.sha);
+      toast('Published. The page updates in about two minutes.');
+    } catch (e) {
+      toast(e.status === 401 ? 'GitHub refused your token. Reconnect and try again.' : 'Publish failed: ' + e.message);
+      if (e.conflict) $('#saveSummary').innerHTML = `<b style="color:var(--bad)">${esc(e.message)}</b>`;
+    } finally { btn.disabled = false; btn.textContent = 'Publish'; }
+  };
+  function showBanner(sha){
+    const b = $('#banner'); b.hidden = false;
+    b.innerHTML = `<p><b>Published.</b> GitHub is rebuilding the site now; the live page shows your changes in about two minutes. Reload it if you still see the old version.</p>
+      <a class="btn sm" href="https://github.com/${CFG.owner}/${CFG.repo}/actions" target="_blank" rel="noopener">Watch the build ↗</a>
+      <a class="btn sm" href="./" target="_blank" rel="noopener">Open page ↗</a>
+      <button class="btn sm" id="bClose">Dismiss</button>`;
+    $('#bClose').onclick = () => b.hidden = true;
+  }
+
+  document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (!$('#saveBtn').disabled) $('#saveBtn').click(); } });
+
+  /* ---------- Start ---------- */
+  (async () => {
+    if (token) { try { const r = await gh(''); if (r.permissions?.push) await connected(r); else setConn('bad', 'Read-only token'); } catch (e) { setConn('bad', e.status === 401 ? 'Token expired' : 'GitHub unreachable'); if (e.status === 401) token = null; } }
+    await load();
+  })();
+})();
+</script>
+</body>
+</html>
