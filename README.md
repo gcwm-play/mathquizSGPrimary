@@ -81,6 +81,15 @@ A running game at `dinorace.html` (`/mathquizSGPrimary/dinorace.html` on Pages) 
 
 Source: `src/dinodash/` (`engine.js` rules and computer players, `render.js` canvas drawing, `sprites.js` dino sprites and skin recolouring, `input.js` keyboard / controller / touch, `sfx.js` sounds). The sprite strips in `src/dinodash/sprites/` are made from the magenta-background sheets in `sprites/source/` with `python3 src/dinodash/sprites/slice.py` (needs Pillow and numpy), which removes the background and ground line, lines up the 4 frames on the feet and snout, and checks the result.
 
+## Lanternmaze: Duel in the Dark (2-player maze race)
+
+A maze race at `public/lanternmaze.html` (`/mathquizSGPrimary/lanternmaze.html` on Pages), played split-screen with Vespera and Kaida. It is one self-contained HTML file with the sprites embedded, so Vite copies it as-is and nothing needs building.
+
+- Each heroine gets her own random maze. The two mazes are matched so the shortest way out has the same length, with the same number of dead ends and the same number of junctions on the route. If no match turns up within about 2 seconds, the second maze is a mirrored copy of the first.
+- You only see the 3×3 tiles your lantern lights: either around you or ahead of you. "Faint footprints" optionally keeps places you have seen dimly visible.
+- Modes: Player vs AI (Easy / Normal / Hard; the AI explores using only what its own lantern shows) or Player vs Player on one device. Player 1 uses W A S D and Player 2 the arrow keys; on touch screens each player gets an on-screen pad.
+- The end screen shows both full maps with each player's path drawn over the best route.
+
 ## GCWM Play home page
 
 A home page listing every game and app across gcwm-play's repos, at `public/home/` (`/mathquizSGPrimary/home/` on Pages). It reads everything from `public/home/projects.json`, so adding, hiding or reordering a game is a one-file edit. Tiles can be managed in the browser at `home/admin.html` (publishes with a GitHub token kept in the browser). See `public/home/HOW-TO-UPDATE.md`.
