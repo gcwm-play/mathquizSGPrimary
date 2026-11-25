@@ -126,6 +126,20 @@
       "visible": true
     },
     {
+      "id": "lanternmaze",
+      "title": "Lanternmaze: Duel in the Dark",
+      "summary": "A maze race where you only see what your lantern lights. Vespera and Kaida each get their own maze, matched for route length, dead ends and junctions. Play against the AI or a friend on one device.",
+      "url": "https://gcwm-play.github.io/mathquizSGPrimary/lanternmaze.html",
+      "image": "shots/lanternmaze.webp",
+      "category": "arcade",
+      "tags": ["2 players", "vs AI", "Phone + desktop"],
+      "source": "https://github.com/gcwm-play/mathquizSGPrimary",
+      "added": "2026-11-25",
+      "color": "#E3A443",
+      "featured": false,
+      "visible": false
+    },
+    {
       "id": "dice-grid",
       "title": "Dice Grid",
       "summary": "Chess where every piece is a die. Pieces grow as they move and can only capture lower numbers. Play the computer, tweak the rules and run balance tests.",
