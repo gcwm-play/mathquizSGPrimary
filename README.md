@@ -83,7 +83,7 @@ Source: `src/dinodash/` (`engine.js` rules and computer players, `render.js` can
 
 ## Lanternmaze: Duel in the Dark (2-player maze race)
 
-A maze race at `public/lanternmaze.html` (`/mathquizSGPrimary/lanternmaze.html` on Pages), played split-screen with Vespera and Kaida. It is one self-contained HTML file with the sprites embedded, so Vite copies it as-is and nothing needs building.
+A maze race at `public/lanternmaze.html` (`/mathquizSGPrimary/lanternmaze.html` on Pages), played split-screen with Vespera and Kaida. It's drawn in a pop-art comic style: halftone dots for the darkness, black ink outlines, comic-panel split screens and "BONK!" / "DEAD END!" / "ESCAPED!" bursts. It is one self-contained HTML file with the sprites embedded, so Vite copies it as-is and nothing needs building.
 
 - Each heroine gets her own random maze. The two mazes are matched so the shortest way out has the same length, with the same number of dead ends and the same number of junctions on the route. If no match turns up within about 2 seconds, the second maze is a mirrored copy of the first.
 - You only see the 3×3 tiles your lantern lights: either around you or ahead of you. "Faint footprints" optionally keeps places you have seen dimly visible.
